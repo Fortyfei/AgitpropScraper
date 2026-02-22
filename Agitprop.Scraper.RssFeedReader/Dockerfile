@@ -11,8 +11,10 @@ RUN dotnet restore "Agitprop.Scraper.RssFeedReader.csproj"
 # publish (restore already done)
 RUN dotnet publish "Agitprop.Scraper.RssFeedReader.csproj" -c Release -o /app/publish --no-restore
 
-# runtime image
-FROM mcr.microsoft.com/dotnet/runtime:10.0 AS runtime
+# runtime image – use the ASP.NET runtime because the published app depends
+# on Microsoft.AspNetCore.App. The generic "runtime" image only includes
+# Microsoft.NETCore.App and will fail with "No frameworks were found.".
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 COPY --from=build /app/publish .
 
