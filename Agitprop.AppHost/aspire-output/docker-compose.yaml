@@ -88,7 +88,7 @@ services:
         condition: "service_started"
       messaging:
         condition: "service_started"
-      nlpservice:
+      nlp-service:
         condition: "service_started"
     networks:
       - "aspire"
@@ -152,14 +152,14 @@ services:
     image: "${ANGULAR_IMAGE}"
     environment:
       NODE_ENV: "production"
-      BACKEND_HTTP: "http://backend:8080"
-      services__backend__http__0: "http://backend:8080"
-      BACKEND_HTTPS: "https://backend:8080"
+      BACKEND_HTTP: "http://backend-api:8080"
+      services__backend__http__0: "http://backend-api:8080"
+      BACKEND_HTTPS: "https://backend-api:8080"
       OTEL_EXPORTER_OTLP_ENDPOINT: "http://Agitprop-dashboard:18889"
       OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
       OTEL_SERVICE_NAME: "angular"
     depends_on:
-      backend:
+      backend-api:
         condition: "service_started"
     networks:
       - "aspire"
