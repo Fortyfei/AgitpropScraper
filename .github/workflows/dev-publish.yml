@@ -70,7 +70,7 @@ jobs:
               --progress=plain \
               --push \
               --set "*.platform=linux/amd64,linux/arm64" \
-              --set "${svc}.tags=$IMAGE:$TAG,$IMAGE:latest"
+              --set "${svc}.tags=[\"$IMAGE:$TAG\",\"$IMAGE:latest\"]"
           done
 
       - name: Set retention & visibility (90 days)
