@@ -60,7 +60,7 @@ jobs:
       - name: Build & push dev images
         run: |
           set -euxo pipefail
-          OWNER=${{ github.repository_owner }}
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           IFS=',' read -r -a svcs <<< "${{ steps.prep.outputs.services }}"
           TAG=${{ steps.prep.outputs.tag }}
           for svc in "${svcs[@]}"; do
