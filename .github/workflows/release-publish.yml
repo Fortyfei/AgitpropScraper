@@ -75,7 +75,7 @@ jobs:
               --progress=plain \
               --push \
               --set "*.platform=linux/amd64,linux/arm64" \
-              --set "${svc}.tags=$IMAGE:$VERSION,$IMAGE:latest"
+              --set "${svc}.tags=[\"$IMAGE:$VERSION\",\"$IMAGE:latest\"]"
           done
 
       - name: Create git tag
