@@ -1,0 +1,94 @@
+name: Dev Docker images
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to build from'
+        required: true
+        default: main
+      tag-suffix:
+        description: 'Tag suffix (e.g. dev)'
+        required: false
+        default: dev
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.branch }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute branch tag and service list
+        id: prep
+        run: |
+          set -euxo pipefail
+          BRANCH="${{ github.event.inputs.branch }}"
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          BRANCH_SLUG=$(echo "$BRANCH" | tr '[:upper:]' '[:lower:]' | tr '/_. ' '-')
+          SUFFIX="${{ github.event.inputs.tag-suffix }}"
+          TAG="$BRANCH_SLUG-$SHORT_SHA-$SUFFIX"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+          services=()
+          while IFS= read -r line; do
+            svc=$(echo "$line" | awk '{print $2}' | tr -d '"')
+            services+=("$svc")
+          done < <(grep '^target ' docker-bake.hcl)
+          echo "services=$(printf '%s,' "${services[@]}" | sed 's/,$//')" >> $GITHUB_OUTPUT
+
+      - name: Build & push dev images
+        run: |
+          set -euxo pipefail
+          OWNER=${{ github.repository_owner }}
+          IFS=',' read -r -a svcs <<< "${{ steps.prep.outputs.services }}"
+          TAG=${{ steps.prep.outputs.tag }}
+          for svc in "${svcs[@]}"; do
+            IMAGE="ghcr.io/$OWNER/${svc}-dev"
+            echo "Building $IMAGE:$TAG"
+            docker buildx bake "$svc" \
+              --progress=plain \
+              --push \
+              --set "*.platform=linux/amd64,linux/arm64" \
+              --set "${svc}.tags=$IMAGE:$TAG,$IMAGE:latest"
+          done
+
+      - name: Set retention & visibility (90 days)
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euxo pipefail
+          IFS=',' read -r -a svcs <<< "${{ steps.prep.outputs.services }}"
+          for svc in "${svcs[@]}"; do
+            pkg="${svc}-dev"
+            # try both user and org endpoints; ignore errors
+            gh api --method PATCH "/users/$OWNER/packages/container/$pkg" -f visibility=private || \
+              gh api --method PATCH "/orgs/$OWNER/packages/container/$pkg" -f visibility=private || true
+            # update most recent version retention
+            ver=$(gh api "/users/$OWNER/packages/container/$pkg/versions" --jq '.[0].id' || \
+                    gh api "/orgs/$OWNER/packages/container/$pkg/versions" --jq '.[0].id' || true)
+            if [ -n "$ver" ]; then
+              gh api --method PATCH "/users/$OWNER/packages/container/$pkg/versions/$ver" -f retention_days=90 || \
+                gh api --method PATCH "/orgs/$OWNER/packages/container/$pkg/versions/$ver" -f retention_days=90 || true
+            fi
+          done

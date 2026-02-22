@@ -1,0 +1,85 @@
+name: Release Docker images
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (semantic, e.g. 1.2.3 or v1.2.3)'
+        required: true
+
+permissions:
+  contents: write   # need write to create tag
+  packages: write   # push to GHCR
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git for tagging
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute tags and services
+        id: prep
+        run: |
+          set -euxo pipefail
+          VERSION="${{ github.event.inputs.version }}"
+          # ensure basic semver (major.minor.patch) and a leading 'v'
+          if [[ ! "$VERSION" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            echo "Error: version '$VERSION' is not semantic (x.y.z)" >&2
+            exit 1
+          fi
+          if [[ "$VERSION" != v* ]]; then
+            VERSION="v$VERSION"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          # discover service slugs from bake file (group list)
+          services=()
+          while IFS= read -r line; do
+            # lines like: target "name" {
+            svc=$(echo "$line" | awk '{print $2}' | tr -d '"')
+            services+=("$svc")
+          done < <(grep '^target ' docker-bake.hcl)
+          echo "services=$(printf '%s,' "${services[@]}" | sed 's/,$//')" >> $GITHUB_OUTPUT
+
+      - name: Build & push images
+        run: |
+          set -euxo pipefail
+          OWNER=${{ github.repository_owner }}
+          VERSION=${{ steps.prep.outputs.version }}
+          IFS=',' read -r -a svcs <<< "${{ steps.prep.outputs.services }}"
+          for svc in "${svcs[@]}"; do
+            IMAGE="ghcr.io/$OWNER/$svc"
+            echo "Building $IMAGE:$VERSION and :latest"
+            docker buildx bake "$svc" \
+              --progress=plain \
+              --push \
+              --set "*.platform=linux/amd64,linux/arm64" \
+              --set "${svc}.tags=$IMAGE:$VERSION,$IMAGE:latest"
+          done
+
+      - name: Create git tag
+        run: |
+          VERSION=${{ steps.prep.outputs.version }}
+          git tag -a "$VERSION" -m "release $VERSION"
+          git push origin "$VERSION"
