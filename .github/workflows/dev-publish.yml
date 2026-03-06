@@ -7,10 +7,6 @@ on:
         description: 'Branch to build from'
         required: true
         default: main
-      tag-suffix:
-        description: 'Tag suffix (e.g. dev)'
-        required: false
-        default: dev
 
 permissions:
   contents: read
@@ -46,8 +42,7 @@ jobs:
           BRANCH="${{ github.event.inputs.branch }}"
           SHORT_SHA=$(git rev-parse --short HEAD)
           BRANCH_SLUG=$(echo "$BRANCH" | tr '[:upper:]' '[:lower:]' | tr '/_. ' '-')
-          SUFFIX="${{ github.event.inputs.tag-suffix }}"
-          TAG="$BRANCH_SLUG-$SHORT_SHA-$SUFFIX"
+          TAG="$BRANCH_SLUG-$SHORT_SHA-dev"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
           services=()
