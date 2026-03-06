@@ -40,11 +40,6 @@ public static class Extensions
             conf.Retry.UseJitter = true;
             conf.Retry.BackoffType = Polly.DelayBackoffType.Exponential;
             conf.Retry.Delay = TimeSpan.FromSeconds(15);
-
-            // conf.CircuitBreaker.BreakDuration = TimeSpan.FromSeconds(90);
-            // conf.CircuitBreaker.SamplingDuration = TimeSpan.FromMinutes(10);
-
-            conf.AttemptTimeout.Timeout = TimeSpan.FromSeconds(120);
         });
 
         builder.AddNewsfeedDB();
