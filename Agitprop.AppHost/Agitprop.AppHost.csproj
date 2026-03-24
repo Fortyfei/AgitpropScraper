@@ -9,10 +9,6 @@
     <UserSecretsId>83bec033-4b24-4cec-b98d-382454e72e86</UserSecretsId>
   </PropertyGroup>
 
-  <PropertyGroup>
-    <NoWarn>$(NoWarn);ASPIRECOMPUTE003</NoWarn>
-</PropertyGroup>
-
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.AppHost" />
     <PackageReference Include="Aspire.Hosting.Docker" />
