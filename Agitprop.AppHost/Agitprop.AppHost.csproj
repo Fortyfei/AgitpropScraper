@@ -8,6 +8,11 @@
     <IsAspireHost>true</IsAspireHost>
     <UserSecretsId>83bec033-4b24-4cec-b98d-382454e72e86</UserSecretsId>
   </PropertyGroup>
+
+  <PropertyGroup>
+    <NoWarn>$(NoWarn);ASPIRECOMPUTE003</NoWarn>
+</PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.AppHost" />
     <PackageReference Include="Aspire.Hosting.Docker" />
@@ -23,6 +28,10 @@
     <ProjectReference Include="..\Agitprop.Scraper.RssFeedReader\Agitprop.Scraper.RssFeedReader.csproj" />
     <ProjectReference Include="..\Agitprop.Web.Api\Agitprop.Web.Api.csproj" />
     <ProjectReference Include="..\Agitprop.Infrastructure.Postgres\Agitprop.Infrastructure.Postgres.csproj" IsAspireProjectResource="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="aspire-output\" />
   </ItemGroup>
   
   <Target Name="RestoreNpm" BeforeTargets="Build" Condition=" '$(DesignTimeBuild)' != 'true' ">
