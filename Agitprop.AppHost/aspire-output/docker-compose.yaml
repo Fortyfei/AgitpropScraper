@@ -2,7 +2,7 @@ services:
   agitprop-dashboard:
     image: "mcr.microsoft.com/dotnet/nightly/aspire-dashboard:latest"
     ports:
-      - "18888"
+      - "18888:18888"
     expose:
       - "18889"
       - "18890"
@@ -17,9 +17,10 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: "http://Agitprop-dashboard:18889"
       OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
       OTEL_SERVICE_NAME: "messaging"
+    ports:
+      - "15672:15672"
     expose:
       - "5672"
-      - "15672"
     networks:
       - "aspire"
   postgres:
@@ -41,8 +42,14 @@ services:
         read_only: false
     networks:
       - "aspire"
-  nlp-service:
+  nlpservice:
     image: "${NLPSERVICE_IMAGE}"
+    command:
+      - "app:app"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8000"
     environment:
       OTEL_TRACES_EXPORTER: "otlp"
       OTEL_LOGS_EXPORTER: "otlp"
@@ -53,7 +60,7 @@ services:
       LOG_LEVEL: "debug"
       OTEL_EXPORTER_OTLP_ENDPOINT: "http://Agitprop-dashboard:18889"
       OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
-      OTEL_SERVICE_NAME: "nlpService"
+      OTEL_SERVICE_NAME: "nlpservice"
     expose:
       - "8000"
     networks:
@@ -61,8 +68,6 @@ services:
   consumer:
     image: "${CONSUMER_IMAGE}"
     environment:
-      OTEL_DOTNET_EXPERIMENTAL_OTLP_EMIT_EXCEPTION_LOG_ATTRIBUTES: "true"
-      OTEL_DOTNET_EXPERIMENTAL_OTLP_EMIT_EVENT_LOG_ATTRIBUTES: "true"
       OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY: "in_memory"
       ConnectionStrings__newsfeed: "Host=postgres;Port=5432;Username=postgres;Password=${POSTGRES_PASSWORD};Database=newsfeed"
       NEWSFEED_HOST: "postgres"
@@ -78,8 +83,8 @@ services:
       MESSAGING_USERNAME: "guest"
       MESSAGING_PASSWORD: "${MESSAGING_PASSWORD}"
       MESSAGING_URI: "amqp://guest:${MESSAGING_PASSWORD}@messaging:5672"
-      NLPSERVICE_HTTP: "http://nlpService:8000"
-      services__nlpService__http__0: "http://nlpService:8000"
+      NLPSERVICE_HTTP: "http://nlpservice:8000"
+      services__nlpservice__http__0: "http://nlpservice:8000"
       OTEL_EXPORTER_OTLP_ENDPOINT: "http://Agitprop-dashboard:18889"
       OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
       OTEL_SERVICE_NAME: "consumer"
@@ -88,15 +93,13 @@ services:
         condition: "service_started"
       messaging:
         condition: "service_started"
-      nlp-service:
+      nlpservice:
         condition: "service_started"
     networks:
       - "aspire"
-  rss-reader:
+  rssReader:
     image: "${RSS_FEED_READER_IMAGE}"
     environment:
-      OTEL_DOTNET_EXPERIMENTAL_OTLP_EMIT_EXCEPTION_LOG_ATTRIBUTES: "true"
-      OTEL_DOTNET_EXPERIMENTAL_OTLP_EMIT_EVENT_LOG_ATTRIBUTES: "true"
       OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY: "in_memory"
       ConnectionStrings__messaging: "amqp://guest:${MESSAGING_PASSWORD}@messaging:5672"
       MESSAGING_HOST: "messaging"
@@ -114,14 +117,12 @@ services:
         condition: "service_started"
     networks:
       - "aspire"
-  backend-api:
+  backend:
     image: "${BACKEND_IMAGE}"
     environment:
-      OTEL_DOTNET_EXPERIMENTAL_OTLP_EMIT_EXCEPTION_LOG_ATTRIBUTES: "true"
-      OTEL_DOTNET_EXPERIMENTAL_OTLP_EMIT_EVENT_LOG_ATTRIBUTES: "true"
       OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY: "in_memory"
       ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
-      HTTP_PORTS: "8080"
+      HTTP_PORTS: "${BACKEND_PORT}"
       ConnectionStrings__newsfeed: "Host=postgres;Port=5432;Username=postgres;Password=${POSTGRES_PASSWORD};Database=newsfeed"
       NEWSFEED_HOST: "postgres"
       NEWSFEED_PORT: "5432"
@@ -140,26 +141,11 @@ services:
       OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
       OTEL_SERVICE_NAME: "backend"
     expose:
-      - "8080"
+      - "${BACKEND_PORT}"
     depends_on:
       postgres:
         condition: "service_started"
       messaging:
-        condition: "service_started"
-    networks:
-      - "aspire"
-  frontend-angular:
-    image: "${ANGULAR_IMAGE}"
-    environment:
-      NODE_ENV: "production"
-      BACKEND_HTTP: "http://backend-api:8080"
-      services__backend__http__0: "http://backend-api:8080"
-      BACKEND_HTTPS: "https://backend-api:8080"
-      OTEL_EXPORTER_OTLP_ENDPOINT: "http://Agitprop-dashboard:18889"
-      OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
-      OTEL_SERVICE_NAME: "angular"
-    depends_on:
-      backend-api:
         condition: "service_started"
     networks:
       - "aspire"
