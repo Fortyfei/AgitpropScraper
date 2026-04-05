@@ -24,6 +24,7 @@ internal class Program
                               .WithLifetime(ContainerLifetime.Persistent)
                               .WithOtlpExporter()
                               .PublishAsDockerComposeService((resource, service) => { service.Name = "postgres"; });
+
         var newsfeedDb = postgres.AddDatabase("newsfeed");
 
         var nlpService = builder.AddUvicornApp("nlpservice", "../Agitprop.Scraper.NLPService", "app:app")
