@@ -1,14 +1,11 @@
-﻿using System.Net;
-
-using Agitprop.Core.Interfaces;
+﻿using Agitprop.Core.Interfaces;
 using Agitprop.Infrastructure.PageLoader;
 using Agitprop.Infrastructure.PageRequester;
 using Agitprop.Infrastructure.ProxyProviders;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-
-using Polly;
+using Microsoft.Extensions.Logging;
 
 namespace Agitprop.Infrastructure.Puppeteer;
 
@@ -31,19 +28,31 @@ public static class Extensions
         builder.Services.AddTransient<ICookiesStorage, CookieStorage>();
         builder.Services.AddTransient<IStaticPageLoader, HttpStaticPageLoader>();
 
-        builder.Services.AddHttpClient<ProxyScrapeProxyProvider>();
-        builder.Services.AddSingleton<IProxyProvider, ProxyScrapeProxyProvider>();
+        if (useProxies)
+        {
+            builder.Services.AddHttpClient<ProxyScrapeProxyProvider>();
+            builder.Services.AddSingleton<IProxyProvider, ProxyScrapeProxyProvider>();
 
-        builder.Services.AddHttpClient<RedScrapeProxyProvider>();
-        builder.Services.AddSingleton<IProxyProvider, RedScrapeProxyProvider>();
+            builder.Services.AddHttpClient<RedScrapeProxyProvider>();
+            builder.Services.AddSingleton<IProxyProvider, RedScrapeProxyProvider>();
 
-        builder.Services.AddSingleton<IProxyPool, ProxyPool>();
-        builder.Services.AddSingleton<RotatingHttpClientPool>();
-        builder.Services.AddTransient<IPageRequester, RotatingProxyPageRequester>();
+            builder.Services.AddSingleton<IProxyPool, ProxyPool>();
+            builder.Services.AddSingleton<RotatingHttpClientPool>();
+            builder.Services.AddTransient<IPageRequester, RotatingProxyPageRequester>();
 
+            builder.Services.AddTransient<IBrowserPageLoader, PuppeteerPageLoaderWithProxies>();
+        }
+        else
+        {
+            builder.Services.AddTransient<IPageRequester, RespectfulPageRequester>();
+            builder.Services.AddTransient<IBrowserPageLoader, PuppeteerPageLoader>();
+        }
 
-        //TODO: Puppeteer not working w/ proxies
-        builder.Services.AddTransient<IBrowserPageLoader, PuppeteerPageLoader>();
+        builder.Services.AddSingleton<IPageTransport>(sp =>
+            new PageTransport(
+                sp.GetRequiredService<IStaticPageLoader>(),
+                sp.GetRequiredService<IBrowserPageLoader>(),
+                sp.GetRequiredService<ILogger<PageTransport>>()));
 
         return builder;
     }

@@ -38,7 +38,7 @@ internal class PuppeteerPageLoaderWithProxies : BrowserPageLoader, IBrowserPageL
 
     public async Task<string> Load(string url, List<PageAction>? pageActions = null, bool headless = true)
     {
-        using var trace = ActivitySource.StartActivity("Load", ActivityKind.Internal);
+        using var trace = ActivitySource.StartActivity("LoadPageWithProxyBrowser", ActivityKind.Internal);
         trace?.SetTag("url", url);
         Logger?.LogInformation("Starting page load: {url}", url);
 

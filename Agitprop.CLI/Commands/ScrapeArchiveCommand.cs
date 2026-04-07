@@ -1,6 +1,7 @@
 using System.CommandLine;
 using Agitprop.Core;
 using Agitprop.Core.Enums;
+using Agitprop.Core.Interfaces;
 using Agitprop.Infrastructure;
 using Agitprop.Infrastructure.PageLoader;
 using Agitprop.Infrastructure.PageRequester;
@@ -9,6 +10,7 @@ using Agitprop.Sinks.Newsfeed;
 using System.Text.Json;
 using System.Text;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using RabbitMQ.Client;
 using System.Net;
 
@@ -179,8 +181,10 @@ public static class ScrapeArchiveCommand
         var configuration = configBuilder.Build();
 
         var spider = new Spider(
-            new PuppeteerPageLoader(cookiesStorage),
-            new HttpStaticPageLoader(new PageRequester(new CookieContainer()), cookiesStorage),
+            new PageTransport(
+                new HttpStaticPageLoader(new RespectfulPageRequester(new CookieContainer()), cookiesStorage),
+                new PuppeteerPageLoader(cookiesStorage),
+                NullLogger<PageTransport>.Instance),
             configuration);
 
         var job = CreateArchiveJob(date, site);

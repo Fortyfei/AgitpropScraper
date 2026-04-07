@@ -1,6 +1,7 @@
 using System.CommandLine;
 using Agitprop.Core;
 using Agitprop.Core.Enums;
+using Agitprop.Core.Interfaces;
 using Agitprop.Infrastructure;
 using Agitprop.Infrastructure.PageLoader;
 using Agitprop.Infrastructure.PageRequester;
@@ -9,6 +10,7 @@ using Agitprop.Sinks.Newsfeed;
 using System.Text.Json;
 using System.Text;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Agitprop.CLI.Commands;
 
@@ -63,8 +65,10 @@ public static class ScrapeArticleCommand
         var configuration = configBuilder.Build();
 
         var spider = new Spider(
-            new PuppeteerPageLoader(cookiesStorage),
-            new HttpStaticPageLoader(new PageRequester(new System.Net.CookieContainer()), cookiesStorage),
+            new PageTransport(
+                new HttpStaticPageLoader(new RespectfulPageRequester(new System.Net.CookieContainer()), cookiesStorage),
+                new PuppeteerPageLoader(cookiesStorage),
+                NullLogger<PageTransport>.Instance),
             configuration);
 
         var job = new NewsfeedJobDescrpition()

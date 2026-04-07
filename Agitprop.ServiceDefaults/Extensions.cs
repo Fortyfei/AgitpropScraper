@@ -59,26 +59,26 @@ public static class Extensions
         });
 
         builder.Services.AddOpenTelemetry()
-    .WithTracing(builder =>
-    {
-        builder
-            .AddSource("Agitprop.ProxyScrapeProxyProvider")
-            .AddSource("Agitprop.Spider")
-            .AddSource("Agitprop.NewsfeedDB")
-            .AddSource("Agitprop.PageLoader.HttpStaticPageLoader")
-            .AddSource("Agitprop.PageLoader.PuppeteerPageLoader")
-            .AddSource("Agitprop.PageLoader.PuppeteerPageLoaderWithProxies")
-            .AddSource("Agitprop.NewsfeedJobConsumer")
-            .AddSource("Agitprop.NamedEntityRecognizer")
-            .AddSource("Agitprop.RssFeedReader")
-            .AddSource("Agitprop.NewsfeedSink")
-            .AddSource("Agitprop.RotatingHttpClientPool")
-            .AddSource("Agitprop.ProxyPoolService")
-            .AddSource("Agitprop.ProxyProviders.AdvancedNameProxyProvider")
-            .AddSource("Agitprop.Infrastructure.ProxyService")
-            .AddHttpClientInstrumentation()
-            .AddAspNetCoreInstrumentation();
-    });
+        .WithMetrics(builder =>
+        {
+            builder.AddMeter("Agitprop.RespectfulPageRequester")
+                   .AddHttpClientInstrumentation()
+                   .AddAspNetCoreInstrumentation()
+                   .AddProcessInstrumentation();
+        })
+        .WithTracing(builder =>
+        {
+            builder.AddSource("Agitprop.Spider")
+                   .AddSource("Agitprop.PageLoader.HttpStaticPageLoader")
+                   .AddSource("Agitprop.PageLoader.PuppeteerPageLoader")
+                   .AddSource("Agitprop.PageLoader.PuppeteerPageLoaderWithProxies")
+                   .AddSource("Agitprop.PageRequester.RespectfulPageRequester")
+                   .AddSource("Agitprop.RotatingHttpClientPool")
+                   .AddSource("Agitprop.ProxyProviders.ProxyScrapeProxyProvider")
+                   .AddSource("Agitprop.ProxyProviders.RedScrapeProxyProvider")
+                   .AddHttpClientInstrumentation()
+                   .AddAspNetCoreInstrumentation();
+        });
 
         builder.AddOpenTelemetryExporters();
 

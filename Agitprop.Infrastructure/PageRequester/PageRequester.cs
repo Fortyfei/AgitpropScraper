@@ -17,9 +17,9 @@ public class PageRequester : IPageRequester
     /// Initializes a new instance of the <see cref="PageRequester"/> class with a specified cookie container.
     /// </summary>
     /// <param name="cookieContainer">The cookie container to use for managing cookies.</param>
-    public PageRequester(CookieContainer cookieContainer)
-    {
-        CookieContainer = cookieContainer;
+public PageRequester(CookieContainer? cookieContainer = null)
+{
+    CookieContainer = cookieContainer ?? new CookieContainer();
         client = CreateClient();
     }
 

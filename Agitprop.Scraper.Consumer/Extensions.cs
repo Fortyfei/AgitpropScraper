@@ -13,9 +13,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 using OpenTelemetry.Metrics;
-using OpenTelemetry;
-using OpenTelemetry.Instrumentation.Process;
-using OpenTelemetry.Instrumentation.Http;
 
 using Polly;
 using Polly.Retry;
@@ -102,23 +99,7 @@ public static class Extensions
                 .AddAspNetCoreInstrumentation()
                 .AddRuntimeInstrumentation()
                 .AddHttpClientInstrumentation()
-                
-                // Custom spider performance metrics
-                .AddMeter("Agitprop.Spider")
-                
-                // Configure histogram buckets for better analysis
-                .AddView("spider.page.load.time", new ExplicitBucketHistogramConfiguration
-                {
-                    Boundaries = new[] { 100.0, 500.0, 1000.0, 2000.0, 5000.0, 10000.0, 30000.0, 60000.0 }
-                })
-                .AddView("spider.processing.time", new ExplicitBucketHistogramConfiguration
-                {
-                    Boundaries = new[] { 500.0, 1000.0, 2000.0, 5000.0, 10000.0, 20000.0, 60000.0 }
-                }))
-            
-            // Add tracing for complete observability
-            .WithTracing(tracing => tracing
-                .AddSource("Agitprop.Spider"));
+            );
 
         return builder;
     }

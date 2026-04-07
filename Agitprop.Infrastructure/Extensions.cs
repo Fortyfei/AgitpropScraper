@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Configuration;
 using Agitprop.Core.Interfaces;
 using Agitprop.Infrastructure.PageLoader;
+using Agitprop.Infrastructure.PageRequester;
 
 using Microsoft.Extensions.DependencyInjection;
 using Agitprop.Infrastructure.ProxyProviders;
@@ -26,15 +26,28 @@ public static class Extensions
         services.AddTransient<ICookiesStorage, CookieStorage>();
         services.AddTransient<IStaticPageLoader, HttpStaticPageLoader>();
 
-        services.AddHttpClient<IProxyProvider, ProxyScrapeProxyProvider>();
-        services.AddSingleton<IProxyProvider, ProxyScrapeProxyProvider>();
+        if (useProxies)
+        {
+            services.AddHttpClient<IProxyProvider, ProxyScrapeProxyProvider>();
+            services.AddSingleton<IProxyProvider, ProxyScrapeProxyProvider>();
 
-        services.AddHttpClient<IProxyProvider, RedScrapeProxyProvider>();
-        services.AddSingleton<IProxyProvider, RedScrapeProxyProvider>();
+            services.AddHttpClient<IProxyProvider, RedScrapeProxyProvider>();
+            services.AddSingleton<IProxyProvider, RedScrapeProxyProvider>();
 
-        services.AddSingleton<IProxyPool, ProxyPool>();
-        services.AddSingleton<RotatingHttpClientPool>();
-        services.AddTransient<IPageRequester, RotatingProxyPageRequester>();
+            services.AddSingleton<IProxyPool, ProxyPool>();
+            services.AddSingleton<RotatingHttpClientPool>();
+            services.AddTransient<IPageRequester, RotatingProxyPageRequester>();
+        }
+        else
+        {
+            services.AddTransient<IPageRequester, RespectfulPageRequester>();
+        }
+
+        services.AddSingleton<IPageTransport>(sp =>
+            new PageTransport(
+                sp.GetRequiredService<IStaticPageLoader>(),
+                sp.GetService<IBrowserPageLoader>(),
+                sp.GetRequiredService<ILogger<PageTransport>>()));
 
         return services;
     }
