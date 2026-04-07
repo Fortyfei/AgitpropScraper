@@ -6,82 +6,69 @@ internal class Program
     {
         var builder = DistributedApplication.CreateBuilder(args);
 
-        var compose = builder.AddDockerComposeEnvironment("Agitprop");
+        var registry = builder.AddContainerRegistry("ghcr", "ghcr.io", "fortyfei/agitprop");
+
+        var compose = builder.AddDockerComposeEnvironment("Agitprop")
+                             .WithDashboard(d => d.WithHostPort(18888));
 
         var messaging = builder.AddRabbitMQ("messaging")
-                               .WithManagementPlugin(4242)
+                               .WithManagementPlugin(15672)
+                               .WithExternalHttpEndpoints()
                                .WithOtlpExporter()
-                               .PublishAsDockerComposeService((resource, service) =>
-                               {
-                                   service.Name = "messaging";
-                               });
+                               .PublishAsDockerComposeService((resource, service) => { service.Name = "messaging"; });
 
         var postgres = builder.AddPostgres("postgres")
                               .WithDataVolume(isReadOnly: false)
-                              .WithPgAdmin(pgAdmin =>
-                              {
-                                  pgAdmin.WithHostPort(5050);
-                                  pgAdmin.WithImageTag("latest");
-                              })
+                              .WithPgAdmin(pgAdmin => { pgAdmin.WithHostPort(5050); pgAdmin.WithImageTag("latest"); })
+                              .WithExternalHttpEndpoints()
                               .WithLifetime(ContainerLifetime.Persistent)
                               .WithOtlpExporter()
-                              .PublishAsDockerComposeService((resource, service) =>
-                               {
-                                   service.Name = "postgres";
-                               });
+                              .PublishAsDockerComposeService((resource, service) => { service.Name = "postgres"; });
 
         var newsfeedDb = postgres.AddDatabase("newsfeed");
 
-        var nlpService = builder.AddUvicornApp("nlpService", "../Agitprop.Scraper.NLPService", "app:app")
+        var nlpService = builder.AddUvicornApp("nlpservice", "../Agitprop.Scraper.NLPService", "app:app")
                                 .WithHttpHealthCheck("/health")
                                 .WithEnvironment("Reload", "True")
                                 .WithEnvironment("LOG_LEVEL", "debug")
                                 .WithOtlpExporter()
-                                .PublishAsDockerFile()
-                                .PublishAsDockerComposeService((resource, service) =>
-                                {
-                                    service.Name = "nlp-service";
-                                });
+                                .PublishAsDockerComposeService((resource, service) => { service.Name = "nlpservice"; })
+                                .WithContainerRegistry(registry);
 
         var consumer = builder.AddProject<Agitprop_Scraper_Consumer>("consumer")
-                              .WaitFor(newsfeedDb).WithReference(newsfeedDb)
-                              .WaitFor(messaging).WithReference(messaging)
-                              .WaitFor(nlpService).WithReference(nlpService)
+                              .WaitFor(newsfeedDb)
+                              .WithReference(newsfeedDb)
+                              .WaitFor(messaging)
+                              .WithReference(messaging)
+                              .WaitFor(nlpService)
+                              .WithReference(nlpService)
                               .WithOtlpExporter()
-                              .PublishAsDockerFile()
-                              .PublishAsDockerComposeService((resource, service) =>
-                              {
-                                  service.Name = "consumer";
-                              });
+                              .PublishAsDockerComposeService((resource, service) => { service.Name = "consumer"; })
+                              .WithContainerRegistry(registry);
 
         var rssReader = builder.AddProject<Agitprop_Scraper_RssFeedReader>("rss-feed-reader")
-                               .WaitFor(messaging).WithReference(messaging)
+                               .WaitFor(messaging)
+                               .WithReference(messaging)
                                .WaitFor(consumer)
                                .WithOtlpExporter()
-                               .PublishAsDockerFile()
-                               .PublishAsDockerComposeService((resource, service) =>
-                               {
-                                   service.Name = "rss-reader";
-                               });
+                               .PublishAsDockerComposeService((resource, service) => { service.Name = "rssReader"; });
 
         var backend = builder.AddProject<Agitprop_Web_Api>("backend")
-                             .WaitFor(newsfeedDb).WithReference(newsfeedDb)
-                             .WaitFor(messaging).WithReference(messaging)
+                             .WaitFor(newsfeedDb)
+                             .WithReference(newsfeedDb)
+                             .WaitFor(messaging)
+                             .WithReference(messaging)
                              .WithOtlpExporter()
-                             .PublishAsDockerFile()
-                             .PublishAsDockerComposeService((resource, service) =>
-                             {
-                                 service.Name = "backend-api";
-                             });
+                             .PublishAsDockerComposeService((resource, service) => { service.Name = "backend"; })
+                             .WithContainerRegistry(registry);
 
         var frontend = builder.AddJavaScriptApp("angular", "../Agitprop.Web.Client")
-            .WithReference(backend).WaitFor(backend)
-            // .WithHttpEndpoint(port: 4200)
-            .WithExternalHttpEndpoints()
-            .PublishAsDockerComposeService((resource, service) =>
-            {
-                service.Name = "frontend-angular";
-            });
+                              .WithReference(backend)
+                              .WaitFor(backend)
+                              .WithHttpEndpoint(port: 4200)
+                              .WithExternalHttpEndpoints()
+                              .PublishAsDockerComposeService((resource, service) => { service.Name = "frontend"; })
+                              .WithContainerRegistry(registry);
 
         builder.Build().Run();
     }
