@@ -72,12 +72,6 @@ namespace Agitprop.Scraper.Consumer.Consumers
                 activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
                 // Do not rethrow to avoid poison messages
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error processing newsfeed job for URL: {Url}", descriptor.Url);
-                activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-                throw;
-            }
         }
     }
 }

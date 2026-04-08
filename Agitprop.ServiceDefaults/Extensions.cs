@@ -69,6 +69,7 @@ public static class Extensions
         .WithTracing(builder =>
         {
             builder.AddSource("Agitprop.Spider")
+                   .AddSource("Agitprop.NewsfeedJobConsumer")
                    .AddSource("Agitprop.PageLoader.HttpStaticPageLoader")
                    .AddSource("Agitprop.PageLoader.PuppeteerPageLoader")
                    .AddSource("Agitprop.PageLoader.PuppeteerPageLoaderWithProxies")
