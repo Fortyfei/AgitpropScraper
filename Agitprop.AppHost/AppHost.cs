@@ -67,14 +67,7 @@ internal class Program
                              .WithContainerRegistry(registry)
                              .WithEnvironmentAwareImagePush();
 
-        var frontend = builder.AddJavaScriptApp("angular", "../Agitprop.Web.Client")
-                              .WithReference(backend)
-                              .WaitFor(backend)
-                              .WithHttpEndpoint(port: 4200)
-                              .WithExternalHttpEndpoints()
-                              .PublishAsDockerComposeService((resource, service) => { service.Name = "frontend"; })
-                              .WithContainerRegistry(registry)
-                              .WithEnvironmentAwareImagePush();
+        // var frontend = builder.
 
         builder.Build().Run();
     }
