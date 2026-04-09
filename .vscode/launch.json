@@ -1,38 +1,29 @@
 {
-    "configurations": [
-        {
-            "name": "C#: Agitprop.AppHost Debug",
-            "type": "dotnet",
-            "request": "launch",
-            "projectPath": "${workspaceFolder}/Agitprop.AppHost/Agitprop.AppHost.csproj"
-        },
-        {
-            "name": "C#: Agitprop Consumer Debug",
-            "type": "dotnet",
-            "request": "launch",
-            "projectPath": "${workspaceFolder}/Agitprop.Consumer/Agitprop.Consumer.csproj",
-            "env": {
-                "ASPNETCORE_ENVIRONMENT": "Development"
-            }
-        },
-        {
-            "name": "C#: Agitprop.CLI Debug",
-            "type": "coreclr",
-            "request": "launch",
-            "preLaunchTask": "build",
-            "program": "${workspaceFolder}/Agitprop.CLI/bin/Debug/net10.0/Agitprop.CLI.exe",
-            "args": [
-                "scrape-archive",
-                "-d",
-                "2025-11-22",
-                "-s",
-                "ripost",
-                "-c",
-                "-v"
-            ],
-            "cwd": "${workspaceFolder}",
-            "console": "internalConsole",
-            "stopAtEntry": false
-        }
-    ]
+  "configurations": [
+    {
+      "name": "C#: Agitprop.CLI Debug",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/Agitprop.CLI/bin/Debug/net10.0/Agitprop.CLI.exe",
+      "args": [
+        "scrape-archive",
+        "-d",
+        "2025-11-22",
+        "-s",
+        "ripost",
+        "-c",
+        "-v"
+      ],
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole",
+      "stopAtEntry": false
+    },
+    {
+      "type": "aspire",
+      "request": "launch",
+      "name": "Aspire: Launch default apphost",
+      "program": "${workspaceFolder}"
+    }
+  ]
 }
