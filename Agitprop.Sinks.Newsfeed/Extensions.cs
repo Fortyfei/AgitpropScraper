@@ -2,13 +2,14 @@
 using Agitprop.Core;
 using Agitprop.Core.Enums;
 using Agitprop.Core.Interfaces;
-using Agitprop.Infrastructure.Postgres;
 using Agitprop.Scraper.NLPService;
 using Agitprop.Sinks.Newsfeed.Factories;
+using Agitprop.Sinks.Newsfeed.Database;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.EntityFrameworkCore;
 
 namespace Agitprop.Sinks.Newsfeed;
 
@@ -113,5 +114,40 @@ public static class Extensions
             "merce.hu" => NewsSites.Merce,
             _ => throw new ArgumentException($"Not supported news source: {uri.Host}", nameof(uri))
         };
+    }
+
+    /// <summary>
+    /// Adds the Newsfeed database services to the application builder.
+    /// </summary>
+    public static IHostApplicationBuilder AddNewsfeedDB(this IHostApplicationBuilder builder)
+    {
+        builder.AddPostgresConnection();
+        builder.Services.AddTransient<INewsfeedDB, NewsfeedDB>();
+        return builder;
+    }
+
+    /// <summary>
+    /// Adds the Newsfeed repository services to the application builder.
+    /// </summary>
+    public static IHostApplicationBuilder AddNewsfeedRepositories(this IHostApplicationBuilder builder)
+    {
+        builder.AddPostgresConnection();
+        builder.Services.AddTransient<IEntityRepository, EntityRepository>();
+        builder.Services.AddTransient<ITrendingRepository, TrendingRepository>();
+        return builder;
+    }
+
+    /// <summary>
+    /// Adds the PostgreSQL connection to the application builder.
+    /// </summary>
+    private static IHostApplicationBuilder AddPostgresConnection(this IHostApplicationBuilder builder)
+    {
+        var conn = builder.Configuration.GetConnectionString("newsfeed");
+        builder.Services.AddDbContext<AppDbContext>(opts =>
+        {
+            opts.UseNpgsql(conn, o => o.EnableRetryOnFailure());
+            if (builder.Environment.IsDevelopment()) opts.EnableSensitiveDataLogging();
+        });
+        return builder;
     }
 }

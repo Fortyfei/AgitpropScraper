@@ -1,9 +1,9 @@
 using System;
 
 using Agitprop.Core.Models;
-using Agitprop.Infrastructure.Postgres.Models;
+using Agitprop.Sinks.Newsfeed.Database.Models;
 
-namespace Agitprop.Infrastructure.Postgres;
+namespace Agitprop.Sinks.Newsfeed.Database;
 
 public static class Mappers
 {

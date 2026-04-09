@@ -1,9 +1,9 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace Agitprop.Infrastructure.Postgres.Migrations
+namespace Agitprop.Sinks.Newsfeed.Database.Migrations
 {
     /// <inheritdoc />
     public partial class RemoveMentionsId : Migration

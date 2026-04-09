@@ -6,7 +6,7 @@ using Agitprop.Core.Models;
 
 using Microsoft.Extensions.Logging;
 
-namespace Agitprop.Infrastructure.Postgres;
+namespace Agitprop.Sinks.Newsfeed.Database;
 
 public class TrendingRepository : ITrendingRepository
 {

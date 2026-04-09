@@ -1,4 +1,4 @@
-namespace Agitprop.Infrastructure.Postgres.Models;
+namespace Agitprop.Sinks.Newsfeed.Database.Models;
 
 public class PostgresArticle
 {

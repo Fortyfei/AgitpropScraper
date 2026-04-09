@@ -1,8 +1,8 @@
 ﻿using System;
 
-using Agitprop.Infrastructure.Postgres;
 using Agitprop.Infrastructure.Puppeteer;
 using Agitprop.Sinks.Newsfeed;
+using Agitprop.Sinks.Newsfeed.Database;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;

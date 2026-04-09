@@ -1,6 +1,7 @@
-using Agitprop.Infrastructure.Postgres;
+using Agitprop.Sinks.Newsfeed;
 using OpenTelemetry.Trace;
 using Microsoft.EntityFrameworkCore;
+using Agitprop.Sinks.Newsfeed.Database;
 
 var builder = WebApplication.CreateBuilder(args);
 

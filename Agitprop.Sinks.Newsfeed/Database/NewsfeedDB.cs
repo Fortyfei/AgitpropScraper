@@ -3,12 +3,12 @@ using System.Diagnostics;
 
 using Agitprop.Core;
 using Agitprop.Core.Interfaces;
-using Agitprop.Infrastructure.Postgres.Models;
+using Agitprop.Sinks.Newsfeed.Database.Models;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
-namespace Agitprop.Infrastructure.Postgres;
+namespace Agitprop.Sinks.Newsfeed.Database;
 
 public class NewsfeedDB(AppDbContext db, ILogger<NewsfeedDB> logger) : INewsfeedDB
 {
@@ -149,8 +149,6 @@ public async Task<int> CreateMentionsAsync(
         throw;
     }
 }
-
-
 
     public async Task<bool> IsUrlAlreadyExists(string url)
     {

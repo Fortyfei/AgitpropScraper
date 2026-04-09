@@ -2,7 +2,6 @@
   <Project Path="Agitprop.AppHost/Agitprop.AppHost.csproj" />
   <Project Path="Agitprop.CLI/Agitprop.CLI.csproj" />
   <Project Path="Agitprop.Core/Agitprop.Core.csproj" />
-  <Project Path="Agitprop.Infrastructure.Postgres/Agitprop.Infrastructure.Postgres.csproj" />
   <Project Path="Agitprop.Infrastructure.Puppeteer/Agitprop.Infrastructure.Puppeteer.csproj" />
   <Project Path="Agitprop.Infrastructure/Agitprop.Infrastructure.csproj" />
   <Project Path="Agitprop.Scraper.Consumer/Agitprop.Scraper.Consumer.csproj" />

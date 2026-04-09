@@ -1,8 +1,8 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace Agitprop.Infrastructure.Postgres.Migrations
+namespace Agitprop.Sinks.Newsfeed.Database.Migrations
 {
     /// <inheritdoc />
     public partial class EntityNameIsUnique : Migration

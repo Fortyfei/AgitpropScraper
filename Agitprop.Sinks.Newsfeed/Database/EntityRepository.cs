@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 using Agitprop.Core.Interfaces;
 using Agitprop.Core.Models;
 
-namespace Agitprop.Infrastructure.Postgres;
+namespace Agitprop.Sinks.Newsfeed.Database;
 
 public class EntityRepository : IEntityRepository
 {

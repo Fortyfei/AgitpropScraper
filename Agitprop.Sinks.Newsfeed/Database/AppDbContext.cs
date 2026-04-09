@@ -1,8 +1,8 @@
-using Agitprop.Infrastructure.Postgres.Models;
+using Agitprop.Sinks.Newsfeed.Database.Models;
 
 using Microsoft.EntityFrameworkCore;
 
-namespace Agitprop.Infrastructure.Postgres;
+namespace Agitprop.Sinks.Newsfeed.Database;
 
 public class AppDbContext : DbContext
 {
