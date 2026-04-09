@@ -16,23 +16,18 @@ using Microsoft.Extensions.Logging;
 namespace Agitprop.Infrastructure;
 
 public sealed class Spider(
-    IBrowserPageLoader browserPageLoader,
-    IStaticPageLoader staticPageLoader,
+    IPageTransport pageTransport,
     IConfiguration configuration,
     ILogger<Spider>? logger = default) : ISpider
 {
     private readonly ILogger<Spider>? _logger = logger;
-    private readonly IBrowserPageLoader _browserPageLoader = browserPageLoader;
-    private readonly IStaticPageLoader _staticPageLoader = staticPageLoader;
+    private readonly IPageTransport _pageTransport = pageTransport;
     private readonly IConfiguration _configuration = configuration;
     private readonly ActivitySource _activitySource = new("Agitprop.Spider");
 
     // Performance Metrics
     private readonly Counter<long> _pagesProcessed = new Meter("Agitprop.Spider").CreateCounter<long>("spider.pages.processed", description: "Total pages processed");
-    private readonly Counter<long> _pagesFailed = new Meter("Agitprop.Spider").CreateCounter<long>("spider.pages.failed", description: "Total pages failed");
-    private readonly Histogram<double> _pageLoadTime = new Meter("Agitprop.Spider").CreateHistogram<double>("spider.page.load.time", "ms", "Page load time in milliseconds");
     private readonly Histogram<double> _processingTime = new Meter("Agitprop.Spider").CreateHistogram<double>("spider.processing.time", "ms", "Total processing time per page");
-    private readonly UpDownCounter<long> _activePages = new Meter("Agitprop.Spider").CreateUpDownCounter<long>("spider.active.pages", description: "Currently active page processing");
 
     public async Task<List<ScrapingJobDescription>> CrawlAsync(ScrapingJob job, ISink sink, CancellationToken cancellationToken = default)
     {
@@ -41,68 +36,35 @@ public sealed class Spider(
         activity?.SetTag("page_type", job.PageType.ToString());
         cancellationToken.ThrowIfCancellationRequested();
 
-        // Track active pages
-        _activePages.Add(1, new KeyValuePair<string, object?>("url", job.Url));
-
-        try
+        // Check if already visited
+        if (await sink.CheckPageAlreadyVisited(job.Url))
         {
-            // Check if already visited
-            if (await sink.CheckPageAlreadyVisited(job.Url))
-            {
-                _logger?.LogInformation("Page already visited: {Url}", job.Url);
-                activity?.SetStatus(ActivityStatusCode.Ok, "Already visited");
-                return [];
-            }
-
-            var processingStartTime = Stopwatch.StartNew();
-            var retryCount = _configuration.GetValue<int>("Retry:Spider", 3);
-
-            // Track page load time
-            HtmlDocument doc = await LoadPageAsync(job);
-            // try
-            // {
-            //     doc = await Policy
-            //         .Handle<Exception>()
-            //         .WaitAndRetryAsync(retryCount, attempt => TimeSpan.FromSeconds(0.5 * attempt),
-            //             (ex, ts, attempt, ctx) => _logger?.LogWarning(ex, "[RETRY] Failed to load page {Url} on attempt {Attempt}", job.Url, attempt))
-            //         .ExecuteAsync(() => LoadPageAsync(job));
-
-            //     // var loadTime = loadStartTime.Elapsed.TotalMilliseconds;
-            //     // _pageLoadTime.Record(loadTime, new KeyValuePair<string, object?>("url", job.Url), new KeyValuePair<string, object?>("page_type", job.PageType.ToString()));
-            //     // _logger?.LogInformation("Page loaded in {LoadTime}ms: {Url}", loadTime, job.Url);
-            // }
-            // catch (Exception ex)
-            // {
-            //     // var loadTime = loadStartTime.Elapsed.TotalMilliseconds;
-            //     // _pageLoadTime.Record(loadTime, new KeyValuePair<string, object?>("url", job.Url), new KeyValuePair<string, object?>("page_type", job.PageType.ToString()), new KeyValuePair<string, object?>("status", "failed"));
-            //     _pagesFailed.Add(1, new KeyValuePair<string, object?>("url", job.Url), new KeyValuePair<string, object?>("error_type", ex.GetType().Name));
-            //     _logger?.LogError(ex, "Failed to load page after {RetryCount} attempts: {Url}", retryCount, job.Url);
-            //     activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-            //     throw;
-            // }
-
-            // Process the page
-            if (job.PageCategory == PageCategory.TargetPage)
-            {
-                await ProcessTargetPage(job, doc, sink, cancellationToken);
-                return [];
-            }
-
-            var result = await ProcessPage(job, doc, sink, cancellationToken);
-
-            // Record successful processing
-            var processingTime = processingStartTime.Elapsed.TotalMilliseconds;
-            _processingTime.Record(processingTime, new KeyValuePair<string, object?>("url", job.Url), new KeyValuePair<string, object?>("page_type", job.PageType.ToString()));
-            _pagesProcessed.Add(1, new KeyValuePair<string, object?>("url", job.Url), new KeyValuePair<string, object?>("page_type", job.PageType.ToString()));
-
-            _logger?.LogInformation("Page processed in {ProcessingTime}ms: {Url}", processingTime, job.Url);
-            activity?.SetStatus(ActivityStatusCode.Ok);
-            return result;
+            _logger?.LogInformation("Page already visited: {Url}", job.Url);
+            activity?.SetStatus(ActivityStatusCode.Ok, "Already visited");
+            return [];
         }
-        finally
+
+        var processingStartTime = Stopwatch.StartNew();
+
+        HtmlDocument doc = await LoadPageAsync(job, cancellationToken);
+
+        // Process the page
+        if (job.PageCategory == PageCategory.TargetPage)
         {
-            _activePages.Add(-1, new KeyValuePair<string, object?>("url", job.Url));
+            await ProcessTargetPage(job, doc, sink, cancellationToken);
+            return [];
         }
+
+        var result = await ProcessPage(job, doc, sink, cancellationToken);
+
+        // Record successful processing
+        var processingTime = processingStartTime.Elapsed.TotalMilliseconds;
+        _processingTime.Record(processingTime, new KeyValuePair<string, object?>("url", job.Url), new KeyValuePair<string, object?>("page_type", job.PageType.ToString()));
+        _pagesProcessed.Add(1, new KeyValuePair<string, object?>("url", job.Url), new KeyValuePair<string, object?>("page_type", job.PageType.ToString()));
+
+        _logger?.LogInformation("Page processed in {ProcessingTime}ms: {Url}", processingTime, job.Url);
+        activity?.SetStatus(ActivityStatusCode.Ok);
+        return result;
     }
 
     private async Task<List<ScrapingJobDescription>> ProcessPage(ScrapingJob job, HtmlDocument doc, ISink sink, CancellationToken cancellationToken)
@@ -178,37 +140,20 @@ public sealed class Spider(
         activity?.SetStatus(ActivityStatusCode.Ok);
     }
 
-    private async Task<HtmlDocument> LoadPageAsync(ScrapingJob job)
+    private async Task<HtmlDocument> LoadPageAsync(ScrapingJob job, CancellationToken cancellationToken)
     {
         using var activity = _activitySource.StartActivity("LoadPageAsync", ActivityKind.Internal);
         bool isHeadless = _configuration.GetValue<bool>("Headless");
-        var htmlContent = await Policy
-                    .Handle<Exception>()
-                    .WaitAndRetryAsync(3, attempt => TimeSpan.FromSeconds(0.5 * attempt)).ExecuteAsync(() =>
-                    {
-                        return job.PageType switch
-                        {
-                            PageType.Static => LoadStaticPage(job),
-                            PageType.Dynamic => LoadDynamicPage(job, isHeadless),
-                            _ => throw new NotImplementedException()
-                        };
-                    });
 
+        _logger?.LogInformation("Loading page with transport: {Url}", job.Url);
+
+        var result = await _pageTransport.LoadAsync(job.Url, new PageLoadOptions(
+            RequiresJavaScript: job.PageType == PageType.Dynamic,
+            Actions: job.Actions,
+            Headless: isHeadless), cancellationToken);
 
         var doc = new HtmlDocument();
-        doc.LoadHtml(htmlContent);
+        doc.LoadHtml(result.Content);
         return doc;
-    }
-
-    private async Task<string> LoadDynamicPage(ScrapingJob job, bool headless)
-    {
-        _logger?.LogInformation("Loading dynamic page: {Url}", job.Url);
-        return await _browserPageLoader.Load(job.Url, job.Actions, headless);
-    }
-
-    private async Task<string> LoadStaticPage(ScrapingJob job)
-    {
-        _logger?.LogInformation("Loading static page: {Url}", job.Url);
-        return await _staticPageLoader.Load(job.Url);
     }
 }

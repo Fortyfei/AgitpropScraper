@@ -1,3 +1,5 @@
+using Agitprop.AppHost;
+
 using Projects;
 
 internal class Program
@@ -33,7 +35,8 @@ internal class Program
                                 .WithEnvironment("LOG_LEVEL", "debug")
                                 .WithOtlpExporter()
                                 .PublishAsDockerComposeService((resource, service) => { service.Name = "nlpservice"; })
-                                .WithContainerRegistry(registry);
+                                .WithContainerRegistry(registry)
+                                .WithEnvironmentAwareImagePush();
 
         var consumer = builder.AddProject<Agitprop_Scraper_Consumer>("consumer")
                               .WaitFor(newsfeedDb)
@@ -44,7 +47,8 @@ internal class Program
                               .WithReference(nlpService)
                               .WithOtlpExporter()
                               .PublishAsDockerComposeService((resource, service) => { service.Name = "consumer"; })
-                              .WithContainerRegistry(registry);
+                              .WithContainerRegistry(registry)
+                              .WithEnvironmentAwareImagePush();
 
         var rssReader = builder.AddProject<Agitprop_Scraper_RssFeedReader>("rss-feed-reader")
                                .WaitFor(messaging)
@@ -60,7 +64,8 @@ internal class Program
                              .WithReference(messaging)
                              .WithOtlpExporter()
                              .PublishAsDockerComposeService((resource, service) => { service.Name = "backend"; })
-                             .WithContainerRegistry(registry);
+                             .WithContainerRegistry(registry)
+                             .WithEnvironmentAwareImagePush();
 
         var frontend = builder.AddJavaScriptApp("angular", "../Agitprop.Web.Client")
                               .WithReference(backend)
@@ -68,7 +73,8 @@ internal class Program
                               .WithHttpEndpoint(port: 4200)
                               .WithExternalHttpEndpoints()
                               .PublishAsDockerComposeService((resource, service) => { service.Name = "frontend"; })
-                              .WithContainerRegistry(registry);
+                              .WithContainerRegistry(registry)
+                              .WithEnvironmentAwareImagePush();
 
         builder.Build().Run();
     }

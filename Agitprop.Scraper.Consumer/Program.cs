@@ -25,7 +25,7 @@ public class Program
         var builder = Host.CreateApplicationBuilder(args);
 
         // Configure infrastructure with browser support.
-        builder.ConfigureInfrastructureWithBrowser(true);
+        builder.ConfigureInfrastructureWithBrowser(false);
 
         // Configure MassTransit for message-based communication.
         builder.ConfigureMassTransit();

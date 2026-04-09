@@ -1,14 +1,4 @@
-using System.CommandLine;
 using System.Net;
-
-using Agitprop.Core;
-using Agitprop.Core.Enums;
-using Agitprop.Infrastructure;
-using Agitprop.Core.Interfaces;
-using Agitprop.Infrastructure.PageLoader;
-using Agitprop.Infrastructure.PageRequester;
-using Agitprop.Infrastructure.Puppeteer;
-using Agitprop.Sinks.Newsfeed;
 
 namespace Agitprop.Scraper.ConsoleToolKit;
 
@@ -46,8 +36,10 @@ public static class ScrapeCommand
         var cookiesStorage = new CookieStorage();
 
         var spider = new Spider(
-            new PuppeteerPageLoader(cookiesStorage),
-            new HttpStaticPageLoader(new PageRequester(new CookieContainer()), cookiesStorage),
+            new PageTransport(
+                new HttpStaticPageLoader(new RespectfulPageRequester(new CookieContainer()), cookiesStorage),
+                new PuppeteerPageLoader(cookiesStorage),
+                NullLogger<PageTransport>.Instance),
             null);
         var job = new NewsfeedJobDescrpition()
         {

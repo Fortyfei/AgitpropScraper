@@ -35,7 +35,7 @@ public class PuppeteerPageLoader : BrowserPageLoader, IBrowserPageLoader
 
     public async Task<string> Load(string url, List<PageAction>? pageActions = null, bool headless = true)
     {
-        using var trace = ActivitySource.StartActivity("Load", ActivityKind.Producer);
+        using var trace = ActivitySource.StartActivity("LoadPageWithBrowser", ActivityKind.Producer);
         trace?.SetTag("url", url);
         Logger?.LogInformation("Starting page load: {url}", url);
 

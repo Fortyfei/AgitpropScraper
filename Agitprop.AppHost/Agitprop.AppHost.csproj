@@ -10,7 +10,7 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <NoWarn>$(NoWarn);ASPIRECOMPUTE003</NoWarn>
+    <NoWarn>$(NoWarn);ASPIRECOMPUTE003;ASPIREPIPELINES003</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
