@@ -4,6 +4,7 @@ FROM python:3.12-slim-bookworm
 # 🚀 Python Application
 # ------------------------------
 # Create non-root user for security
+RUN python --version
 RUN groupadd --system --gid 999 appuser && useradd --system --gid 999 --uid 999 --create-home appuser
 
 # Set working directory
