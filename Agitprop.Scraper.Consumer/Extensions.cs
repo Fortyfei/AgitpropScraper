@@ -57,9 +57,6 @@ public static class Extensions
         builder.Services.AddOpenTelemetry()
             .WithTracing(tracing => tracing
                 .AddSource("Agitprop.NewsfeedJobConsumer")
-                .AddSource("Agitprop.RotatingHttpClientPool")
-                .AddSource("Agitprop.PageLoader.PuppeteerPageLoaderWithProxies")
-                .AddSource("Agitprop.PageLoader.PuppeteerPageLoader")
             );
 
         return builder;

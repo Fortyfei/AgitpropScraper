@@ -8,6 +8,7 @@
   <ItemGroup>
     <PackageReference Include="PuppeteerExtraSharp" />
     <PackageReference Include="PuppeteerSharp" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
   </ItemGroup>
 
   <ItemGroup>
