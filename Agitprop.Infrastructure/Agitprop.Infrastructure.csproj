@@ -11,6 +11,7 @@
     <PackageReference Include="Microsoft.Extensions.Logging" />
     <PackageReference Include="Polly" />
     <PackageReference Include="TinyCsvParser" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
   </ItemGroup>
 
   <ItemGroup>
