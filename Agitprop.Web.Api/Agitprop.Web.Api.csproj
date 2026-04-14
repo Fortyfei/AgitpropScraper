@@ -19,7 +19,7 @@
 
   <ItemGroup>
     <ProjectReference
-      Include="..\Agitprop.Infrastructure.Postgres\Agitprop.Infrastructure.Postgres.csproj" />
+      Include="..\Agitprop.Sinks.Newsfeed\Agitprop.Sinks.Newsfeed.csproj" />
     <ProjectReference Include="..\Agitprop.ServiceDefaults\Agitprop.ServiceDefaults.csproj" />
   </ItemGroup>
 

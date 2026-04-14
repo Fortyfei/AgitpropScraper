@@ -2,13 +2,15 @@
 using Agitprop.Core;
 using Agitprop.Core.Enums;
 using Agitprop.Core.Interfaces;
-using Agitprop.Infrastructure.Postgres;
 using Agitprop.Scraper.NLPService;
 using Agitprop.Sinks.Newsfeed.Factories;
+using Agitprop.Sinks.Newsfeed.Database;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.EntityFrameworkCore;
+using OpenTelemetry.Trace;
 
 namespace Agitprop.Sinks.Newsfeed;
 
@@ -29,10 +31,12 @@ public static class Extensions
             client.BaseAddress = new("https://nlpService");
             client.Timeout = TimeSpan.FromSeconds(180);
 
-        }).RemoveAllResilienceHandlers().AddStandardResilienceHandler(conf =>
+        })
+        .RemoveAllResilienceHandlers()
+        .AddStandardResilienceHandler(conf =>
         {
             conf.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(5);
-            
+
             conf.RateLimiter.DefaultRateLimiterOptions.PermitLimit = 20;
             conf.RateLimiter.DefaultRateLimiterOptions.QueueLimit = 200;
 
@@ -43,12 +47,20 @@ public static class Extensions
         });
 
         builder.AddNewsfeedDB();
+
         builder.Services.AddTransient(sp =>
             new NewsfeedSink(
                 sp.GetRequiredService<INamedEntityRecognizer>(),
                 sp.GetRequiredService<INewsfeedDB>(),
                 sp.GetRequiredService<ILogger<NewsfeedSink>>(),
                 sp.GetRequiredService<IConfiguration>()));
+
+        builder.Services.AddOpenTelemetry()
+            .WithTracing(tracing => tracing
+                .AddSource("Agitprop.NewsfeedSink")
+                .AddSource("Agitprop.NamedEntityRecognizer")
+            );
+
         return builder;
     }
 
@@ -113,5 +125,53 @@ public static class Extensions
             "merce.hu" => NewsSites.Merce,
             _ => throw new ArgumentException($"Not supported news source: {uri.Host}", nameof(uri))
         };
+    }
+
+    /// <summary>
+    /// Adds the Newsfeed database services to the application builder.
+    /// </summary>
+    public static IHostApplicationBuilder AddNewsfeedDB(this IHostApplicationBuilder builder)
+    {
+        builder.AddPostgresConnection();
+        builder.Services.AddTransient<INewsfeedDB, NewsfeedDB>();
+
+        builder.Services.AddOpenTelemetry()
+            .WithTracing(tracing => tracing
+                .AddSource("Agitprop.NewsfeedDB")
+            );
+        return builder;
+    }
+
+    /// <summary>
+    /// Adds the Newsfeed repository services to the application builder.
+    /// </summary>
+    public static IHostApplicationBuilder AddNewsfeedRepositories(this IHostApplicationBuilder builder)
+    {
+        builder.AddPostgresConnection();
+        builder.Services.AddTransient<IEntityRepository, EntityRepository>();
+        builder.Services.AddTransient<ITrendingRepository, TrendingRepository>();
+
+        builder.Services.AddOpenTelemetry()
+            .WithTracing(tracing => tracing
+                .AddSource("Npgsql")
+                .AddSource("Agitprop.Repository.EntityRepository")
+                .AddSource("Agitprop.Repository.TrendingRepository")
+            );
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Adds the PostgreSQL connection to the application builder.
+    /// </summary>
+    private static IHostApplicationBuilder AddPostgresConnection(this IHostApplicationBuilder builder)
+    {
+        var conn = builder.Configuration.GetConnectionString("newsfeed");
+        builder.Services.AddDbContext<AppDbContext>(opts =>
+        {
+            opts.UseNpgsql(conn, o => o.EnableRetryOnFailure());
+            if (builder.Environment.IsDevelopment()) opts.EnableSensitiveDataLogging();
+        });
+        return builder;
     }
 }

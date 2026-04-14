@@ -1,8 +1,8 @@
 ﻿using System;
 
-using Agitprop.Infrastructure.Postgres;
 using Agitprop.Infrastructure.Puppeteer;
 using Agitprop.Sinks.Newsfeed;
+using Agitprop.Sinks.Newsfeed.Database;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -29,7 +29,7 @@ public class Program
 
         // Configure MassTransit for message-based communication.
         builder.ConfigureMassTransit();
-        builder.ConfigureResiliency();
+        builder.ConfigureTracing();
         builder.ConfigureMetrics();
 
         // Add the Newsfeed sink for processing scraped data.

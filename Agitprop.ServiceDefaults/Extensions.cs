@@ -61,23 +61,13 @@ public static class Extensions
         builder.Services.AddOpenTelemetry()
         .WithMetrics(builder =>
         {
-            builder.AddMeter("Agitprop.RespectfulPageRequester")
-                   .AddHttpClientInstrumentation()
+            builder.AddHttpClientInstrumentation()
                    .AddAspNetCoreInstrumentation()
                    .AddProcessInstrumentation();
         })
         .WithTracing(builder =>
         {
-            builder.AddSource("Agitprop.Spider")
-                   .AddSource("Agitprop.NewsfeedJobConsumer")
-                   .AddSource("Agitprop.PageLoader.HttpStaticPageLoader")
-                   .AddSource("Agitprop.PageLoader.PuppeteerPageLoader")
-                   .AddSource("Agitprop.PageLoader.PuppeteerPageLoaderWithProxies")
-                   .AddSource("Agitprop.PageRequester.RespectfulPageRequester")
-                   .AddSource("Agitprop.RotatingHttpClientPool")
-                   .AddSource("Agitprop.ProxyProviders.ProxyScrapeProxyProvider")
-                   .AddSource("Agitprop.ProxyProviders.RedScrapeProxyProvider")
-                   .AddHttpClientInstrumentation()
+            builder.AddHttpClientInstrumentation()
                    .AddAspNetCoreInstrumentation();
         });
 

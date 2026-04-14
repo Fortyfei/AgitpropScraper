@@ -2,7 +2,6 @@
   <Project Path="Agitprop.AppHost/Agitprop.AppHost.csproj" />
   <Project Path="Agitprop.CLI/Agitprop.CLI.csproj" />
   <Project Path="Agitprop.Core/Agitprop.Core.csproj" />
-  <Project Path="Agitprop.Infrastructure.Postgres/Agitprop.Infrastructure.Postgres.csproj" />
   <Project Path="Agitprop.Infrastructure.Puppeteer/Agitprop.Infrastructure.Puppeteer.csproj" />
   <Project Path="Agitprop.Infrastructure/Agitprop.Infrastructure.csproj" />
   <Project Path="Agitprop.Scraper.Consumer/Agitprop.Scraper.Consumer.csproj" />
@@ -12,5 +11,4 @@
   <Project Path="Agitprop.Sinks.Newsfeed/Agitprop.Sinks.Newsfeed.csproj" />
   <Project Path="Agitprop.Sinks.Newsfeed_Test/Agitprop.Sinks.Newsfeed_Test.csproj" />
   <Project Path="Agitprop.Web.Api/Agitprop.Web.Api.csproj" />
-  <Project Path="Agitprop.Web.Client/Agitprop.Web.Client.csproj" />
 </Solution>

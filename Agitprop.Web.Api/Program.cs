@@ -1,10 +1,13 @@
-using Agitprop.Infrastructure.Postgres;
+using Agitprop.Sinks.Newsfeed;
 using OpenTelemetry.Trace;
 using Microsoft.EntityFrameworkCore;
+using Agitprop.Sinks.Newsfeed.Database;
+using Agitprop.Web.Api;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
+builder.ConfigureWebApiTracing();
 
 builder.Services.AddServiceDiscovery();
 // Add services to the container.

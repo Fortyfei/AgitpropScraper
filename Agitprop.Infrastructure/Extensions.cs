@@ -26,6 +26,12 @@ public static class Extensions
         services.AddTransient<ICookiesStorage, CookieStorage>();
         services.AddTransient<IStaticPageLoader, HttpStaticPageLoader>();
 
+        services.AddOpenTelemetry()
+            .WithTracing(tracing => tracing
+                .AddSource("Agitprop.Spider")
+                .AddSource("Agitprop.PageLoader.HttpStaticPageLoader")
+            );
+
         if (useProxies)
         {
             services.AddHttpClient<IProxyProvider, ProxyScrapeProxyProvider>();
@@ -37,10 +43,22 @@ public static class Extensions
             services.AddSingleton<IProxyPool, ProxyPool>();
             services.AddSingleton<RotatingHttpClientPool>();
             services.AddTransient<IPageRequester, RotatingProxyPageRequester>();
+
+            services.AddOpenTelemetry()
+                .WithTracing(tracing => tracing
+                    .AddSource("Agitprop.ProxyProviders.ProxyScrapeProxyProvider")
+                    .AddSource("Agitprop.ProxyProviders.RedScrapeProxyProvider")
+                    .AddSource("Agitprop.ProxyPool")
+                    .AddSource("Agitprop.RotatingHttpClientPool")
+                );
         }
         else
         {
             services.AddTransient<IPageRequester, RespectfulPageRequester>();
+            services.AddOpenTelemetry()
+                .WithTracing(tracing => tracing
+                    .AddSource("Agitprop.PageRequester.RespectfulPageRequester")
+                );
         }
 
         services.AddSingleton<IPageTransport>(sp =>
