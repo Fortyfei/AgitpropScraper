@@ -12,8 +12,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
-using OpenTelemetry.Metrics;
-
 using Polly;
 using Polly.Retry;
 
@@ -93,12 +91,33 @@ public static class Extensions
     /// <returns>The updated host application builder.</returns>
     public static IHostApplicationBuilder ConfigureMetrics(this IHostApplicationBuilder builder)
     {
+        // Metrics configuration moved to ServiceDefaults
+        return builder;
+    }
+
+    /// <summary>
+    /// Configures OpenTelemetry tracing for the consumer service.
+    /// </summary>
+    /// <param name="builder">The host application builder.</param>
+    /// <returns>The updated host application builder.</returns>
+    public static IHostApplicationBuilder ConfigureTracing(this IHostApplicationBuilder builder)
+    {
         builder.Services.AddOpenTelemetry()
-            .WithMetrics(metrics => metrics
-                // Built-in instrumentation for metrics
-                .AddAspNetCoreInstrumentation()
-                .AddRuntimeInstrumentation()
-                .AddHttpClientInstrumentation()
+            .WithTracing(tracing => tracing
+                .AddSource("Agitprop.NewsfeedJobConsumer")
+                .AddSource("Agitprop.Spider")
+                .AddSource("Agitprop.RotatingHttpClientPool")
+                .AddSource("Agitprop.ProxyPool")
+                .AddSource("Agitprop.PageLoader.PuppeteerPageLoaderWithProxies")
+                .AddSource("Agitprop.PageLoader.PuppeteerPageLoader")
+                .AddSource("Agitprop.PageLoader.HttpStaticPageLoader")
+                .AddSource("Agitprop.PageRequester.RespectfulPageRequester")
+                .AddSource("Agitprop.ProxyProviders.RedScrapeProxyProvider")
+                .AddSource("Agitprop.RssFeedReader")
+                .AddSource("Agitprop.NewsfeedSink")
+                .AddSource("Agitprop.NewsfeedDB")
+                .AddSource("Agitprop.Repository.EntityRepository")
+                .AddSource("Agitprop.Repository.TrendingRepository")
             );
 
         return builder;

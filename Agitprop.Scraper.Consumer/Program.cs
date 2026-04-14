@@ -31,6 +31,7 @@ public class Program
         builder.ConfigureMassTransit();
         builder.ConfigureResiliency();
         builder.ConfigureMetrics();
+        builder.ConfigureTracing();
 
         // Add the Newsfeed sink for processing scraped data.
         builder.AddNewsfeedSink();
