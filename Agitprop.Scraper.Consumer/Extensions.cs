@@ -65,7 +65,6 @@ public static class Extensions
                 .AddSource("Agitprop.PageLoader.HttpStaticPageLoader")
                 .AddSource("Agitprop.PageRequester.RespectfulPageRequester")
                 .AddSource("Agitprop.ProxyProviders.RedScrapeProxyProvider")
-                .AddSource("Agitprop.RssFeedReader")
             );
 
         return builder;
