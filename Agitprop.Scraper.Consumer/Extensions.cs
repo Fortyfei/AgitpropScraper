@@ -61,4 +61,14 @@ public static class Extensions
 
         return builder;
     }
+
+    public static IHostApplicationBuilder ConfigureMetrics(this IHostApplicationBuilder builder)
+    {
+        builder.Services.AddOpenTelemetry()
+            .WithMetrics(metrics => metrics
+                .AddMeter("Agitprop.NewsfeedJobConsumer")
+            );
+
+        return builder;
+    }
 }

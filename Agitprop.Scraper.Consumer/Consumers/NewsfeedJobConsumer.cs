@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Polly;
 using Polly.Registry;
 using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using Agitprop.Sinks.Newsfeed;
 using System;
 
@@ -21,6 +22,10 @@ namespace Agitprop.Scraper.Consumer.Consumers
         private readonly ILogger<NewsfeedJobConsumer> _logger;
         private readonly NewsfeedSink _sink;
         private static readonly ActivitySource _activitySource = new("Agitprop.NewsfeedJobConsumer");
+        private static readonly Meter _meter = new("Agitprop.NewsfeedJobConsumer");
+        private static readonly Counter<long> _jobFailures = _meter.CreateCounter<long>(
+            "newsfeed.job.failures",
+            description: "Total failed newsfeed scraping jobs grouped by exception type, domain, URL, and exception message");
 
         public NewsfeedJobConsumer(
             ISpider spider,
@@ -30,6 +35,15 @@ namespace Agitprop.Scraper.Consumer.Consumers
             _spider = spider;
             _logger = logger;
             _sink = sink;
+        }
+
+        private static void RecordJobFailure(string url, Exception ex)
+        {
+            _jobFailures.Add(1,
+                new KeyValuePair<string, object?>("exception_type", ex.GetType().Name),
+                new KeyValuePair<string, object?>("exception_message", InternalExtensions.GetExceptionMessage(ex)),
+                new KeyValuePair<string, object?>("domain", InternalExtensions.GetDomainFromUrl(url)),
+                new KeyValuePair<string, object?>("url", url));
         }
 
         public async Task Consume(ConsumeContext<NewsfeedJobDescrpition> context)
@@ -64,9 +78,17 @@ namespace Agitprop.Scraper.Consumer.Consumers
             }
             catch (ArgumentException ex)
             {
+                RecordJobFailure(descriptor.Url, ex);
                 _logger.LogError(ex, "Invalid argument in newsfeed job for URL: {Url}", descriptor.Url);
                 activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
                 // Do not rethrow to avoid poison messages
+            }
+            catch (Exception ex)
+            {
+                RecordJobFailure(descriptor.Url, ex);
+                _logger.LogError(ex, "Newsfeed job failed for URL: {Url}", descriptor.Url);
+                activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+                throw;
             }
         }
     }
