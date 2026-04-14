@@ -19,19 +19,16 @@ namespace Agitprop.Scraper.Consumer.Consumers
     {
         private readonly ISpider _spider;
         private readonly ILogger<NewsfeedJobConsumer> _logger;
-        private readonly ResiliencePipeline _resiliencePipeline;
         private readonly NewsfeedSink _sink;
         private static readonly ActivitySource _activitySource = new("Agitprop.NewsfeedJobConsumer");
 
         public NewsfeedJobConsumer(
             ISpider spider,
             ILogger<NewsfeedJobConsumer> logger,
-            ResiliencePipelineProvider<string> resiliencePipelineProvider,
             NewsfeedSink sink)
         {
             _spider = spider;
             _logger = logger;
-            _resiliencePipeline = resiliencePipelineProvider.GetPipeline("Spider");
             _sink = sink;
         }
 
@@ -48,8 +45,7 @@ namespace Agitprop.Scraper.Consumer.Consumers
             {
                 var job = descriptor.ConvertToScrapingJob();
 
-                List<Core.ScrapingJobDescription> newJobs = await _resiliencePipeline.ExecuteAsync(
-                    async ct => await _spider.CrawlAsync(job, _sink, ct));
+                List<Core.ScrapingJobDescription> newJobs = await _spider.CrawlAsync(job, _sink, context.CancellationToken);
 
                 _logger.LogInformation("Crawling finished for URL: {Url}, new jobs found: {Count}", job.Url, newJobs.Count);
 
