@@ -10,6 +10,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.EntityFrameworkCore;
+using OpenTelemetry.Trace;
 
 namespace Agitprop.Sinks.Newsfeed;
 
@@ -30,10 +31,12 @@ public static class Extensions
             client.BaseAddress = new("https://nlpService");
             client.Timeout = TimeSpan.FromSeconds(180);
 
-        }).RemoveAllResilienceHandlers().AddStandardResilienceHandler(conf =>
+        })
+        .RemoveAllResilienceHandlers()
+        .AddStandardResilienceHandler(conf =>
         {
             conf.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(5);
-            
+
             conf.RateLimiter.DefaultRateLimiterOptions.PermitLimit = 20;
             conf.RateLimiter.DefaultRateLimiterOptions.QueueLimit = 200;
 
@@ -44,12 +47,20 @@ public static class Extensions
         });
 
         builder.AddNewsfeedDB();
+
         builder.Services.AddTransient(sp =>
             new NewsfeedSink(
                 sp.GetRequiredService<INamedEntityRecognizer>(),
                 sp.GetRequiredService<INewsfeedDB>(),
                 sp.GetRequiredService<ILogger<NewsfeedSink>>(),
                 sp.GetRequiredService<IConfiguration>()));
+
+        builder.Services.AddOpenTelemetry()
+            .WithTracing(tracing => tracing
+                .AddSource("Agitprop.NewsfeedSink")
+                .AddSource("Agitprop.NamedEntityRecognizer")
+            );
+
         return builder;
     }
 
@@ -123,6 +134,11 @@ public static class Extensions
     {
         builder.AddPostgresConnection();
         builder.Services.AddTransient<INewsfeedDB, NewsfeedDB>();
+
+        builder.Services.AddOpenTelemetry()
+            .WithTracing(tracing => tracing
+                .AddSource("Agitprop.NewsfeedDB")
+            );
         return builder;
     }
 
@@ -134,6 +150,14 @@ public static class Extensions
         builder.AddPostgresConnection();
         builder.Services.AddTransient<IEntityRepository, EntityRepository>();
         builder.Services.AddTransient<ITrendingRepository, TrendingRepository>();
+
+        builder.Services.AddOpenTelemetry()
+            .WithTracing(tracing => tracing
+                .AddSource("Npgsql")
+                .AddSource("Agitprop.Repository.EntityRepository")
+                .AddSource("Agitprop.Repository.TrendingRepository")
+            );
+
         return builder;
     }
 

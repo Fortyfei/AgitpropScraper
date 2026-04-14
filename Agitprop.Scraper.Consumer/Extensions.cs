@@ -1,7 +1,5 @@
 using System;
-using System.Net.Http;
 using System.Reflection;
-using System.Threading.Tasks;
 
 using Agitprop.Consumer.Consumers;
 using Agitprop.Scraper.Consumer.Consumers;
@@ -11,11 +9,6 @@ using MassTransit;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-
-using Polly;
-using Polly.Retry;
-
-using PuppeteerSharp;
 
 namespace Agitprop.Scraper.Consumer;
 
@@ -55,47 +48,6 @@ public static class Extensions
     }
 
     /// <summary>
-    /// Configures resiliency pipelines for handling transient errors in the application.
-    /// </summary>
-    /// <param name="builder">The host application builder.</param>
-    /// <returns>The updated host application builder.</returns>
-    public static IHostApplicationBuilder ConfigureResiliency(this IHostApplicationBuilder builder)
-    {
-        builder.Services.AddResiliencePipeline("Spider", static builder =>
-        {
-            builder.AddRetry(new RetryStrategyOptions
-            {
-                ShouldHandle = args => args.Outcome switch
-                {
-                    { Exception: HttpRequestException } => PredicateResult.True(),
-                    { Exception: TaskCanceledException } => PredicateResult.True(),
-                    { Exception: TimeoutException } => PredicateResult.True(),
-                    { Exception: NavigationException } => PredicateResult.True(),
-                    { Result: HttpResponseMessage response } when !response.IsSuccessStatusCode => PredicateResult.True(),
-                    _ => PredicateResult.False()
-                },
-                BackoffType = DelayBackoffType.Exponential,
-                Delay = TimeSpan.FromSeconds(2),
-                MaxRetryAttempts = 15,
-                UseJitter = false,
-            });
-        });
-        builder.Services.AddResilienceEnricher();
-        return builder;
-    }
-
-    /// <summary>
-    /// Configures OpenTelemetry metrics for Aspire observability.
-    /// </summary>
-    /// <param name="builder">The host application builder.</param>
-    /// <returns>The updated host application builder.</returns>
-    public static IHostApplicationBuilder ConfigureMetrics(this IHostApplicationBuilder builder)
-    {
-        // Metrics configuration moved to ServiceDefaults
-        return builder;
-    }
-
-    /// <summary>
     /// Configures OpenTelemetry tracing for the consumer service.
     /// </summary>
     /// <param name="builder">The host application builder.</param>
@@ -114,10 +66,6 @@ public static class Extensions
                 .AddSource("Agitprop.PageRequester.RespectfulPageRequester")
                 .AddSource("Agitprop.ProxyProviders.RedScrapeProxyProvider")
                 .AddSource("Agitprop.RssFeedReader")
-                .AddSource("Agitprop.NewsfeedSink")
-                .AddSource("Agitprop.NewsfeedDB")
-                .AddSource("Agitprop.Repository.EntityRepository")
-                .AddSource("Agitprop.Repository.TrendingRepository")
             );
 
         return builder;

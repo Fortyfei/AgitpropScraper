@@ -29,8 +29,6 @@ public class Program
 
         // Configure MassTransit for message-based communication.
         builder.ConfigureMassTransit();
-        builder.ConfigureResiliency();
-        builder.ConfigureMetrics();
         builder.ConfigureTracing();
 
         // Add the Newsfeed sink for processing scraped data.
