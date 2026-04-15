@@ -55,7 +55,8 @@ internal class Program
                                .WithReference(messaging)
                                .WaitFor(consumer)
                                .WithOtlpExporter()
-                               .PublishAsDockerComposeService((resource, service) => { service.Name = "rssReader"; });
+                               .PublishAsDockerComposeService((resource, service) => { service.Name = "rssReader"; })
+                               .WithEnvironmentAwareImagePush();
 
         var backend = builder.AddProject<Agitprop_Web_Api>("backend")
                              .WaitFor(newsfeedDb)
@@ -67,7 +68,11 @@ internal class Program
                              .WithContainerRegistry(registry)
                              .WithEnvironmentAwareImagePush();
 
-        // var frontend = builder.
+        var frontend = builder.AddProject<Agitprop_Web_Client>("frontend")
+                              .WithOtlpExporter()
+                              .PublishAsDockerComposeService((resource, service) => { service.Name = "frontend"; })
+                              .WithContainerRegistry(registry)
+                              .WithEnvironmentAwareImagePush();
 
         builder.Build().Run();
     }

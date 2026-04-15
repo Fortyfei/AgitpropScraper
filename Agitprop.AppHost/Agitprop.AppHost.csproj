@@ -28,6 +28,7 @@
     <ProjectReference
       Include="..\Agitprop.Scraper.RssFeedReader\Agitprop.Scraper.RssFeedReader.csproj" />
     <ProjectReference Include="..\Agitprop.Web.Api\Agitprop.Web.Api.csproj" />
+    <ProjectReference Include="..\Agitprop.Web.Client\Agitprop.Web.Client.csproj" />
   </ItemGroup>
 
   <ItemGroup>
