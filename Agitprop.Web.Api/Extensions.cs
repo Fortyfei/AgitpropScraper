@@ -17,6 +17,8 @@ internal static class Extensions
         {
             Id = e.Id?.ToString() ?? "<empty>",
             Name = e.Name,
+            Type = e.Type,
+            MentionCount = 0,
         };
     }
 

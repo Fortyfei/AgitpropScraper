@@ -1,0 +1,56 @@
+@page "/explorer"
+@using Agitprop.Web.Client.Components.Shared
+@using Agitprop.Web.Client.Models
+@inject Agitprop.Web.Client.Services.AnalyticsService Analytics
+
+<PageTitle>Entity Explorer</PageTitle>
+
+<div class="page-block">
+    <div class="page-section-header">
+        <div>
+            <h2>Entity Explorer</h2>
+            <p>Find entities by name, type, and mention count.</p>
+        </div>
+        <AnalyticsFilterBar />
+    </div>
+
+    <div class="panel-card">
+        <DataTable>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Mentions</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Entities?.Any() == true)
+                {
+                    @foreach (var entity in Entities)
+                    {
+                        <tr>
+                            <td>@entity.Name</td>
+                            <td>@entity.Type</td>
+                            <td>@entity.Mentions</td>
+                            <td><a class="link-button" href="/entity/@entity.Id">View details</a></td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr><td colspan="4">Loading entities...</td></tr>
+                }
+            </tbody>
+        </DataTable>
+    </div>
+</div>
+
+@code {
+    private IEnumerable<EntitySummary>? Entities;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Entities = await Analytics.GetEntitiesAsync();
+    }
+}

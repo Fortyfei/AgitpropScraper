@@ -1,0 +1,131 @@
+@page "/"
+@using Agitprop.Web.Client.Components.Shared
+@using Agitprop.Web.Client.Models
+@inject Agitprop.Web.Client.Services.AnalyticsService Analytics
+@inject NavigationManager Navigation
+
+<PageTitle>Dashboard</PageTitle>
+
+<div class="dashboard-page">
+    <AnalyticsFilterBar />
+
+    <section class="dashboard-metrics">
+        <MetricCard Title="Top Entity" Value="@TopEntityName" Subtitle="Most mentioned entity" />
+        <MetricCard Title="Total Mentions" Value="@TotalMentions" Subtitle="Within current range" />
+        <MetricCard Title="Entity Types" Value="@EntityTypesCount" Subtitle="Categories tracked" />
+        <MetricCard Title="Related Entities" Value="@RelatedEntitiesCount" Subtitle="Strong co-occurrence" />
+    </section>
+
+    <section class="dashboard-grid">
+        <div class="dashboard-panel">
+            <div class="panel-header">
+                <h2>Top entities</h2>
+                <span>Bar chart showing mention count</span>
+            </div>
+            <div class="chart-placeholder">
+                @if (TopEntities?.Any() == true)
+                {
+                    <ApexChart TItem="EntitySummary" OnDataPointSelection="OnTopEntitySelected">
+                        <ApexPointSeries TItem="EntitySummary"
+                                         Items="TopEntities"
+                                         Name="Mentions"
+                                         SeriesType="SeriesType.Bar"
+                                         XValue="item => item.Name"
+                                         YValue="item => (decimal?)item.Mentions" />
+                    </ApexChart>
+                }
+                else
+                {
+                    <span>Loading top entities...</span>
+                }
+            </div>
+        </div>
+
+        <div class="dashboard-panel">
+            <div class="panel-header">
+                <h2>Entity type distribution</h2>
+                <span>Donut chart by type</span>
+            </div>
+            <div class="chart-placeholder">
+                @if (EntityTypeDistribution?.Any() == true)
+                {
+                    <ApexChart TItem="EntityTypeDistributionPoint">
+                        <ApexPointSeries TItem="EntityTypeDistributionPoint"
+                                         Items="EntityTypeDistribution"
+                                         Name="Entity Types"
+                                         SeriesType="SeriesType.Donut"
+                                         XValue="item => item.Type"
+                                         YValue="item => (decimal?)item.Count" />
+                    </ApexChart>
+                }
+                else
+                {
+                    <span>Loading distribution...</span>
+                }
+            </div>
+        </div>
+
+        <div class="dashboard-panel span-full">
+            <div class="panel-header">
+                <h2>Mentions over time</h2>
+                <span>Trend line for selected entities</span>
+            </div>
+            <div class="chart-placeholder">
+                @if (MentionsTimeline?.Any() == true)
+                {
+                    <ApexChart TItem="TimelinePoint" XAxisType="XAxisType.Datetime">
+                        <ApexPointSeries TItem="TimelinePoint"
+                                         Items="MentionsTimeline"
+                                         Name="Mentions"
+                                         SeriesType="SeriesType.Line"
+                                         XValue="point => point.Date.ToDateTime(TimeOnly.MinValue)"
+                                         YValue="point => (decimal?)point.Count" />
+                    </ApexChart>
+                }
+                else
+                {
+                    <span>Loading timeline...</span>
+                }
+            </div>
+        </div>
+    </section>
+</div>
+
+@code {
+    private IEnumerable<EntitySummary>? TopEntities;
+    private IEnumerable<EntityTypeDistributionPoint>? EntityTypeDistribution;
+    private IEnumerable<TimelinePoint>? MentionsTimeline;
+
+    private string TopEntityName => TopEntities?.FirstOrDefault()?.Name ?? "—";
+    private string TotalMentions => MentionsTimeline?.Sum(item => item.Count).ToString() ?? "—";
+    private string EntityTypesCount => EntityTypeDistribution?.Count().ToString() ?? "—";
+    private string RelatedEntitiesCount => "18";
+
+    protected override async Task OnInitializedAsync()
+    {
+        TopEntities = await Analytics.GetTopEntitiesAsync();
+        EntityTypeDistribution = await Analytics.GetEntityTypeDistributionAsync();
+        MentionsTimeline = (await Analytics.GetMentionsOverTimeAsync())
+            .OrderBy(point => point.Date)
+            .ToList();
+    }
+
+    private void NavigateToEntity(string entityId)
+    {
+        if (string.IsNullOrWhiteSpace(entityId))
+        {
+            return;
+        }
+
+        Navigation.NavigateTo($"/entity/{entityId}");
+    }
+
+    private void OnTopEntitySelected(SelectedData<EntitySummary> selected)
+    {
+        var entityId = selected.DataPoint?.Items?.FirstOrDefault()?.Id;
+        if (!string.IsNullOrWhiteSpace(entityId))
+        {
+            NavigateToEntity(entityId);
+        }
+    }
+}

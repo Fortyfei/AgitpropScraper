@@ -1,0 +1,62 @@
+@using Agitprop.Web.Client.Models
+
+@if (SeriesPoints.Count > 1)
+{
+    <svg class="analytics-chart" viewBox="0 0 860 280" role="img" aria-label="Mentions over time chart">
+        <line x1="50" y1="20" x2="50" y2="230" class="chart-axis" />
+        <line x1="50" y1="230" x2="820" y2="230" class="chart-axis" />
+
+        <polyline points="@PolylinePoints" fill="none" stroke="@Stroke" stroke-width="3" class="chart-line" />
+
+        @foreach (var point in MappedPoints)
+        {
+            <circle cx="@point.X" cy="@point.Y" r="4" fill="@Stroke" class="chart-point">
+                <title>@point.Date.ToString("MMM dd"): @point.Count mentions</title>
+            </circle>
+        }
+    </svg>
+}
+else
+{
+    <div class="chart-empty">No line chart data available.</div>
+}
+
+@code {
+    [Parameter] public IEnumerable<TimelinePoint> Points { get; set; } = Enumerable.Empty<TimelinePoint>();
+    [Parameter] public string Stroke { get; set; } = "#2563eb";
+
+    private IReadOnlyList<TimelinePoint> SeriesPoints => Points.OrderBy(point => point.Date).ToList();
+
+    private IReadOnlyList<MappedPoint> MappedPoints
+    {
+        get
+        {
+            if (SeriesPoints.Count == 0)
+            {
+                return [];
+            }
+
+            var maxCount = Math.Max(SeriesPoints.Max(point => point.Count), 1);
+            var width = 760d;
+            var step = SeriesPoints.Count > 1 ? width / (SeriesPoints.Count - 1) : width;
+
+            return SeriesPoints.Select((point, index) => new MappedPoint
+            {
+                Date = point.Date,
+                Count = point.Count,
+                X = 50 + (index * step),
+                Y = 230 - ((point.Count / (double)maxCount) * 190)
+            }).ToList();
+        }
+    }
+
+    private string PolylinePoints => string.Join(" ", MappedPoints.Select(point => $"{point.X},{point.Y}"));
+
+    private sealed class MappedPoint
+    {
+        public DateOnly Date { get; set; }
+        public int Count { get; set; }
+        public double X { get; set; }
+        public double Y { get; set; }
+    }
+}

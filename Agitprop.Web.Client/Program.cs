@@ -1,4 +1,6 @@
 using Agitprop.Web.Client.Components;
+using Agitprop.Web.Client.Services;
+using ApexCharts;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -7,6 +9,13 @@ builder.AddServiceDefaults();
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+builder.Services.AddApexCharts();
+
+builder.Services.AddHttpClient<AnalyticsService>(client =>
+{
+    client.BaseAddress = new Uri("http://backend/");
+});
 
 var app = builder.Build();
 

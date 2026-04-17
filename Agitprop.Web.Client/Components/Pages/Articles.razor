@@ -1,0 +1,59 @@
+@page "/articles"
+@using Agitprop.Web.Client.Components.Shared
+@using Agitprop.Web.Client.Models
+@inject Agitprop.Web.Client.Services.AnalyticsService Analytics
+
+<PageTitle>Articles</PageTitle>
+
+<div class="page-block">
+    <div class="page-section-header">
+        <div>
+            <h2>Articles</h2>
+            <p>Browse the article feed and see the entities mentioned in each story.</p>
+        </div>
+        <AnalyticsFilterBar />
+    </div>
+
+    <div class="panel-card">
+        <div class="panel-header">
+            <h3>Article list</h3>
+        </div>
+        <DataTable>
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Date</th>
+                    <th>Entities</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (ArticleItems?.Any() == true)
+                {
+                    @foreach (var article in ArticleItems)
+                    {
+                        <tr>
+                            <td><a href="@article.Url" target="_blank">@article.Title</a></td>
+                            <td>@article.PublishedDate.ToString("MMM dd, yyyy")</td>
+                            <td>@article.EntitiesDisplay</td>
+                            <td><a class="link-button" href="@article.Url" target="_blank">Open</a></td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr><td colspan="4">Loading articles...</td></tr>
+                }
+            </tbody>
+        </DataTable>
+    </div>
+</div>
+
+@code {
+    private IEnumerable<ArticleSummary>? ArticleItems;
+
+    protected override async Task OnInitializedAsync()
+    {
+        ArticleItems = await Analytics.GetArticlesAsync();
+    }
+}

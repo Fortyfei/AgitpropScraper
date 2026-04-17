@@ -38,15 +38,40 @@ public class EntitiesController : ControllerBase
         CancellationToken cancellationToken = default)
     {
         using var activity = _activitySource.StartActivity("GetEntitiesPaginated", ActivityKind.Server);
+        var from = request.StartDate == default ? DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-7)) : request.StartDate;
+        var to = request.EndDate == default ? DateOnly.FromDateTime(DateTime.UtcNow) : request.EndDate;
+
         var entities = _entityRepository.GetEntitiesPaginatedAsync(
-            request.StartDate,
-            request.EndDate,
+            from,
+            to,
             request.Page,
             request.PageSize);
 
+        if (!string.IsNullOrWhiteSpace(request.Search))
+        {
+            entities = entities.Where(e => e.Name.Contains(request.Search, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var entityList = entities.ToList();
+        var entityIds = entityList
+            .Where(entity => !string.IsNullOrWhiteSpace(entity.Id))
+            .Select(entity => entity.Id!)
+            .ToList();
+        var mentionings = _entityRepository.GetMentioningArticlesAsync(entityIds, from, to);
+
+        var mappedEntities = entityList.Select(e => new EntityDto
+        {
+            Id = e.Id ?? string.Empty,
+            Name = e.Name,
+            Type = e.Type,
+            MentionCount = !string.IsNullOrWhiteSpace(e.Id) && mentionings.TryGetValue(e.Id, out var articles)
+                ? articles.Count()
+                : 0
+        });
+
         var response = new PaginatedEntitiesResponse
         {
-            Entities = entities.ToEntityDtos(),
+            Entities = mappedEntities,
             Page = request.Page
         };
         activity?.SetTag("response", response);
@@ -93,10 +118,15 @@ public class EntitiesController : ControllerBase
         CancellationToken cancellationToken = default)
     {
         using var activity = _activitySource.StartActivity("GetEntityTimeline", ActivityKind.Server);
+        var from = request.StartDate == default ? DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-7)) : request.StartDate;
+        var to = request.EndDate == default ? DateOnly.FromDateTime(DateTime.UtcNow) : request.EndDate;
         var entity =  _entityRepository.GetEntityByIdAsync(entityId);
+        if (entity == null)
+            return NotFound();
+
         var articles = _entityRepository.GetMentioningArticlesAsync(entityId,
-                                                                          request.StartDate,
-                                                                          request.EndDate);
+                                                                    from,
+                                                                    to);
 
 
         var timeline = articles
@@ -129,10 +159,12 @@ public class EntitiesController : ControllerBase
         CancellationToken cancellationToken = default)
     {
         using var activity = _activitySource.StartActivity("GetArticlesMentioningEntity", ActivityKind.Server);
+        var from = request.StartDate == default ? DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-7)) : request.StartDate;
+        var to = request.EndDate == default ? DateOnly.FromDateTime(DateTime.UtcNow) : request.EndDate;
         var articles = _entityRepository.GetMentioningArticlesAsync(
             entityId,
-            request.StartDate,
-            request.EndDate);
+            from,
+            to);
 
         var response = new MentioningArticlesResponse { Articles = [.. articles.ToArticleDto()] };
         activity?.SetTag("response", response);
@@ -150,21 +182,23 @@ public class EntitiesController : ControllerBase
         CancellationToken cancellationToken = default)
     {
         using var activity = _activitySource.StartActivity("GetRelatedEntities", ActivityKind.Server);
+        var from = request.StartDate == default ? DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-7)) : request.StartDate;
+        var to = request.EndDate == default ? DateOnly.FromDateTime(DateTime.UtcNow) : request.EndDate;
 
-        // This assumes your repository will have a CoMention query later
         var articles = _entityRepository.GetMentioningArticlesAsync(
             entityId,
-            request.StartDate,
-            request.EndDate);
+            from,
+            to);
 
         var related = articles
+            .SelectMany(article => article.MentionedEntities)
             .Where(entity => entity.Id != entityId)
-            .SelectMany(entity => entity.MentionedEntities)
             .GroupBy(entity => entity.Id)
             .Select(g => new EntityCoMentionDto
             {
                 Id = g.Key,
                 Name = g.First().Name,
+                Type = g.First().Type,
                 CoMentionCount = g.Count()
             })
             .OrderByDescending(r => r.CoMentionCount);

@@ -1,0 +1,89 @@
+@using Agitprop.Web.Client.Models
+
+@if (Items.Any())
+{
+    <div class="donut-chart-wrap">
+        <svg class="analytics-chart" viewBox="0 0 420 300" role="img" aria-label="Entity type distribution">
+            <g transform="translate(140, 150)">
+                @foreach (var segment in Segments)
+                {
+                    <circle r="68" cx="0" cy="0" fill="none" stroke="@segment.Color" stroke-width="34"
+                            stroke-dasharray="@segment.Length @segment.Remainder" stroke-dashoffset="@segment.Offset" class="donut-segment">
+                        <title>@segment.Type: @segment.Count</title>
+                    </circle>
+                }
+                <circle r="44" cx="0" cy="0" fill="#ffffff" />
+            </g>
+
+            <g transform="translate(250, 60)">
+                @foreach (var row in Segments.Select((segment, index) => new { segment, index }))
+                {
+                    <rect x="0" y="@(row.index * 28)" width="14" height="14" rx="3" fill="@row.segment.Color" />
+                    <title>@row.segment.Type (@row.segment.Count)</title>
+                }
+            </g>
+        </svg>
+    </div>
+}
+else
+{
+    <div class="chart-empty">No donut chart data available.</div>
+}
+
+@code {
+    [Parameter] public IEnumerable<EntityTypeDistributionPoint> Items { get; set; } = Enumerable.Empty<EntityTypeDistributionPoint>();
+
+    private static readonly Dictionary<string, string> TypeColors = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["ORG"] = "#2563eb",
+        ["LOC"] = "#0891b2",
+        ["PER"] = "#16a34a",
+        ["MISC"] = "#c2410c"
+    };
+
+    private IReadOnlyList<DonutSegment> Segments
+    {
+        get
+        {
+            var points = Items.ToList();
+            if (points.Count == 0)
+            {
+                return [];
+            }
+
+            var total = Math.Max(points.Sum(point => point.Count), 1);
+            var circumference = 2 * Math.PI * 68;
+            var offset = 0d;
+
+            var segments = new List<DonutSegment>(points.Count);
+            foreach (var point in points)
+            {
+                var entityType = string.IsNullOrWhiteSpace(point.Type) ? "MISC" : point.Type;
+                var ratio = point.Count / (double)total;
+                var length = ratio * circumference;
+                segments.Add(new DonutSegment
+                {
+                    Type = entityType,
+                    Count = point.Count,
+                    Color = TypeColors.TryGetValue(entityType, out var color) ? color : "#64748b",
+                    Length = length,
+                    Remainder = circumference,
+                    Offset = -offset
+                });
+                offset += length;
+            }
+
+            return segments;
+        }
+    }
+
+    private sealed class DonutSegment
+    {
+        public required string Type { get; set; }
+        public int Count { get; set; }
+        public required string Color { get; set; }
+        public double Length { get; set; }
+        public double Remainder { get; set; }
+        public double Offset { get; set; }
+    }
+}

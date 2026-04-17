@@ -69,6 +69,8 @@ internal class Program
                              .WithEnvironmentAwareImagePush();
 
         var frontend = builder.AddProject<Agitprop_Web_Client>("frontend")
+                              .WaitFor(backend)
+                              .WithReference(backend)
                               .WithOtlpExporter()
                               .PublishAsDockerComposeService((resource, service) => { service.Name = "frontend"; })
                               .WithContainerRegistry(registry)

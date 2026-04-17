@@ -1,0 +1,60 @@
+@page "/trends"
+@using Agitprop.Web.Client.Components.Shared
+@using Agitprop.Web.Client.Models
+@inject Agitprop.Web.Client.Services.AnalyticsService Analytics
+
+<PageTitle>Trends</PageTitle>
+
+<div class="page-block">
+    <div class="page-section-header">
+        <div>
+            <h2>Trends Comparison</h2>
+            <p>Compare multiple entities across time with an interactive trend chart.</p>
+        </div>
+        <AnalyticsFilterBar />
+    </div>
+
+    <div class="panel-card">
+        <div class="panel-header">
+            <h3>Entity trends</h3>
+        </div>
+        <div class="chart-placeholder large">
+            @if (TrendSeries?.Any() == true)
+            {
+                <ApexChart TItem="TimelinePoint" XAxisType="XAxisType.Datetime">
+                    @foreach (var series in TrendSeries)
+                    {
+                        <ApexPointSeries TItem="TimelinePoint"
+                                         Items="series.Timeline"
+                                         Name="@series.Name"
+                                         SeriesType="SeriesType.Line"
+                                         Stroke="@(new SeriesStroke { Color = series.Color, Width = 2 })"
+                                         XValue="point => point.Date.ToDateTime(TimeOnly.MinValue)"
+                                         YValue="point => (decimal?)point.Count" />
+                    }
+                </ApexChart>
+            }
+            else
+            {
+                <span>Loading comparison series...</span>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private IEnumerable<EntityTrendSeries>? TrendSeries;
+
+    protected override async Task OnInitializedAsync()
+    {
+        TrendSeries = (await Analytics.GetTrendSeriesAsync())
+            .Select(series =>
+            {
+                series.Timeline = series.Timeline
+                    .OrderBy(point => point.Date)
+                    .ToList();
+                return series;
+            })
+            .ToList();
+    }
+}

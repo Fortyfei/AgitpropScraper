@@ -1,0 +1,130 @@
+@using Agitprop.Web.Client.Models
+
+@if (PositionedNodes.Any())
+{
+    <svg class="analytics-chart" viewBox="0 0 900 460" role="img" aria-label="Entity co-occurrence graph">
+        @foreach (var edge in PositionedEdges)
+        {
+            <line x1="@edge.X1" y1="@edge.Y1" x2="@edge.X2" y2="@edge.Y2" class="graph-edge" stroke-width="@edge.StrokeWidth">
+                <title>@edge.SourceName + @edge.TargetName: @edge.Weight co-occurrences</title>
+            </line>
+        }
+
+        @foreach (var node in PositionedNodes)
+        {
+            <g class="graph-node" @onclick="() => OnNodeClick.InvokeAsync(node.Id)">
+                <circle cx="@node.X" cy="@node.Y" r="@node.Radius" fill="@node.Color"></circle>
+                <title>@node.Label: @node.Mentions mentions (@node.Type)</title>
+            </g>
+        }
+    </svg>
+}
+else
+{
+    <div class="chart-empty">No network graph data available.</div>
+}
+
+@code {
+    [Parameter] public IEnumerable<NetworkNode> Nodes { get; set; } = Enumerable.Empty<NetworkNode>();
+    [Parameter] public IEnumerable<NetworkEdge> Edges { get; set; } = Enumerable.Empty<NetworkEdge>();
+    [Parameter] public EventCallback<string> OnNodeClick { get; set; }
+
+    private IReadOnlyList<PositionedNode> PositionedNodes
+    {
+        get
+        {
+            var nodes = Nodes.ToList();
+            if (nodes.Count == 0)
+            {
+                return [];
+            }
+
+            var maxMentions = Math.Max(nodes.Max(node => node.Mentions), 1);
+            var centerX = 450d;
+            var centerY = 210d;
+            var radius = 150d;
+
+            return nodes.Select((node, index) =>
+            {
+                var angle = (2 * Math.PI * index) / nodes.Count;
+                var r = 14 + ((node.Mentions / (double)maxMentions) * 18);
+                return new PositionedNode
+                {
+                    Id = node.Id,
+                    Label = node.Label,
+                    Type = node.Type,
+                    Mentions = node.Mentions,
+                    X = centerX + (radius * Math.Cos(angle)),
+                    Y = centerY + (radius * Math.Sin(angle)),
+                    Radius = r,
+                    Color = NodeColor(node.Type)
+                };
+            }).ToList();
+        }
+    }
+
+    private IReadOnlyList<PositionedEdge> PositionedEdges
+    {
+        get
+        {
+            if (!PositionedNodes.Any())
+            {
+                return [];
+            }
+
+            var lookup = PositionedNodes.ToDictionary(node => node.Id);
+            return Edges
+                .Where(edge => lookup.ContainsKey(edge.Source) && lookup.ContainsKey(edge.Target))
+                .Select(edge =>
+                {
+                    var source = lookup[edge.Source];
+                    var target = lookup[edge.Target];
+                    return new PositionedEdge
+                    {
+                        X1 = source.X,
+                        Y1 = source.Y,
+                        X2 = target.X,
+                        Y2 = target.Y,
+                        Weight = edge.Weight,
+                        StrokeWidth = Math.Max(1, Math.Min(8, edge.Weight)),
+                        SourceName = source.Label,
+                        TargetName = target.Label
+                    };
+                })
+                .ToList();
+        }
+    }
+
+    private static string NodeColor(string type) => type.ToUpperInvariant() switch
+    {
+        "ORG" => "#2563eb",
+        "PER" => "#16a34a",
+        "LOC" => "#0891b2",
+        "MISC" => "#c2410c",
+        _ => "#64748b"
+    };
+
+    private sealed class PositionedNode
+    {
+        public required string Id { get; set; }
+        public required string Label { get; set; }
+        public required string Type { get; set; }
+        public int Mentions { get; set; }
+        public double X { get; set; }
+        public double Y { get; set; }
+        public double Radius { get; set; }
+        public required string Color { get; set; }
+    }
+
+    private sealed class PositionedEdge
+    {
+        public double X1 { get; set; }
+        public double Y1 { get; set; }
+        public double X2 { get; set; }
+        public double Y2 { get; set; }
+        public int Weight { get; set; }
+        public double StrokeWidth { get; set; }
+        public required string SourceName { get; set; }
+        public required string TargetName { get; set; }
+    }
+}
