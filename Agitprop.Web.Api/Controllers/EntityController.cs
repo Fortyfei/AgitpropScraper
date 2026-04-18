@@ -1,17 +1,13 @@
-using Microsoft.AspNetCore.Mvc;
-using Agitprop.Core.Interfaces;
-using Agitprop.Web.Api.DTOs.Requests;
-using Agitprop.Web.Api;
-using Agitprop.Web.Api.DTOs.Responses;
-using Agitprop.Web.Api.DTOs;
-using Agitprop.Web.Api.Models;
 using System.Diagnostics;
-using Agitprop.Api.Controllers;
+using Agitprop.Core.Interfaces;
+using Agitprop.Web.Api.DTOs;
+using Agitprop.Web.Api.DTOs.Responses;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Agitprop.Web.Api.Controllers;
 
 /// <summary>
-/// Provides endpoints for browsing and analyzing entities.
+/// Provides minimal endpoints for homepage entity analytics.
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
@@ -19,213 +15,127 @@ public class EntitiesController : ControllerBase
 {
     private readonly ILogger<EntitiesController> _logger;
     private readonly IEntityRepository _entityRepository;
+    private readonly ITrendingRepository _trendingRepository;
     private static readonly ActivitySource _activitySource = new("Agitprop.Web.Api.Controllers.EntitiesController");
 
     public EntitiesController(
         ILogger<EntitiesController> logger,
-        IEntityRepository repository)
+        IEntityRepository repository,
+        ITrendingRepository trendingRepository)
     {
         _logger = logger;
         _entityRepository = repository;
+        _trendingRepository = trendingRepository;
     }
 
-    /// <summary>
-    /// Returns a paginated list of entities mentioned in articles within the given date range.
-    /// </summary>
-    [HttpGet]
-    public async Task<ActionResult<PaginatedEntitiesResponse>> GetEntitiesPaginatedAsync(
-        [FromQuery] EntitiesPaginatedRequest request,
-        CancellationToken cancellationToken = default)
+    [HttpGet("topmentioned")]
+    public ActionResult<TopMentionedEntitiesResponse> GetTopMentionedEntities(
+        [FromQuery] DateOnly from,
+        [FromQuery] DateOnly to)
     {
-        using var activity = _activitySource.StartActivity("GetEntitiesPaginated", ActivityKind.Server);
-        var from = request.StartDate == default ? DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-7)) : request.StartDate;
-        var to = request.EndDate == default ? DateOnly.FromDateTime(DateTime.UtcNow) : request.EndDate;
+        using var activity = _activitySource.StartActivity("GetTopMentionedEntities", ActivityKind.Server);
 
-        var entities = _entityRepository.GetEntitiesPaginatedAsync(
-            from,
-            to,
-            request.Page,
-            request.PageSize);
-
-        if (!string.IsNullOrWhiteSpace(request.Search))
+        if (from == default || to == default)
         {
-            entities = entities.Where(e => e.Name.Contains(request.Search, StringComparison.OrdinalIgnoreCase));
+            return BadRequest(new { error = "Both from and to query parameters are required." });
         }
 
-        var entityList = entities.ToList();
-        var entityIds = entityList
-            .Where(entity => !string.IsNullOrWhiteSpace(entity.Id))
-            .Select(entity => entity.Id!)
-            .ToList();
-        var mentionings = _entityRepository.GetMentioningArticlesAsync(entityIds, from, to);
-
-        var mappedEntities = entityList.Select(e => new EntityDto
+        if (from > to)
         {
-            Id = e.Id ?? string.Empty,
-            Name = e.Name,
-            Type = e.Type,
-            MentionCount = !string.IsNullOrWhiteSpace(e.Id) && mentionings.TryGetValue(e.Id, out var articles)
-                ? articles.Count()
-                : 0
-        });
+            return BadRequest(new { error = "The from date must be earlier than or equal to the to date." });
+        }
 
-        var response = new PaginatedEntitiesResponse
+        try
         {
-            Entities = mappedEntities,
-            Page = request.Page
-        };
-        activity?.SetTag("response", response);
-        return Ok(response);
+            var trendingEntities = _trendingRepository.GetTrendingEntitiesAsync(from, to)
+                .Take(8)
+                .ToList();
+
+            var entityIds = trendingEntities
+                .Where(entity => !string.IsNullOrWhiteSpace(entity.Id))
+                .Select(entity => entity.Id!)
+                .ToList();
+
+            var mentionings = _entityRepository.GetMentioningArticlesAsync(entityIds, from, to);
+
+            var topEntities = trendingEntities
+                .Select(entity => new TopMentionedEntity
+                {
+                    Id = entity.Id ?? string.Empty,
+                    Name = entity.Name,
+                    MentionCount = !string.IsNullOrWhiteSpace(entity.Id) && mentionings.TryGetValue(entity.Id, out var articles)
+                        ? articles.Count()
+                        : 0
+                })
+                .OrderByDescending(entity => entity.MentionCount)
+                .ThenBy(entity => entity.Name)
+                .ToList();
+
+            return Ok(new TopMentionedEntitiesResponse { Entities = topEntities });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error computing top mentioned entities");
+            return StatusCode(500, new { error = "Failed to compute top mentioned entities." });
+        }
     }
 
-    /// <summary>
-    /// Returns details for a specific entity.
-    /// </summary>
-    [HttpGet("{entityId}/details")]
-    public async Task<ActionResult<EntityDetailsResponse>> GetEntityDetailsAsync(
-        string entityId,
-        [FromQuery] EntityDetailsRequest request,
-        CancellationToken cancellationToken = default)
+    [HttpGet("timeline")]
+    public ActionResult<EntitiesTimelineResponse> GetEntitiesTimeline(
+        [FromQuery] DateOnly from,
+        [FromQuery] DateOnly to,
+        [FromQuery] List<string>? entities)
     {
-        using var activity = _activitySource.StartActivity("GetEntityDetails", ActivityKind.Server);
-        var entity = _entityRepository.GetEntityByIdAsync(entityId);
+        using var activity = _activitySource.StartActivity("GetEntitiesTimeline", ActivityKind.Server);
 
-        if (entity == null)
-            return NotFound();
-
-        var articles = _entityRepository.GetMentioningArticlesAsync(entityId, request.StartDate, request.EndDate);
-        var totalMentions = articles.Count();
-        
-        var response = new EntityDetailsResponse
+        if (from == default || to == default)
         {
-            EntityId = entity.Id,
-            Name = entity.Name,
-            Type = entity.Type,
-            TotalMentions = totalMentions
-        };
+            return BadRequest(new { error = "Both from and to query parameters are required." });
+        }
 
-        activity?.SetTag("response", response);
-        return Ok(response);
-    }
+        if (from > to)
+        {
+            return BadRequest(new { error = "The from date must be earlier than or equal to the to date." });
+        }
 
-    /// <summary>
-    /// Returns a timeline of mentions for a specific entity.
-    /// </summary>
-    [HttpGet("{entityId}/timeline")]
-    public async Task<ActionResult<EntityTimelineResponse>> GetEntityTimelineAsync(
-        string entityId,
-        [FromQuery] EntityTimelineRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        using var activity = _activitySource.StartActivity("GetEntityTimeline", ActivityKind.Server);
-        var from = request.StartDate == default ? DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-7)) : request.StartDate;
-        var to = request.EndDate == default ? DateOnly.FromDateTime(DateTime.UtcNow) : request.EndDate;
-        var entity =  _entityRepository.GetEntityByIdAsync(entityId);
-        if (entity == null)
-            return NotFound();
+        if (entities == null || !entities.Any())
+        {
+            return BadRequest(new { error = "At least one entity id must be provided." });
+        }
 
-        var articles = _entityRepository.GetMentioningArticlesAsync(entityId,
-                                                                    from,
-                                                                    to);
+        try
+        {
+            var entityIds = entities
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
-
-        var timeline = articles
-            .GroupBy(a => DateOnly.FromDateTime(a.PublishedTime))
-            .Select(g => new EntityTimelinePoint
+            if (!entityIds.Any())
             {
-                Date = g.Key,
-                Count = g.Count()
-            })
-            .OrderBy(p => p.Date);
+                return BadRequest(new { error = "At least one valid entity id must be provided." });
+            }
 
-        var response = new EntityTimelineResponse
+            var mentionings = _entityRepository.GetMentioningArticlesAsync(entityIds, from, to);
+
+            var timeline = mentionings.ToDictionary(
+                pair => pair.Key,
+                pair => pair.Value
+                    .GroupBy(article => DateOnly.FromDateTime(article.PublishedTime))
+                    .Select(group => new EntityTimelinePoint
+                    {
+                        Date = group.Key,
+                        Count = group.Count()
+                    })
+                    .OrderBy(point => point.Date)
+                    .ToList(),
+                StringComparer.OrdinalIgnoreCase);
+
+            return Ok(new EntitiesTimelineResponse { Timeline = timeline });
+        }
+        catch (Exception ex)
         {
-            EntityId = entity.Id,
-            Name = entity.Name,
-            Timeline = timeline.ToList()
-        };
-
-        activity?.SetTag("response", response);
-        return Ok(response);
-    }
-
-    /// <summary>
-    /// Returns articles that mention a specific entity.
-    /// </summary>
-    [HttpGet("{entityId}/articles")]
-    public async Task<ActionResult<MentioningArticlesResponse>> GetArticlesMentioningEntityAsync(
-        string entityId,
-        [FromQuery] MentioningArticlesRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        using var activity = _activitySource.StartActivity("GetArticlesMentioningEntity", ActivityKind.Server);
-        var from = request.StartDate == default ? DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-7)) : request.StartDate;
-        var to = request.EndDate == default ? DateOnly.FromDateTime(DateTime.UtcNow) : request.EndDate;
-        var articles = _entityRepository.GetMentioningArticlesAsync(
-            entityId,
-            from,
-            to);
-
-        var response = new MentioningArticlesResponse { Articles = [.. articles.ToArticleDto()] };
-        activity?.SetTag("response", response);
-
-        return Ok(response);
-    }
-
-    /// <summary>
-    /// Returns related entities that co-occur with the given entity.
-    /// </summary>
-    [HttpGet("{entityId}/related")]
-    public async Task<ActionResult<RelatedEntityResponse>> GetRelatedEntitiesAsync(
-        string entityId,
-        [FromQuery] RelatedEntitiesRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        using var activity = _activitySource.StartActivity("GetRelatedEntities", ActivityKind.Server);
-        var from = request.StartDate == default ? DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-7)) : request.StartDate;
-        var to = request.EndDate == default ? DateOnly.FromDateTime(DateTime.UtcNow) : request.EndDate;
-
-        var articles = _entityRepository.GetMentioningArticlesAsync(
-            entityId,
-            from,
-            to);
-
-        var related = articles
-            .SelectMany(article => article.MentionedEntities)
-            .Where(entity => entity.Id != entityId)
-            .GroupBy(entity => entity.Id)
-            .Select(g => new EntityCoMentionDto
-            {
-                Id = g.Key,
-                Name = g.First().Name,
-                Type = g.First().Type,
-                CoMentionCount = g.Count()
-            })
-            .OrderByDescending(r => r.CoMentionCount);
-
-        var response = new RelatedEntityResponse
-        {
-            EntityId = entityId,
-            CoMentionedEntities = related.ToList()
-        };
-        activity?.SetTag("response", response);
-        return Ok(response);
-    }
-
-    /// <summary>
-    /// Returns all entities for autocomplete suggestions.
-    /// </summary>
-    [HttpGet("all")]
-    public async Task<ActionResult<IEnumerable<EntityDto>>> GetAllEntitiesAsync(
-        [FromQuery] DateOnly startDate,
-        [FromQuery] DateOnly endDate,
-        CancellationToken cancellationToken = default)
-    {
-        using var activity = _activitySource.StartActivity("GetAllEntities", ActivityKind.Server);
-        var entities = await _entityRepository.GetAllEntitiesAsync(startDate, endDate);
-        
-        var response = entities.ToEntityDtos();
-        activity?.SetTag("response", response);
-        return Ok(response);
+            _logger.LogError(ex, "Error computing entities timeline");
+            return StatusCode(500, new { error = "Failed to compute entities timeline." });
+        }
     }
 }
