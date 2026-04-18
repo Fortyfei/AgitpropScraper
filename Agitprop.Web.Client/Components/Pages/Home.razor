@@ -1,136 +1,115 @@
 ﻿@page "/"
 @page "/home"
 @using Agitprop.Web.Client.Models
+@using ApexCharts
 @inject Agitprop.Web.Client.Services.AnalyticsService Analytics
 
 <PageTitle>Landing</PageTitle>
 
 <div class="page-block landing-page">
-    <div class="landing-top">
-        <div class="landing-hero">
-            <h1>Discover the latest entity intelligence</h1>
-            <p>Start from the top mentioned entities and understand how their mentions trend over time.</p>
-        </div>
-    </div>
-
     <section class="landing-panel">
-        <div class="timeframe-box">
-            <div class="timeframe-selector">
-                @foreach (var option in TimeframeOptions)
+
+        <div class="timeframe-selector">
+            @for (var i = 0; i < TimeframeOptions.Count; i++)
+            {
+                var option = TimeframeOptions[i];
+                var optionIndex = i;
+
+                <button class="timeframe-pill @(SelectedTimeframeIndex == optionIndex ? "active" : "")"
+                        @onclick="() => ChangeTimeframe(optionIndex)">
+                    @option.Label
+                </button>
+            }
+        </div>
+
+        <div>
+            Showing results for <strong>@SelectedTimeframe.Label</strong>
+        </div>
+
+        <hr />
+
+        <!-- DEBUG PANEL (remove later) -->
+        <div style="font-size:12px; color:gray;">
+            <div>TopEntities: @TopEntities.Count</div>
+            <div>Timelines: @EntityTimelines.Count</div>
+            <div>Range: @_debugFrom → @_debugTo</div>
+        </div>
+
+        <hr />
+
+        <!-- CHART -->
+        @if (IsLoading)
+        {
+            <div>Loading chart...</div>
+        }
+        else if (TopEntities.Any())
+        {
+            <ApexChart @ref="_chart"
+                       @key="SelectedTimeframeIndex"
+                       TItem="TimelinePoint"
+                       XAxisType="XAxisType.Datetime"
+                       Height="360">
+
+                @foreach (var series in SelectedTrendSeries)
                 {
-                    <button type="button" class="timeframe-pill @(SelectedTimeframe == option ? "active" : string.Empty)"
-                            @onclick="() => ChangeTimeframe(option)">
-                        @option.Label
-                    </button>
+                    <ApexPointSeries TItem="TimelinePoint"
+                                     Items="series.Timeline"
+                                     Name="@series.Name"
+                                     SeriesType="SeriesType.Line"
+                                     XValue="@(p => p.Date.ToDateTime(TimeOnly.MinValue))"
+                                     YValue="@(p => (decimal?)p.Count)" />
+                }
+
+            </ApexChart>
+
+            <!-- DEBUG: show actual data -->
+            <div style="margin-top:10px; font-size:12px;">
+                @foreach (var s in SelectedTrendSeries)
+                {
+                    <div><strong>@s.Name</strong>: @s.Timeline.Count points</div>
                 }
             </div>
-        </div>
+        }
+        else
+        {
+            <div>No data available</div>
+        }
 
-        <div class="landing-panel-content">
-            <section class="landing-podium">
-                <div class="panel-card podium-panel">
-                    <div class="panel-header">
-                        <h2>Top entities</h2>
-                        <span>Most mentioned entities in the selected timeframe</span>
-                    </div>
-
-                    <div class="podium-grid">
-                        @{ 
-                            var podiumEntities = TopEntities.Take(3).ToArray();
-                            var podiumOrder = new[] { 2, 0, 1 };
-                        }
-
-                        @foreach (var position in podiumOrder)
-                        {
-                            if (position < podiumEntities.Length)
-                            {
-                                var entity = podiumEntities[position];
-                                <div class="podium-card podium-place-@(position + 1)">
-                                    <div class="podium-rank">@((position + 1).ToString())</div>
-                                    <div class="podium-name">@entity.Name</div>
-                                    <div class="podium-count">@entity.Mentions.ToString("N0") mentions</div>
-                                </div>
-                            }
-                        }
-                    </div>
-
-                    <div class="entity-rank-list">
-                        @foreach (var item in TopEntities.Skip(3).Take(5).Select((entity, index) => (entity, index)))
-                        {
-                            <div class="entity-rank-card">
-                                <div class="entity-rank-left">
-                                    <span class="entity-rank-place">@((item.index + 4).ToString())</span>
-                                    <span class="entity-rank-count">@item.entity.Mentions.ToString("N0")</span>
-                                </div>
-                                <div class="entity-rank-content">
-                                    <div class="entity-rank-name">@item.entity.Name</div>
-                                </div>
-                            </div>
-                        }
-                    </div>
-                </div>
-            </section>
-
-            <section class="panel-card chart-panel">
-                <div class="panel-header">
-                    <h2>Trend line</h2>
-                    <span>Mentions over time for the top entities</span>
-                </div>
-                <div>
-                    @if (IsLoading)
-                    {
-                        <span>Loading trend line...</span>
-                    }
-                    else if (SelectedTrendSeries.Any())
-                    {
-                        <ApexChart TItem="TimelinePoint" XAxisType="XAxisType.Datetime" Height="360">
-                            @foreach (var series in SelectedTrendSeries)
-                            {
-                                <ApexPointSeries TItem="TimelinePoint" Items="series.Timeline" Name="@series.Name"
-                                                 SeriesType="SeriesType.Line"
-                                                 Stroke="@(new SeriesStroke { Color = series.Color, Width = 2 })"
-                                                 XValue="@(point => point.Date.ToDateTime(TimeOnly.MinValue))"
-                                                 YValue="@(point => (decimal?)point.Count)" />
-                            }
-                        </ApexChart>
-                    }
-                    else
-                    {
-                        <span>No trend data available for this timeframe.</span>
-                    }
-                </div>
-            </section>
-        </div>
     </section>
 </div>
 
 @code {
     private IReadOnlyList<EntitySummary> TopEntities { get; set; } = Array.Empty<EntitySummary>();
-    private Dictionary<string, List<TimelinePoint>> EntityTimelines { get; set; } = new(StringComparer.OrdinalIgnoreCase);
-    private TimeframeOption SelectedTimeframe { get; set; } = default!;
+
+    private Dictionary<string, List<TimelinePoint>> EntityTimelines { get; set; }
+        = new(StringComparer.OrdinalIgnoreCase);
+
+    private ApexChart<TimelinePoint>? _chart;
+
+    private int SelectedTimeframeIndex { get; set; }
     private bool IsLoading { get; set; }
-    private string? ErrorMessage { get; set; }
 
-    private IEnumerable<EntityTrendSeries> SelectedTrendSeries
-    {
-        get
+    // DEBUG
+    private DateOnly _debugFrom;
+    private DateOnly _debugTo;
+
+    private TimeframeOption SelectedTimeframe => TimeframeOptions[SelectedTimeframeIndex];
+
+    private IEnumerable<EntityTrendSeries> SelectedTrendSeries =>
+        TopEntities.Select((entity, index) =>
         {
-            if (!TopEntities.Any() || EntityTimelines == null)
-            {
-                return Enumerable.Empty<EntityTrendSeries>();
-            }
+            var key = entity.Id?.Trim() ?? "";
 
-            return TopEntities.Select((entity, index) => new EntityTrendSeries
+            EntityTimelines.TryGetValue(key, out var timeline);
+
+            return new EntityTrendSeries
             {
                 EntityId = entity.Id,
                 Name = entity.Name,
                 Color = TrendColor(index),
-                Timeline = EntityTimelines.TryGetValue(entity.Id, out var timeline)
-                    ? timeline
-                    : new List<TimelinePoint>()
-            }).Where(series => series.Timeline.Any());
-        }
-    }
+                Timeline = timeline ?? new List<TimelinePoint>()
+            };
+        });
 
     private static readonly List<TimeframeOption> TimeframeOptions = new()
     {
@@ -141,58 +120,75 @@
 
     protected override async Task OnInitializedAsync()
     {
-        SelectedTimeframe = TimeframeOptions[0];
+        SelectedTimeframeIndex = 0;
         await LoadHomepageDataAsync();
     }
 
     private async Task LoadHomepageDataAsync()
     {
-        if (IsLoading)
-        {
-            return;
-        }
-
         IsLoading = true;
-        ErrorMessage = null;
 
         try
         {
             var range = GetSelectedRange();
-            TopEntities = (await Analytics.GetTopMentionedEntitiesAsync(range.From, range.To))
-                .Take(8)
-                .ToArray();
+
+            _debugFrom = range.From;
+            _debugTo = range.To;
+
+            var entities = await Analytics.GetTopMentionedEntitiesAsync(range.From, range.To);
+
+            TopEntities = entities.Take(8).ToArray();
 
             if (TopEntities.Any())
             {
-                EntityTimelines = await Analytics.GetEntitiesTimelineAsync(
+                var timelines = await Analytics.GetEntitiesTimelineAsync(
                     range.From,
                     range.To,
-                    TopEntities.Select(entity => entity.Id));
+                    TopEntities.Select(e => e.Id));
+
+                // ✅ normalize keys to prevent mismatch bugs
+                EntityTimelines = timelines.ToDictionary(
+                    kvp => kvp.Key.Trim(),
+                    kvp => kvp.Value ?? new List<TimelinePoint>(),
+                    StringComparer.OrdinalIgnoreCase);
+
+                // DEBUG: log mismatches
+                foreach (var e in TopEntities)
+                {
+                    if (!EntityTimelines.ContainsKey(e.Id.Trim()))
+                    {
+                        Console.WriteLine($"MISSING TIMELINE: {e.Id}");
+                    }
+                }
             }
             else
             {
-                EntityTimelines = new Dictionary<string, List<TimelinePoint>>(StringComparer.OrdinalIgnoreCase);
+                EntityTimelines = new(StringComparer.OrdinalIgnoreCase);
             }
         }
-        catch
+        catch (Exception ex)
         {
-            ErrorMessage = "Unable to load homepage data.";
+            Console.WriteLine(ex);
         }
         finally
         {
             IsLoading = false;
-            StateHasChanged();
+
+            // ✅ force ApexCharts refresh
+            if (_chart != null)
+            {
+                await _chart.UpdateSeriesAsync();
+            }
         }
     }
 
-    private async Task ChangeTimeframe(TimeframeOption option)
+    private async Task ChangeTimeframe(int optionIndex)
     {
-        if (SelectedTimeframe == option)
-        {
+        if (SelectedTimeframeIndex == optionIndex)
             return;
-        }
 
-        SelectedTimeframe = option;
+        SelectedTimeframeIndex = optionIndex;
+
         await LoadHomepageDataAsync();
     }
 
@@ -205,10 +201,9 @@
 
     private static string TrendColor(int index)
     {
-        var palette = new[] { "#2563eb", "#16a34a", "#c2410c", "#7c3aed", "#0891b2", "#be123c" };
+        var palette = new[] { "#2563eb", "#16a34a", "#c2410c", "#7c3aed" };
         return palette[index % palette.Length];
     }
 
     private sealed record TimeframeOption(string Label, int Days);
 }
-

@@ -80,6 +80,13 @@
     box-shadow: 0 5px 20px rgba(15, 23, 42, 0.05);
 }
 
+.timeframe-selected {
+    text-align: center;
+    margin-bottom: 1rem;
+    color: #334155;
+    font-weight: 600;
+}
+
 .podium-panel {
     position: relative;
     top: 0;
@@ -95,13 +102,23 @@
     cursor: pointer;
     transition: all 0.15s ease-in-out;
     font-weight: 600;
+    min-width: 90px;
+    text-align: center;
 }
 
-.timeframe-pill.active,
 .timeframe-pill:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+    border-color: #cbd5e1;
+}
+
+.timeframe-pill.active {
     background: #2563eb;
     color: #ffffff;
-    border-color: #2563eb;
+    border-color: #1d4ed8;
+    box-shadow: 0 12px 24px rgba(37, 99, 235, 0.22);
+    transform: translateY(-1px);
+    font-weight: 700;
 }
 
 .podium-panel {
