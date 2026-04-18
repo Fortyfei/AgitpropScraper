@@ -14,18 +14,20 @@
         </div>
     </div>
 
-    <div class="timeframe-box">
-        <div class="timeframe-selector">
-            @foreach (var option in TimeframeOptions)
-            {
-                <button type="button" class="timeframe-pill @(SelectedTimeframe == option ? "active" : string.Empty)" @onclick="() => ChangeTimeframe(option)">
-                    @option.Label
-                </button>
-            }
+    <section class="landing-panel">
+        <div class="timeframe-box">
+            <div class="timeframe-selector">
+                @foreach (var option in TimeframeOptions)
+                {
+                    <button type="button" class="timeframe-pill @(SelectedTimeframe == option ? "active" : string.Empty)" @onclick="() => ChangeTimeframe(option)">
+                        @option.Label
+                    </button>
+                }
+            </div>
         </div>
-    </div>
 
-    <section class="landing-podium">
+        <div class="landing-panel-content">
+            <section class="landing-podium">
         <div class="panel-card podium-panel">
             <div class="panel-header">
                 <h2>Top entities</h2>
@@ -98,6 +100,8 @@
             }
         </div>
     </section>
+</div>
+</section>
 </div>
 
 @code {
