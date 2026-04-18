@@ -78,3 +78,9 @@ public class EntityTrendSeries
     public string Color { get; set; } = string.Empty;
     public List<TimelinePoint> Timeline { get; set; } = new();
 }
+
+public class LandingOverview
+{
+    public List<EntitySummary> TopEntities { get; set; } = new();
+    public List<EntityTrendSeries> TrendSeries { get; set; } = new();
+}

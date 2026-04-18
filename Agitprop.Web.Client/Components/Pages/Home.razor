@@ -19,7 +19,8 @@
             <div class="timeframe-selector">
                 @foreach (var option in TimeframeOptions)
                 {
-                    <button type="button" class="timeframe-pill @(SelectedTimeframe == option ? "active" : string.Empty)" @onclick="() => ChangeTimeframe(option)">
+                    <button type="button" class="timeframe-pill @(SelectedTimeframe == option ? "active" : string.Empty)"
+                            @onclick="() => ChangeTimeframe(option)">
                         @option.Label
                     </button>
                 }
@@ -28,118 +29,144 @@
 
         <div class="landing-panel-content">
             <section class="landing-podium">
-        <div class="panel-card podium-panel">
-            <div class="panel-header">
-                <h2>Top entities</h2>
-                <span>Most mentioned entities in the selected window</span>
-            </div>
+                <div class="panel-card podium-panel">
+                    <div class="panel-header">
+                        <h2>Top entities</h2>
+                        <span>Most mentioned entities in the selected window</span>
+                    </div>
 
-            <div class="podium-grid">
-                @{
-                    var podiumEntities = TopEntities.Take(3).ToArray();
-                    var podiumOrder = new[] { 2, 0, 1 };
-                }
+                    <div class="podium-grid">
+                        @{
+                            EntitySummary[]? podiumEntities = TopEntities.Take(3).ToArray();
+                            int[]? podiumOrder = new[] { 2, 0, 1 };
+                        }
 
-                @foreach (var position in podiumOrder)
-                {
-                    if (position < podiumEntities.Length)
+                        @foreach (var position in podiumOrder)
+                        {
+                            if (position < podiumEntities.Length)
+                            {
+                                EntitySummary? entity = podiumEntities[position];
+                                <button type="button" class="podium-card podium-place-@(position + 1)"
+                                        @onclick="() => NavigateToEntity(entity.Id)">
+                                    <div class="podium-rank">@((position + 1).ToString())</div>
+                                    <div class="podium-name">@entity.Name</div>
+                                    <div class="podium-meta">@entity.Type</div>
+                                    <div class="podium-count">@entity.Mentions.ToString("N0") mentions</div>
+                                </button>
+                            }
+                        }
+                    </div>
+
+                    <div class="entity-rank-list">
+                        @foreach (var item in TopEntities.Skip(3).Take(5).Select((entity, index) => (entity, index)))
+                        {
+                            <button type="button" class="entity-rank-card"
+                                    @onclick="() => NavigateToEntity(item.entity.Id)">
+                                <div class="entity-rank-left">
+                                    <span class="entity-rank-place">@((item.index + 4).ToString())</span>
+                                    <span class="entity-rank-count">@item.entity.Mentions.ToString("N0")</span>
+                                </div>
+                                <div class="entity-rank-content">
+                                    <div class="entity-rank-name">@item.entity.Name</div>
+                                    <div class="entity-rank-type">@item.entity.Type</div>
+                                </div>
+                            </button>
+                        }
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel-card chart-panel">
+                <div class="panel-header">
+                    <h2>Trend line</h2>
+                    <span>Momentum for the current top entities</span>
+                </div>
+                <div>
+                    @if (IsLoading)
                     {
-                        var entity = podiumEntities[position];
-                        <button type="button" class="podium-card podium-place-@(position + 1)" @onclick="() => NavigateToEntity(entity.Id)">
-                            <div class="podium-rank">@((position + 1).ToString())</div>
-                            <div class="podium-name">@entity.Name</div>
-                            <div class="podium-meta">@entity.Type</div>
-                            <div class="podium-count">@entity.Mentions.ToString("N0") mentions</div>
-                        </button>
+                        <span>Loading trend line...</span>
                     }
-                }
-            </div>
-
-            <div class="entity-rank-list">
-                @foreach (var item in TopEntities.Skip(3).Take(5).Select((entity, index) => (entity, index)))
-                {
-                    <button type="button" class="entity-rank-card" @onclick="() => NavigateToEntity(item.entity.Id)">
-                        <div class="entity-rank-left">
-                            <span class="entity-rank-place">@((item.index + 4).ToString())</span>
-                            <span class="entity-rank-count">@item.entity.Mentions.ToString("N0")</span>
-                        </div>
-                        <div class="entity-rank-content">
-                            <div class="entity-rank-name">@item.entity.Name</div>
-                            <div class="entity-rank-type">@item.entity.Type</div>
-                        </div>
-                    </button>
-                }
-            </div>
+                    else if (SelectedTrendSeries.Any())
+                    {
+                        <ApexChart TItem="TimelinePoint" XAxisType="XAxisType.Datetime" Height="360">
+                            @foreach (EntityTrendSeries series in SelectedTrendSeries)
+                            {
+                                <ApexPointSeries TItem="TimelinePoint" Items="series.Timeline" Name="@series.Name"
+                                                 SeriesType="SeriesType.Line"
+                                                 Stroke="@(new SeriesStroke { Color = series.Color, Width = 2 })"
+                                                 XValue="@(point => point.Date.ToDateTime(TimeOnly.MinValue))"
+                                                 YValue="@(point => (decimal?)point.Count)" />
+                            }
+                        </ApexChart>
+                    }
+                    else
+                    {
+                        <span>No trend data available for this timeframe.</span>
+                    }
+                </div>
+            </section>
         </div>
     </section>
-
-    <section class="panel-card chart-panel">
-        <div class="panel-header">
-            <h2>Trend line</h2>
-            <span>Momentum for the current top entities</span>
-        </div>
-        <div class="chart-placeholder large">
-            @if (SelectedTrendSeries.Any())
-            {
-                <ApexChart TItem="TimelinePoint" XAxisType="XAxisType.Datetime">
-                    @foreach (var series in SelectedTrendSeries)
-                    {
-                        <ApexPointSeries TItem="TimelinePoint"
-                                         Items="series.Timeline"
-                                         Name="@series.Name"
-                                         SeriesType="SeriesType.Line"
-                                         Stroke="@(new SeriesStroke { Color = series.Color, Width = 2 })"
-                                         XValue="point => point.Date.ToDateTime(TimeOnly.MinValue)"
-                                         YValue="point => (decimal?)point.Count" />
-                    }
-                </ApexChart>
-            }
-            else
-            {
-                <span>Loading trend line...</span>
-            }
-        </div>
-    </section>
-</div>
-</section>
 </div>
 
 @code {
-    private List<EntitySummary> TopEntities { get; set; } = new();
-    private IEnumerable<EntityTrendSeries> TrendSeries { get; set; } = Enumerable.Empty<EntityTrendSeries>();
-
-    private string SearchTerm { get; set; } = string.Empty;
+    private LandingOverview LandingOverview { get; set; } = new();
     private TimeframeOption SelectedTimeframe { get; set; } = default!;
+    private bool IsLoading { get; set; }
+
+    private IReadOnlyList<EntitySummary> TopEntities => LandingOverview.TopEntities;
 
     private IEnumerable<EntityTrendSeries> SelectedTrendSeries
     {
         get
         {
+            if (!LandingOverview.TrendSeries.Any() || !TopEntities.Any())
+            {
+                return Enumerable.Empty<EntityTrendSeries>();
+            }
+
             var topIds = new HashSet<string>(TopEntities.Take(8).Select(entity => entity.Id), StringComparer.OrdinalIgnoreCase);
-            var filtered = TrendSeries.Where(series => topIds.Contains(series.EntityId)).ToList();
-            return filtered.Any() ? filtered : TrendSeries.Take(8);
+            var filtered = LandingOverview.TrendSeries.Where(series => topIds.Contains(series.EntityId)).ToList();
+            return filtered.Any() ? filtered : LandingOverview.TrendSeries.Take(8);
         }
     }
 
     private static readonly List<TimeframeOption> TimeframeOptions = new()
     {
-        new("3 days", 3),
-        new("7 days", 7),
-        new("3 weeks", 21)
+        new TimeframeOption("3 days", 3),
+        new TimeframeOption("7 days", 7),
+        new TimeframeOption("3 weeks", 21)
     };
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
         SelectedTimeframe = TimeframeOptions[0];
-        await LoadLandingDataAsync();
+        _ = LoadLandingDataAsync();
     }
 
     private async Task LoadLandingDataAsync()
     {
-        var range = GetSelectedRange();
-        TopEntities = (await Analytics.GetTopEntitiesAsync(range.From, range.To)).Take(8).ToList();
-        TrendSeries = await Analytics.GetTrendSeriesAsync(range.From, range.To);
-        StateHasChanged();
+        if (IsLoading)
+        {
+            return;
+        }
+
+        IsLoading = true;
+
+        try
+        {
+            var range = GetSelectedRange();
+            LandingOverview = await Analytics.GetLandingOverviewAsync(range.From, range.To);
+        }
+        catch
+        {
+            // Swallow exceptions here so page render is not blocked by a failed load.
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
     }
 
     private async Task ChangeTimeframe(TimeframeOption option)
@@ -165,24 +192,6 @@
         if (!string.IsNullOrWhiteSpace(entityId))
         {
             Navigation.NavigateTo($"/entity/{entityId}");
-        }
-    }
-
-    private void NavigateToExplorer()
-    {
-        Navigation.NavigateTo("/explorer");
-    }
-
-    private void NavigateToDashboard()
-    {
-        Navigation.NavigateTo("/dashboard");
-    }
-
-    private async Task OnSearch()
-    {
-        if (!string.IsNullOrWhiteSpace(SearchTerm))
-        {
-            Navigation.NavigateTo($"/explorer?query={Uri.EscapeDataString(SearchTerm)}");
         }
     }
 

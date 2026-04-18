@@ -131,13 +131,36 @@ public class AnalyticsService
         });
     }
 
+    public async Task<LandingOverview> GetLandingOverviewAsync(DateOnly? from = null, DateOnly? to = null)
+    {
+        var range = GetDateRange(from, to);
+        var dashboardTask = GetDashboardResponseAsync(range.From, range.To);
+        var trendingTask = TryGetAsync<TrendingResponseDto>($"api/trending?from={ToQueryDate(range.From)}&to={ToQueryDate(range.To)}");
+
+        await Task.WhenAll(dashboardTask, trendingTask);
+
+        var dashboard = await dashboardTask;
+        var trending = await trendingTask;
+
+        return new LandingOverview
+        {
+            TopEntities = dashboard.TopEntities.Select(MapEntitySummary).Take(8).ToList(),
+            TrendSeries = trending?.Trending.Select((entity, index) => MapTrendSeries(entity, index)).ToList() ?? new List<EntityTrendSeries>()
+        };
+    }
+
     public async Task<IEnumerable<EntityTrendSeries>> GetTrendSeriesAsync(DateOnly? from = null, DateOnly? to = null)
     {
         var range = GetDateRange(from, to);
         var endpoint = $"api/trending?from={ToQueryDate(range.From)}&to={ToQueryDate(range.To)}";
         var response = await TryGetAsync<TrendingResponseDto>(endpoint);
 
-        return response?.Trending.Select((entity, index) => new EntityTrendSeries
+        return response?.Trending.Select((entity, index) => MapTrendSeries(entity, index)) ?? Enumerable.Empty<EntityTrendSeries>();
+    }
+
+    private static EntityTrendSeries MapTrendSeries(TrendingEntityDto entity, int index)
+    {
+        return new EntityTrendSeries
         {
             EntityId = entity.Id,
             Name = entity.Name,
@@ -150,7 +173,7 @@ public class AnalyticsService
                     Count = pair.Value
                 })
                 .ToList()
-        }) ?? Enumerable.Empty<EntityTrendSeries>();
+        };
     }
 
     public async Task<IEnumerable<ArticleSummary>> GetArticlesAsync()
