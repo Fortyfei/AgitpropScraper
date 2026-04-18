@@ -1,8 +1,10 @@
 .top-row {
     display: flex;
     flex-direction: row;
-    align-items: stretch;
+    align-items: center;
+    justify-content: center;
     gap: 1rem;
+    width: 100%;
 }
 
 .navbar-brand {
@@ -16,46 +18,45 @@
     text-decoration: none;
 }
 
-.nav-brand-tag {
-    color: rgba(255, 255, 255, 0.75);
-    font-size: 0.95rem;
-}
-
 .top-nav {
     display: flex;
     flex-direction: row;
-    gap: 0.5rem;
+    gap: 1rem;
     align-items: center;
+    justify-content: center;
     flex-wrap: wrap;
+    margin: 0 auto;
 }
 
 .top-nav-item {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.65rem;
-    min-width: 3.5rem;
-    width: auto;
+    width: 3.5rem;
     min-height: 3.5rem;
-    padding: 0 0.75rem;
+    padding: 0;
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.08);
     color: white;
     text-decoration: none;
     overflow: hidden;
     white-space: nowrap;
-    transition: width 0.22s ease, background-color 0.22s ease, box-shadow 0.22s ease;
+    transition: width 0.22s ease, padding 0.22s ease, background-color 0.22s ease, box-shadow 0.22s ease, transform 0.22s ease;
 }
 
 .top-nav-item:hover,
 .top-nav-item.active {
+    width: auto;
+    padding: 0 0.75rem;
     background: rgba(255, 255, 255, 0.16);
     box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
     transform: translateY(-1px);
 }
 
 .nav-icon {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     width: 1.35rem;
     height: 1.35rem;
     background-size: cover;
@@ -64,9 +65,23 @@
 }
 
 .nav-label {
+    opacity: 0;
+    max-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    transition: opacity 0.22s ease, max-width 0.22s ease, margin 0.22s ease;
+    margin-left: 0;
+    padding: 0.35rem 0.85rem;
+    border-radius: 0.85rem;
+    background: rgba(255, 255, 255, 0.92);
+    color: #0f172a;
+}
+
+.top-nav-item:hover .nav-label,
+.top-nav-item.active .nav-label {
     opacity: 1;
-    max-width: none;
-    overflow: visible;
+    max-width: 10rem;
+    margin-left: 0.65rem;
 }
 
 .top-nav-item.active {
