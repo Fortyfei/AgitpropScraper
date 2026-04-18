@@ -1,20 +1,35 @@
 @page "/explorer"
 @using Agitprop.Web.Client.Components.Shared
 @using Agitprop.Web.Client.Models
+@using Microsoft.AspNetCore.WebUtilities
 @inject Agitprop.Web.Client.Services.AnalyticsService Analytics
+@inject NavigationManager Navigation
 
 <PageTitle>Entity Explorer</PageTitle>
 
 <div class="page-block">
-    <div class="page-section-header">
+    <div class="page-hero">
         <div>
-            <h2>Entity Explorer</h2>
-            <p>Find entities by name, type, and mention count.</p>
+            <h1>Entity Explorer</h1>
+            <p>Search and filter entities by name, type, and mention count.</p>
         </div>
-        <AnalyticsFilterBar />
+        <div class="explorer-hero-controls">
+            <input class="form-control search-input" placeholder="Search entities" @bind="SearchTerm" />
+            <select class="form-select filter-select" @bind="SelectedType">
+                <option value="">All types</option>
+                <option value="PER">PER</option>
+                <option value="ORG">ORG</option>
+                <option value="LOC">LOC</option>
+                <option value="MISC">MISC</option>
+            </select>
+        </div>
     </div>
 
     <div class="panel-card">
+        <div class="panel-header">
+            <h3>Entities</h3>
+            <span>@(FilteredEntities?.Count() ?? 0) results</span>
+        </div>
         <DataTable>
             <thead>
                 <tr>
@@ -25,9 +40,9 @@
                 </tr>
             </thead>
             <tbody>
-                @if (Entities?.Any() == true)
+                @if (FilteredEntities?.Any() == true)
                 {
-                    @foreach (var entity in Entities)
+                    @foreach (var entity in FilteredEntities)
                     {
                         <tr>
                             <td>@entity.Name</td>
@@ -37,9 +52,13 @@
                         </tr>
                     }
                 }
-                else
+                else if (Entities == null)
                 {
                     <tr><td colspan="4">Loading entities...</td></tr>
+                }
+                else
+                {
+                    <tr><td colspan="4">No matching entities found.</td></tr>
                 }
             </tbody>
         </DataTable>
@@ -48,9 +67,71 @@
 
 @code {
     private IEnumerable<EntitySummary>? Entities;
+    private IEnumerable<EntitySummary>? FilteredEntities;
+
+    private string _searchTerm = string.Empty;
+    private string SearchTerm
+    {
+        get => _searchTerm;
+        set
+        {
+            if (_searchTerm == value) return;
+            _searchTerm = value;
+            ApplyFilters();
+        }
+    }
+
+    private string _selectedType = string.Empty;
+    private string SelectedType
+    {
+        get => _selectedType;
+        set
+        {
+            if (_selectedType == value) return;
+            _selectedType = value;
+            ApplyFilters();
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
         Entities = await Analytics.GetEntitiesAsync();
+        ParseQueryParameters();
+        ApplyFilters();
+    }
+
+    private void ParseQueryParameters()
+    {
+        var query = QueryHelpers.ParseQuery(Navigation.ToAbsoluteUri(Navigation.Uri).Query);
+        if (query.TryGetValue("query", out var searchTerm))
+        {
+            SearchTerm = searchTerm.ToString();
+        }
+        if (query.TryGetValue("type", out var type))
+        {
+            SelectedType = type.ToString();
+        }
+    }
+
+    private void ApplyFilters()
+    {
+        if (Entities is null)
+        {
+            FilteredEntities = null;
+            return;
+        }
+
+        var items = Entities!;
+        if (!string.IsNullOrWhiteSpace(SearchTerm))
+        {
+            items = items.Where(entity => entity.Name.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(SelectedType))
+        {
+            items = items.Where(entity => string.Equals(entity.Type, SelectedType, StringComparison.OrdinalIgnoreCase));
+        }
+
+        FilteredEntities = items.OrderByDescending(entity => entity.Mentions).ToList();
     }
 }

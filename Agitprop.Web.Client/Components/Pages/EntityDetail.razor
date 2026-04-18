@@ -14,14 +14,14 @@
     </div>
 
     <section class="detail-summary-panel">
-        <div class="summary-card">
+        <div class="summary-card detail-summary-card">
             <h3>@Detail?.Name</h3>
             <p class="summary-type">Type: @Detail?.Type</p>
             <p class="summary-value">@Detail?.TotalMentions</p>
             <p class="summary-note">Strongest presence in corporate and economic coverage.</p>
         </div>
 
-        <div class="summary-card">
+        <div class="summary-card detail-trend-card">
             <h4>Trend</h4>
             <div class="chart-placeholder small">
                 @if (Detail?.Trend?.Any() == true)
@@ -54,7 +54,7 @@
                 {
                     @foreach (var related in RelatedEntities)
                     {
-                        <a href="/entity/@related.Id">
+                        <a class="related-entity-link" href="/entity/@related.Id">
                             <EntityChip Label="@related.Name" Type="@related.Type" />
                         </a>
                     }

@@ -1,7 +1,199 @@
-﻿@page "/home"
+﻿@page "/"
+@page "/home"
+@using Agitprop.Web.Client.Models
+@inject Agitprop.Web.Client.Services.AnalyticsService Analytics
+@inject NavigationManager Navigation
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Landing</PageTitle>
 
-<h1>Welcome to Agitprop Analytics</h1>
+<div class="page-block landing-page">
+    <div class="landing-top">
+        <div class="landing-hero">
+            <h1>Discover the latest entity intelligence</h1>
+            <p>Start from the top trending entities, then jump into exploration or dashboard insights.</p>
+        </div>
 
-This is the legacy home placeholder for the new analytics dashboard.
+        <div class="landing-ribbon">
+            <form class="landing-search" @onsubmit="OnSearch">
+                <label class="visually-hidden" for="landing-search-input">Search entity</label>
+                <input id="landing-search-input" class="form-control search-input" placeholder="Search entity name" @bind="SearchTerm" />
+                <button type="submit" class="btn btn-primary">Go</button>
+            </form>
+
+            <div class="landing-buttons">
+                <button class="btn btn-outline-primary" @onclick="NavigateToExplorer">Explore entities</button>
+                <button class="btn btn-outline-secondary" @onclick="NavigateToDashboard">View dashboard</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="timeframe-box">
+        <div class="timeframe-selector">
+            @foreach (var option in TimeframeOptions)
+            {
+                <button type="button" class="timeframe-pill @(SelectedTimeframe == option ? "active" : string.Empty)" @onclick="() => ChangeTimeframe(option)">
+                    @option.Label
+                </button>
+            }
+        </div>
+    </div>
+
+    <section class="landing-podium">
+        <div class="panel-card podium-panel">
+            <div class="panel-header">
+                <h2>Top entities</h2>
+                <span>Most mentioned entities in the selected window</span>
+            </div>
+
+            <div class="podium-grid">
+                @{
+                    var podiumEntities = TopEntities.Take(3).ToArray();
+                    var podiumOrder = new[] { 2, 0, 1 };
+                }
+
+                @foreach (var position in podiumOrder)
+                {
+                    if (position < podiumEntities.Length)
+                    {
+                        var entity = podiumEntities[position];
+                        <button type="button" class="podium-card podium-place-@(position + 1)" @onclick="() => NavigateToEntity(entity.Id)">
+                            <div class="podium-rank">@((position + 1).ToString())</div>
+                            <div class="podium-name">@entity.Name</div>
+                            <div class="podium-meta">@entity.Type</div>
+                            <div class="podium-count">@entity.Mentions.ToString("N0") mentions</div>
+                        </button>
+                    }
+                }
+            </div>
+
+            <div class="entity-rank-list">
+                @foreach (var item in TopEntities.Skip(3).Take(5).Select((entity, index) => (entity, index)))
+                {
+                    <button type="button" class="entity-rank-card" @onclick="() => NavigateToEntity(item.entity.Id)">
+                        <div class="entity-rank-left">
+                            <span class="entity-rank-place">@((item.index + 4).ToString())</span>
+                            <span class="entity-rank-count">@item.entity.Mentions.ToString("N0")</span>
+                        </div>
+                        <div class="entity-rank-content">
+                            <div class="entity-rank-name">@item.entity.Name</div>
+                            <div class="entity-rank-type">@item.entity.Type</div>
+                        </div>
+                    </button>
+                }
+            </div>
+        </div>
+    </section>
+
+    <section class="panel-card chart-panel">
+        <div class="panel-header">
+            <h2>Trend line</h2>
+            <span>Momentum for the current top entities</span>
+        </div>
+        <div class="chart-placeholder large">
+            @if (SelectedTrendSeries.Any())
+            {
+                <ApexChart TItem="TimelinePoint" XAxisType="XAxisType.Datetime">
+                    @foreach (var series in SelectedTrendSeries)
+                    {
+                        <ApexPointSeries TItem="TimelinePoint"
+                                         Items="series.Timeline"
+                                         Name="@series.Name"
+                                         SeriesType="SeriesType.Line"
+                                         Stroke="@(new SeriesStroke { Color = series.Color, Width = 2 })"
+                                         XValue="point => point.Date.ToDateTime(TimeOnly.MinValue)"
+                                         YValue="point => (decimal?)point.Count" />
+                    }
+                </ApexChart>
+            }
+            else
+            {
+                <span>Loading trend line...</span>
+            }
+        </div>
+    </section>
+</div>
+
+@code {
+    private List<EntitySummary> TopEntities { get; set; } = new();
+    private IEnumerable<EntityTrendSeries> TrendSeries { get; set; } = Enumerable.Empty<EntityTrendSeries>();
+
+    private string SearchTerm { get; set; } = string.Empty;
+    private TimeframeOption SelectedTimeframe { get; set; } = default!;
+
+    private IEnumerable<EntityTrendSeries> SelectedTrendSeries
+    {
+        get
+        {
+            var topIds = new HashSet<string>(TopEntities.Take(8).Select(entity => entity.Id), StringComparer.OrdinalIgnoreCase);
+            var filtered = TrendSeries.Where(series => topIds.Contains(series.EntityId)).ToList();
+            return filtered.Any() ? filtered : TrendSeries.Take(8);
+        }
+    }
+
+    private static readonly List<TimeframeOption> TimeframeOptions = new()
+    {
+        new("3 days", 3),
+        new("7 days", 7),
+        new("3 weeks", 21)
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        SelectedTimeframe = TimeframeOptions[0];
+        await LoadLandingDataAsync();
+    }
+
+    private async Task LoadLandingDataAsync()
+    {
+        var range = GetSelectedRange();
+        TopEntities = (await Analytics.GetTopEntitiesAsync(range.From, range.To)).Take(8).ToList();
+        TrendSeries = await Analytics.GetTrendSeriesAsync(range.From, range.To);
+        StateHasChanged();
+    }
+
+    private async Task ChangeTimeframe(TimeframeOption option)
+    {
+        if (SelectedTimeframe == option)
+        {
+            return;
+        }
+
+        SelectedTimeframe = option;
+        await LoadLandingDataAsync();
+    }
+
+    private (DateOnly From, DateOnly To) GetSelectedRange()
+    {
+        var to = DateOnly.FromDateTime(DateTime.UtcNow);
+        var from = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-SelectedTimeframe.Days));
+        return (from, to);
+    }
+
+    private void NavigateToEntity(string entityId)
+    {
+        if (!string.IsNullOrWhiteSpace(entityId))
+        {
+            Navigation.NavigateTo($"/entity/{entityId}");
+        }
+    }
+
+    private void NavigateToExplorer()
+    {
+        Navigation.NavigateTo("/explorer");
+    }
+
+    private void NavigateToDashboard()
+    {
+        Navigation.NavigateTo("/dashboard");
+    }
+
+    private async Task OnSearch()
+    {
+        if (!string.IsNullOrWhiteSpace(SearchTerm))
+        {
+            Navigation.NavigateTo($"/explorer?query={Uri.EscapeDataString(SearchTerm)}");
+        }
+    }
+
+    private sealed record TimeframeOption(string Label, int Days);
+}

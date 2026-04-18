@@ -16,9 +16,10 @@ public class AnalyticsService
         _logger = logger;
     }
 
-    public async Task<IEnumerable<EntitySummary>> GetTopEntitiesAsync()
+    public async Task<IEnumerable<EntitySummary>> GetTopEntitiesAsync(DateOnly? from = null, DateOnly? to = null)
     {
-        var dashboard = await GetDashboardResponseAsync();
+        var range = GetDateRange(from, to);
+        var dashboard = await GetDashboardResponseAsync(range.From, range.To);
         return dashboard.TopEntities.Select(MapEntitySummary);
     }
 
@@ -130,10 +131,10 @@ public class AnalyticsService
         });
     }
 
-    public async Task<IEnumerable<EntityTrendSeries>> GetTrendSeriesAsync()
+    public async Task<IEnumerable<EntityTrendSeries>> GetTrendSeriesAsync(DateOnly? from = null, DateOnly? to = null)
     {
-        var (from, to) = GetDefaultDateRange();
-        var endpoint = $"api/trending?from={ToQueryDate(from)}&to={ToQueryDate(to)}";
+        var range = GetDateRange(from, to);
+        var endpoint = $"api/trending?from={ToQueryDate(range.From)}&to={ToQueryDate(range.To)}";
         var response = await TryGetAsync<TrendingResponseDto>(endpoint);
 
         return response?.Trending.Select((entity, index) => new EntityTrendSeries
@@ -173,10 +174,10 @@ public class AnalyticsService
         }) ?? Enumerable.Empty<ArticleSummary>();
     }
 
-    private async Task<DashboardAnalyticsResponseDto> GetDashboardResponseAsync()
+    private async Task<DashboardAnalyticsResponseDto> GetDashboardResponseAsync(DateOnly? from = null, DateOnly? to = null)
     {
-        var (from, to) = GetDefaultDateRange();
-        var endpoint = $"api/analytics/dashboard?from={ToQueryDate(from)}&to={ToQueryDate(to)}";
+        var range = GetDateRange(from, to);
+        var endpoint = $"api/analytics/dashboard?from={ToQueryDate(range.From)}&to={ToQueryDate(range.To)}";
         return await TryGetAsync<DashboardAnalyticsResponseDto>(endpoint) ?? new DashboardAnalyticsResponseDto();
     }
 
@@ -233,6 +234,11 @@ public class AnalyticsService
     private static (DateOnly From, DateOnly To) GetDefaultDateRange()
     {
         return (DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-7)), DateOnly.FromDateTime(DateTime.UtcNow));
+    }
+
+    private static (DateOnly From, DateOnly To) GetDateRange(DateOnly? from, DateOnly? to)
+    {
+        return (from ?? DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-7)), to ?? DateOnly.FromDateTime(DateTime.UtcNow));
     }
 
     private static string ToQueryDate(DateOnly date)

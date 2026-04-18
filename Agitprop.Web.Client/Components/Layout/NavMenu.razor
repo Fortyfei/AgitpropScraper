@@ -1,29 +1,30 @@
-﻿<div class="top-row ps-3 navbar navbar-dark dashboard-nav">
-    <div class="container-fluid d-flex align-items-center justify-content-between">
-        <a class="navbar-brand" href="/">Agitprop Analytics</a>
+﻿<div class="top-row top-nav-bar">
+    <div class="brand-wrap">
+        <a class="navbar-brand" href="/">Agitprop</a>
         <small class="nav-brand-tag">Entity intelligence</small>
     </div>
-</div>
 
-<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
-
-<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="nav flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="/" Match="NavLinkMatch.All">Dashboard</NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="/explorer">Entity Explorer</NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="/network">Network Graph</NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="/trends">Trends</NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="/articles">Articles</NavLink>
-        </div>
+    <nav class="top-nav">
+        <NavLink class="top-nav-item" href="/explorer" Match="NavLinkMatch.Prefix">
+            <span class="nav-icon bi bi-search-nav-menu"></span>
+            <span class="nav-label">Entity Explorer</span>
+        </NavLink>
+        <NavLink class="top-nav-item" href="/dashboard" Match="NavLinkMatch.Prefix">
+            <span class="nav-icon bi bi-bar-chart-fill-nav-menu"></span>
+            <span class="nav-label">Dashboard</span>
+        </NavLink>
+        <NavLink class="top-nav-item" href="/network" Match="NavLinkMatch.Prefix">
+            <span class="nav-icon bi bi-diagram-3-fill-nav-menu"></span>
+            <span class="nav-label">Network Graph</span>
+        </NavLink>
+        <NavLink class="top-nav-item" href="/trends" Match="NavLinkMatch.Prefix">
+            <span class="nav-icon bi bi-graph-up-nav-menu"></span>
+            <span class="nav-label">Trends</span>
+        </NavLink>
+        <NavLink class="top-nav-item" href="/articles" Match="NavLinkMatch.Prefix">
+            <span class="nav-icon bi bi-journal-text-nav-menu"></span>
+            <span class="nav-label">Articles</span>
+        </NavLink>
     </nav>
 </div>
 

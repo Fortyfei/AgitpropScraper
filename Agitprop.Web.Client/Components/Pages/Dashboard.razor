@@ -1,4 +1,4 @@
-@page "/"
+@page "/dashboard"
 @using Agitprop.Web.Client.Components.Shared
 @using Agitprop.Web.Client.Models
 @inject Agitprop.Web.Client.Services.AnalyticsService Analytics
@@ -7,7 +7,13 @@
 <PageTitle>Dashboard</PageTitle>
 
 <div class="dashboard-page">
-    <AnalyticsFilterBar />
+    <div class="page-hero">
+        <div>
+            <h1>Dashboard</h1>
+            <p>Snapshot of entity activity, mentions, and trends.</p>
+        </div>
+        <AnalyticsFilterBar />
+    </div>
 
     <section class="dashboard-metrics">
         <MetricCard Title="Top Entity" Value="@TopEntityName" Subtitle="Most mentioned entity" />
