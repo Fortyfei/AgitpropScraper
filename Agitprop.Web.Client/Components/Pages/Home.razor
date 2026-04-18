@@ -12,19 +12,6 @@
             <h1>Discover the latest entity intelligence</h1>
             <p>Start from the top trending entities, then jump into exploration or dashboard insights.</p>
         </div>
-
-        <div class="landing-ribbon">
-            <form class="landing-search" @onsubmit="OnSearch">
-                <label class="visually-hidden" for="landing-search-input">Search entity</label>
-                <input id="landing-search-input" class="form-control search-input" placeholder="Search entity name" @bind="SearchTerm" />
-                <button type="submit" class="btn btn-primary">Go</button>
-            </form>
-
-            <div class="landing-buttons">
-                <button class="btn btn-outline-primary" @onclick="NavigateToExplorer">Explore entities</button>
-                <button class="btn btn-outline-secondary" @onclick="NavigateToDashboard">View dashboard</button>
-            </div>
-        </div>
     </div>
 
     <div class="timeframe-box">
