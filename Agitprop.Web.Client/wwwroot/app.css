@@ -61,20 +61,16 @@ h1:focus {
 
 /* Dashboard layout and analytics styles */
 .layout-shell {
-    display: grid;
-    grid-template-columns: 260px 1fr;
+    display: flex;
+    flex-direction: column;
     min-height: 100vh;
+    width: 100%;
     background: #f2f5f8;
-}
-
-.sidebar {
-    width: 260px;
-    background: #0f172a;
-    color: #e2e8f0;
 }
 
 .layout-main {
     padding: 1.5rem 2rem;
+    width: 100%;
 }
 
 .page-header {
