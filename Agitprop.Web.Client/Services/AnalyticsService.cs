@@ -26,7 +26,18 @@ public class AnalyticsService
 
     public async Task<Dictionary<string, List<TimelinePoint>>> GetEntitiesTimelineAsync(DateOnly from, DateOnly to, IEnumerable<string> entityIds)
     {
-        var query = string.Join("&", entityIds.Select(id => $"entities={Uri.EscapeDataString(id)}"));
+        var normalizedEntityIds = entityIds
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Select(id => id.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (normalizedEntityIds.Length == 0)
+        {
+            return new Dictionary<string, List<TimelinePoint>>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var query = string.Join("&", normalizedEntityIds.Select(id => $"entities={Uri.EscapeDataString(id)}"));
         var endpoint = $"api/entities/timeline?from={ToQueryDate(from)}&to={ToQueryDate(to)}&{query}";
         var response = await TryGetAsync<EntitiesTimelineResponseDto>(endpoint);
 
