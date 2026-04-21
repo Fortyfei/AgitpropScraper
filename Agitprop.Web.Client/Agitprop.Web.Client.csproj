@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <PackageReference Include="Blazor-ApexCharts" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" />
   </ItemGroup>
 
 </Project>
