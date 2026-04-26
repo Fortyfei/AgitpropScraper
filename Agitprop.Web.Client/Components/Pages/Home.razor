@@ -7,30 +7,7 @@
 <PageTitle>Landing</PageTitle>
 
 <div class="page-block landing-page">
-    <div class="landing-top">
-        <div class="landing-hero">
-            <h1>Discover the latest entity intelligence</h1>
-            <p>Start from the top mentioned entities and understand how their mentions trend over time.</p>
-        </div>
-    </div>
-
     <section class="landing-panel">
-        <div class="timeframe-box">
-            <div class="timeframe-selector">
-                @for (var i = 0; i < TimeframeOptions.Count; i++)
-                {
-                    var option = TimeframeOptions[i];
-                    var optionIndex = i;
-                    <button type="button"
-                            class="timeframe-pill @(SelectedTimeframeIndex == optionIndex ? "active" : string.Empty)"
-                            disabled="@IsLoading"
-                            @onclick="() => ChangeTimeframe(optionIndex)">
-                        @option.Label
-                    </button>
-                }
-            </div>
-        </div>
-
         <div class="timeframe-selected">
             Showing results for the last <strong>@SelectedTimeframe.Label</strong>
         </div>
@@ -68,6 +45,21 @@
                         }
                     </div>
 
+                    <div class="timeframe-box">
+                        <div class="timeframe-selector">
+                            @for (var i = 0; i < TimeframeOptions.Count; i++)
+                            {
+                                var option = TimeframeOptions[i];
+                                var optionIndex = i;
+                                <button type="button"
+                                        class="timeframe-pill @(SelectedTimeframeIndex == optionIndex ? "active" : string.Empty)"
+                                        disabled="@IsLoading" @onclick="() => ChangeTimeframe(optionIndex)">
+                                    @option.Label
+                                </button>
+                            }
+                        </div>
+                    </div>
+
                     <div class="entity-rank-list">
                         @foreach (var item in TopEntities.Skip(3).Take(5).Select((entity, index) => (entity, index)))
                         {
@@ -99,16 +91,13 @@
                     else if (TopEntities.Any() && SelectedTrendSeries.Any(series => series.Timeline.Count > 0))
                     {
                         <!-- KEY FIX: forces full re-render -->
-                        <ApexChart @key="SelectedTimeframeIndex"
-                                   TItem="TimelinePoint"
-                                   XAxisType="XAxisType.Datetime"
-                                   Height="360">
+                        <ApexChart @key="SelectedTimeframeIndex" TItem="TimelinePoint" XAxisType="XAxisType.Datetime"
+                                   Height="360"
+                                   Options="ReadOnlyChartOptions">
 
                             @foreach (var series in SelectedTrendSeries)
                             {
-                                <ApexPointSeries TItem="TimelinePoint"
-                                                 Items="series.Timeline"
-                                                 Name="@series.Name"
+                                <ApexPointSeries TItem="TimelinePoint" Items="series.Timeline" Name="@series.Name"
                                                  SeriesType="SeriesType.Line"
                                                  Stroke="@(new SeriesStroke { Color = series.Color, Width = 2 })"
                                                  XValue="@(point => point.Date.ToDateTime(TimeOnly.MinValue))"
@@ -128,6 +117,16 @@
 </div>
 
 @code {
+    private readonly ApexChartOptions<TimelinePoint> ReadOnlyChartOptions = new()
+    {
+        Chart = new Chart
+        {
+            Zoom = new Zoom { Enabled = false },
+            Selection = new Selection { Enabled = false },
+            Toolbar = new Toolbar { Show = false }
+        }
+    };
+
     private IReadOnlyList<EntitySummary> TopEntities { get; set; } = Array.Empty<EntitySummary>();
 
     private Dictionary<string, List<TimelinePoint>> EntityTimelines { get; set; }

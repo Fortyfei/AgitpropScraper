@@ -3,7 +3,7 @@ namespace Agitprop.Web.Api;
 /// <summary>
 /// Provides extension methods for configuring OpenTelemetry tracing in the Web API.
 /// </summary>
-public static class TelemetryExtensions
+public static class Extensions
 {
     /// <summary>
     /// Configures OpenTelemetry tracing for the Web API service.

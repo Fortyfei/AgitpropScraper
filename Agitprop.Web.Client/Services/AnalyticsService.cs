@@ -18,7 +18,7 @@ public class AnalyticsService
 
     public async Task<IEnumerable<EntitySummary>> GetTopMentionedEntitiesAsync(DateOnly from, DateOnly to)
     {
-        var endpoint = $"api/entities/topmentioned?from={ToQueryDate(from)}&to={ToQueryDate(to)}";
+        var endpoint = $"api/analytics/topmentions?from={ToQueryDate(from)}&to={ToQueryDate(to)}";
         var response = await TryGetAsync<TopMentionedEntitiesResponseDto>(endpoint);
 
         return response?.Entities.Select(MapTopMentionedEntity) ?? Enumerable.Empty<EntitySummary>();
