@@ -1,4 +1,5 @@
 <Solution>
+  <Project Path="Agitprop.AppHost.Worker/Agitprop.AppHost.Worker.csproj" />
   <Project Path="Agitprop.AppHost/Agitprop.AppHost.csproj" />
   <Project Path="Agitprop.CLI/Agitprop.CLI.csproj" />
   <Project Path="Agitprop.Core/Agitprop.Core.csproj" />
