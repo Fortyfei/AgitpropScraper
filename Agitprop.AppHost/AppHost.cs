@@ -10,14 +10,14 @@ internal class Program
 
         var registry = builder.AddContainerRegistry("ghcr", "ghcr.io", "fortyfei/agitprop");
 
-        var compose = builder.AddDockerComposeEnvironment("Agitprop")
+        var compose = builder.AddDockerComposeEnvironment("agitprop")
                              .WithDashboard(d => d.WithHostPort(18888));
 
-        // var messaging = builder.AddRabbitMQ("messaging")
-        //                        .WithManagementPlugin(15672)
-        //                        .WithExternalHttpEndpoints()
-        //                        .WithOtlpExporter()
-        //                        .PublishAsDockerComposeService((resource, service) => { service.Name = "messaging"; });
+        var messaging = builder.AddRabbitMQ("messaging")
+                               .WithManagementPlugin(15672)
+                               .WithExternalHttpEndpoints()
+                               .WithOtlpExporter()
+                               .PublishAsDockerComposeService((resource, service) => { service.Name = "messaging"; });
 
         var postgres = builder.AddPostgres("postgres")
                               .WithDataVolume(isReadOnly: false)
@@ -29,40 +29,40 @@ internal class Program
 
         var newsfeedDb = postgres.AddDatabase("newsfeed");
 
-        // var nlpService = builder.AddUvicornApp("nlpservice", "../Agitprop.Scraper.NLPService", "app:app")
-        //                         .WithHttpHealthCheck("/health")
-        //                         .WithEnvironment("Reload", "True")
-        //                         .WithEnvironment("LOG_LEVEL", "debug")
-        //                         .WithOtlpExporter()
-        //                         .PublishAsDockerComposeService((resource, service) => { service.Name = "nlpservice"; })
-        //                         .WithContainerRegistry(registry)
-        //                         .WithEnvironmentAwareImagePush();
+        var nlpService = builder.AddUvicornApp("nlpservice", "../Agitprop.Scraper.NLPService", "app:app")
+                                .WithHttpHealthCheck("/health")
+                                .WithEnvironment("Reload", "True")
+                                .WithEnvironment("LOG_LEVEL", "debug")
+                                .WithOtlpExporter()
+                                .PublishAsDockerComposeService((resource, service) => { service.Name = "nlpservice"; })
+                                .WithContainerRegistry(registry)
+                                .WithEnvironmentAwareImagePush();
 
-        // var consumer = builder.AddProject<Agitprop_Scraper_Consumer>("consumer")
-        //                       .WaitFor(newsfeedDb)
-        //                       .WithReference(newsfeedDb)
-        //                       .WaitFor(messaging)
-        //                       .WithReference(messaging)
-        //                       .WaitFor(nlpService)
-        //                       .WithReference(nlpService)
-        //                       .WithOtlpExporter()
-        //                       .PublishAsDockerComposeService((resource, service) => { service.Name = "consumer"; })
-        //                       .WithContainerRegistry(registry)
-        //                       .WithEnvironmentAwareImagePush();
+        var consumer = builder.AddProject<Agitprop_Scraper_Consumer>("consumer")
+                              .WaitFor(newsfeedDb)
+                              .WithReference(newsfeedDb)
+                              .WaitFor(messaging)
+                              .WithReference(messaging)
+                              .WaitFor(nlpService)
+                              .WithReference(nlpService)
+                              .WithOtlpExporter()
+                              .PublishAsDockerComposeService((resource, service) => { service.Name = "consumer"; })
+                              .WithContainerRegistry(registry)
+                              .WithEnvironmentAwareImagePush();
 
-        // var rssReader = builder.AddProject<Agitprop_Scraper_RssFeedReader>("rss-feed-reader")
-        //                        .WaitFor(messaging)
-        //                        .WithReference(messaging)
-        //                        .WaitFor(consumer)
-        //                        .WithOtlpExporter()
-        //                        .PublishAsDockerComposeService((resource, service) => { service.Name = "rssReader"; })
-        //                        .WithEnvironmentAwareImagePush();
+        var rssReader = builder.AddProject<Agitprop_Scraper_RssFeedReader>("rss-feed-reader")
+                               .WaitFor(messaging)
+                               .WithReference(messaging)
+                               .WaitFor(consumer)
+                               .WithOtlpExporter()
+                               .PublishAsDockerComposeService((resource, service) => { service.Name = "rssReader"; })
+                               .WithEnvironmentAwareImagePush();
 
         var backend = builder.AddProject<Agitprop_Web_Api>("backend")
                              .WaitFor(newsfeedDb)
                              .WithReference(newsfeedDb)
-                            //  .WaitFor(messaging)
-                            //  .WithReference(messaging)
+                             .WaitFor(messaging)
+                             .WithReference(messaging)
                              .WithOtlpExporter()
                              .PublishAsDockerComposeService((resource, service) => { service.Name = "backend"; })
                              .WithContainerRegistry(registry)

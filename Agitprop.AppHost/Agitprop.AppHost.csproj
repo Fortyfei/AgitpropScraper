@@ -16,7 +16,6 @@
     <PackageReference Include="Aspire.Hosting.Docker" />
     <PackageReference Include="Aspire.Hosting.PostgreSQL" />
     <PackageReference Include="Aspire.Hosting.Python" />
-    <PackageReference Include="Aspire.Hosting.JavaScript" />
     <PackageReference Include="Aspire.Hosting.RabbitMQ" />
     <PackageReference Include="Aspire.RabbitMQ.Client" />
   </ItemGroup>
@@ -31,13 +30,4 @@
   <ItemGroup>
     <Folder Include="aspire-output\" />
   </ItemGroup>
-
-  <Target Name="RestoreNpm" BeforeTargets="Build" Condition=" '$(DesignTimeBuild)' != 'true' ">
-    <ItemGroup>
-      <PackageJsons Include="..\*\package.json" />
-    </ItemGroup>
-    <!-- Install npm packages if node_modules is missing -->
-    <Message Importance="Normal" Text="Installing npm packages for %(PackageJsons.RelativeDir)" Condition="!Exists('%(PackageJsons.RootDir)%(PackageJsons.Directory)/node_modules')" />
-    <Exec Command="npm install" WorkingDirectory="%(PackageJsons.RootDir)%(PackageJsons.Directory)" Condition="!Exists('%(PackageJsons.RootDir)%(PackageJsons.Directory)/node_modules')" />
-  </Target>
 </Project>
