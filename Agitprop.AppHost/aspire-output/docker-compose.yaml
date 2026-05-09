@@ -14,7 +14,7 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: "guest"
       RABBITMQ_DEFAULT_PASS: "${MESSAGING_PASSWORD}"
-      OTEL_EXPORTER_OTLP_ENDPOINT: "http://Agitprop-dashboard:18889"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://agitprop-dashboard:18889"
       OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
       OTEL_SERVICE_NAME: "messaging"
     ports:
@@ -30,7 +30,7 @@ services:
       POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
       POSTGRES_USER: "postgres"
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
-      OTEL_EXPORTER_OTLP_ENDPOINT: "http://Agitprop-dashboard:18889"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://agitprop-dashboard:18889"
       OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
       OTEL_SERVICE_NAME: "postgres"
     expose:
@@ -58,7 +58,7 @@ services:
       PORT: "8000"
       Reload: "True"
       LOG_LEVEL: "debug"
-      OTEL_EXPORTER_OTLP_ENDPOINT: "http://Agitprop-dashboard:18889"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://agitprop-dashboard:18889"
       OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
       OTEL_SERVICE_NAME: "nlpservice"
     expose:
@@ -85,7 +85,7 @@ services:
       MESSAGING_URI: "amqp://guest:${MESSAGING_PASSWORD}@messaging:5672"
       NLPSERVICE_HTTP: "http://nlpservice:8000"
       services__nlpservice__http__0: "http://nlpservice:8000"
-      OTEL_EXPORTER_OTLP_ENDPOINT: "http://Agitprop-dashboard:18889"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://agitprop-dashboard:18889"
       OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
       OTEL_SERVICE_NAME: "consumer"
     depends_on:
@@ -107,7 +107,7 @@ services:
       MESSAGING_USERNAME: "guest"
       MESSAGING_PASSWORD: "${MESSAGING_PASSWORD}"
       MESSAGING_URI: "amqp://guest:${MESSAGING_PASSWORD}@messaging:5672"
-      OTEL_EXPORTER_OTLP_ENDPOINT: "http://Agitprop-dashboard:18889"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://agitprop-dashboard:18889"
       OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
       OTEL_SERVICE_NAME: "rss-feed-reader"
     depends_on:
@@ -137,7 +137,7 @@ services:
       MESSAGING_USERNAME: "guest"
       MESSAGING_PASSWORD: "${MESSAGING_PASSWORD}"
       MESSAGING_URI: "amqp://guest:${MESSAGING_PASSWORD}@messaging:5672"
-      OTEL_EXPORTER_OTLP_ENDPOINT: "http://Agitprop-dashboard:18889"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://agitprop-dashboard:18889"
       OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
       OTEL_SERVICE_NAME: "backend"
     expose:
@@ -146,6 +146,25 @@ services:
       postgres:
         condition: "service_started"
       messaging:
+        condition: "service_started"
+    networks:
+      - "aspire"
+  frontend:
+    image: "${FRONTEND_IMAGE}"
+    environment:
+      OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY: "in_memory"
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+      HTTP_PORTS: "${FRONTEND_PORT}"
+      BACKEND_HTTP: "http://backend:${BACKEND_PORT}"
+      services__backend__http__0: "http://backend:${BACKEND_PORT}"
+      BACKEND_HTTPS: "https://backend:${BACKEND_PORT}"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://agitprop-dashboard:18889"
+      OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
+      OTEL_SERVICE_NAME: "frontend"
+    expose:
+      - "${FRONTEND_PORT}"
+    depends_on:
+      backend:
         condition: "service_started"
     networks:
       - "aspire"
