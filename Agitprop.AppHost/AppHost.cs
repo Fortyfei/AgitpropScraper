@@ -22,7 +22,7 @@ internal class Program
         var postgres = builder.AddPostgres("postgres")
                               .WithDataVolume(isReadOnly: false)
                               .WithPgAdmin(pgAdmin => { pgAdmin.WithHostPort(5050); pgAdmin.WithImageTag("latest"); })
-                              .WithExternalHttpEndpoints()
+                              .WithEndpoint(scheme: "tcp", port: 5432, targetPort: 5432, isExternal: true)
                               .WithLifetime(ContainerLifetime.Persistent)
                               .WithOtlpExporter()
                               .PublishAsDockerComposeService((resource, service) => { service.Name = "postgres"; });
