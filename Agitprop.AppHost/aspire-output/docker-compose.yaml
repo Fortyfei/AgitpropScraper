@@ -19,6 +19,7 @@ services:
       OTEL_SERVICE_NAME: "messaging"
     ports:
       - "15672:15672"
+      - "5672:5672"
     expose:
       - "5672"
     networks:
@@ -161,7 +162,7 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: "http://agitprop-dashboard:18889"
       OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
       OTEL_SERVICE_NAME: "frontend"
-    expose:
+    ports:
       - "${FRONTEND_PORT}"
     depends_on:
       backend:

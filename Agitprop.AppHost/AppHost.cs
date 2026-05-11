@@ -15,6 +15,7 @@ internal class Program
 
         var messaging = builder.AddRabbitMQ("messaging")
                                .WithManagementPlugin(15672)
+                               .WithEndpoint(scheme: "amqp", port: 5672, targetPort: 5672, isExternal: true)
                                .WithExternalHttpEndpoints()
                                .WithOtlpExporter()
                                .PublishAsDockerComposeService((resource, service) => { service.Name = "messaging"; });
@@ -71,6 +72,7 @@ internal class Program
         var frontend = builder.AddProject<Agitprop_Web_Client>("frontend")
                               .WaitFor(backend)
                               .WithReference(backend)
+                              .WithExternalHttpEndpoints()
                               .WithOtlpExporter()
                               .PublishAsDockerComposeService((resource, service) => { service.Name = "frontend"; })
                               .WithContainerRegistry(registry)
