@@ -1,14 +1,13 @@
 using System.CommandLine;
+
 using Agitprop.Core;
 using Agitprop.Core.Enums;
-using Agitprop.Core.Interfaces;
 using Agitprop.Infrastructure;
 using Agitprop.Infrastructure.PageLoader;
 using Agitprop.Infrastructure.PageRequester;
 using Agitprop.Infrastructure.Puppeteer;
 using Agitprop.Sinks.Newsfeed;
-using System.Text.Json;
-using System.Text;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 

@@ -1,7 +1,6 @@
 using System.CommandLine;
 using Agitprop.Core;
 using Agitprop.Core.Enums;
-using Agitprop.Core.Interfaces;
 using Agitprop.Infrastructure;
 using Agitprop.Infrastructure.PageLoader;
 using Agitprop.Infrastructure.PageRequester;
