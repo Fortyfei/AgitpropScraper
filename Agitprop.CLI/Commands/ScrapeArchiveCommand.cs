@@ -91,11 +91,12 @@ public static class ScrapeArchiveCommand
 
                         var dates = input.Dates;
                         var sites = input.Sites;
-                        var failedRuns = new List<string>();
+                        var failedRuns = new List<(string Run, string Reason, string Details)>();
                         var successfulRuns = new List<string>();
                         int publishedCount = 0;
                         bool publishFailure = false;
                         bool publishingEnabled = false;
+                        var attemptedRuns = dates.Count * sites.Count;
 
                         LogMessage(CliOutputVerbosity.Normal, resolvedVerbosity, "=== RUN CONFIG ===");
                         LogMessage(CliOutputVerbosity.Normal, resolvedVerbosity, $"Date mode: {(input.IsRangeMode ? "range" : "single")}");
@@ -138,7 +139,10 @@ public static class ScrapeArchiveCommand
                                         if (!publishResult.Success)
                                         {
                                             publishFailure = true;
-                                            failedRuns.Add($"{scrapeDate:yyyy-MM-dd} {site}: publish failed - {publishResult.ErrorMessage}");
+                                            var publishError = string.IsNullOrWhiteSpace(publishResult.ErrorMessage)
+                                                ? "Unknown publish error"
+                                                : publishResult.ErrorMessage!;
+                                            failedRuns.Add(($"{scrapeDate:yyyy-MM-dd} {site}", "Publish failed", publishError));
                                         }
                                         else
                                         {
@@ -151,8 +155,17 @@ public static class ScrapeArchiveCommand
                                 }
                                 catch (Exception ex)
                                 {
-                                    failedRuns.Add($"{scrapeDate:yyyy-MM-dd} {site}: {ex.Message}");
-                                    LogMessage(CliOutputVerbosity.Quiet, resolvedVerbosity, $"{site} failed ({scrapeDate:yyyy-MM-dd}): {ex.Message}");
+                                    var conciseReason = GetConciseFailureReason(ex.Message);
+                                    failedRuns.Add(($"{scrapeDate:yyyy-MM-dd} {site}", conciseReason, ex.Message));
+
+                                    if (resolvedVerbosity == CliOutputVerbosity.Detailed)
+                                    {
+                                        LogMessage(CliOutputVerbosity.Quiet, resolvedVerbosity, $"{site} failed ({scrapeDate:yyyy-MM-dd}): {ex.Message}");
+                                    }
+                                    else
+                                    {
+                                        LogMessage(CliOutputVerbosity.Quiet, resolvedVerbosity, $"{site} failed ({scrapeDate:yyyy-MM-dd}): {conciseReason}");
+                                    }
                                 }
 
                                 LogMessage(CliOutputVerbosity.Normal, resolvedVerbosity, string.Empty);
@@ -161,22 +174,51 @@ public static class ScrapeArchiveCommand
 
                         // Summary
                         LogMessage(CliOutputVerbosity.Quiet, resolvedVerbosity, "=== SUMMARY ===");
-                        if (successfulRuns.Any())
+                        LogMessage(CliOutputVerbosity.Quiet, resolvedVerbosity, $"Attempted runs: {attemptedRuns}");
+                        LogMessage(CliOutputVerbosity.Quiet, resolvedVerbosity, $"Successful runs: {successfulRuns.Count}");
+                        LogMessage(CliOutputVerbosity.Quiet, resolvedVerbosity, $"Failed runs: {failedRuns.Count}");
+
+                        if (failedRuns.Any())
                         {
-                            LogMessage(CliOutputVerbosity.Quiet, resolvedVerbosity, $"Successful runs ({successfulRuns.Count}):");
+                            LogMessage(CliOutputVerbosity.Quiet, resolvedVerbosity, "Failure categories:");
+                            foreach (var category in failedRuns.GroupBy(f => f.Reason).OrderByDescending(g => g.Count()))
+                            {
+                                LogMessage(CliOutputVerbosity.Quiet, resolvedVerbosity, $"  - {category.Key}: {category.Count()}");
+                            }
+                        }
+
+                        if (resolvedVerbosity == CliOutputVerbosity.Detailed && successfulRuns.Any())
+                        {
+                            LogMessage(CliOutputVerbosity.Quiet, resolvedVerbosity, $"Successful run list ({successfulRuns.Count}):");
                             foreach (var success in successfulRuns)
                             {
                                 LogMessage(CliOutputVerbosity.Normal, resolvedVerbosity, $"  - {success}");
                             }
                         }
+
                         if (failedRuns.Any())
                         {
-                            LogMessage(CliOutputVerbosity.Quiet, resolvedVerbosity, $"Failed runs ({failedRuns.Count}):");
-                            foreach (var failure in failedRuns)
+                            LogMessage(CliOutputVerbosity.Quiet, resolvedVerbosity, resolvedVerbosity == CliOutputVerbosity.Detailed
+                                ? $"Failed run details ({failedRuns.Count}):"
+                                : $"Failed runs (showing up to 10 of {failedRuns.Count}):");
+
+                            var failuresToPrint = resolvedVerbosity == CliOutputVerbosity.Detailed
+                                ? failedRuns
+                                : failedRuns.Take(10).ToList();
+
+                            foreach (var failure in failuresToPrint)
                             {
-                                LogMessage(CliOutputVerbosity.Quiet, resolvedVerbosity, $"  - {failure}");
+                                if (resolvedVerbosity == CliOutputVerbosity.Detailed)
+                                {
+                                    LogMessage(CliOutputVerbosity.Quiet, resolvedVerbosity, $"  - {failure.Run}: {failure.Details}");
+                                }
+                                else
+                                {
+                                    LogMessage(CliOutputVerbosity.Quiet, resolvedVerbosity, $"  - {failure.Run}: {failure.Reason}");
+                                }
                             }
                         }
+
                         if (publishingEnabled)
                         {
                             LogMessage(CliOutputVerbosity.Quiet, resolvedVerbosity, $"Published jobs: {publishedCount}");
@@ -215,5 +257,27 @@ public static class ScrapeArchiveCommand
         }
 
         Console.WriteLine(message);
+    }
+
+    private static string GetConciseFailureReason(string message)
+    {
+        if (message.Contains("does not support", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Unsupported for date-mode archive scraping";
+        }
+
+        if (message.Contains("Status code: NotFound", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Source returned 404 Not Found";
+        }
+
+        if (message.Contains("Status code:", StringComparison.OrdinalIgnoreCase))
+        {
+            var firstLine = message.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault();
+            return string.IsNullOrWhiteSpace(firstLine) ? "HTTP request failed" : firstLine;
+        }
+
+        return message.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault()
+            ?? "Unknown failure";
     }
 }

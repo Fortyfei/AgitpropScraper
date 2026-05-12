@@ -52,6 +52,22 @@ public enum CliOutputVerbosity
 public sealed class ArchiveCommandInputResolver : IArchiveCommandInputResolver
 {
     private static readonly string[] SupportedDateFormats = ["yyyy-MM-dd", "yyyy.MM.dd"];
+    private static readonly List<NewsSites> DateArchiveFallbackSites =
+    [
+        NewsSites.Origo,
+        NewsSites.Ripost,
+        NewsSites.Mandiner,
+        NewsSites.Metropol,
+        NewsSites.MagyarNemzet,
+        NewsSites.PestiSracok,
+        NewsSites.MagyarJelen,
+        NewsSites.HuszonnegyHu,
+        NewsSites.NegyNegyNegy,
+        NewsSites.HVG,
+        NewsSites.Telex,
+        NewsSites.Index,
+        NewsSites.Merce
+    ];
 
     public ArchiveCommandInputResolution Resolve(ArchiveCommandRawInput input)
     {
@@ -65,7 +81,7 @@ public sealed class ArchiveCommandInputResolver : IArchiveCommandInputResolver
             return ArchiveCommandInputResolution.Failed(dateError);
         }
 
-        if (!TryResolveSites(input.Newsites ?? [], out var sites, out var siteError, out var warnings))
+        if (!TryResolveSites(input.Newsites ?? [], input.FeedConfigPath, out var sites, out var siteError, out var warnings))
         {
             return ArchiveCommandInputResolution.Failed(siteError);
         }
@@ -179,7 +195,7 @@ public sealed class ArchiveCommandInputResolver : IArchiveCommandInputResolver
                || DateOnly.TryParse(value, out date);
     }
 
-    private static bool TryResolveSites(string[] newsites, out List<NewsSites> sites, out string error, out List<string> warnings)
+    private static bool TryResolveSites(string[] newsites, string feedConfigPath, out List<NewsSites> sites, out string error, out List<string> warnings)
     {
         error = string.Empty;
         warnings = [];
@@ -201,24 +217,16 @@ public sealed class ArchiveCommandInputResolver : IArchiveCommandInputResolver
 
         if (useDefault || rawTokens.Any(token => token.Equals("default", StringComparison.OrdinalIgnoreCase)))
         {
-            var defaultSites=new List<NewsSites>
+            if (!TryResolveDefaultSites(feedConfigPath, out var defaultSites, out var defaultError, out var defaultWarnings))
             {
-                NewsSites.Origo,
-                NewsSites.Ripost,
-                NewsSites.Mandiner,
-                NewsSites.Metropol,
-                NewsSites.MagyarNemzet,
-                NewsSites.PestiSracok,
-                NewsSites.MagyarJelen,
-                NewsSites.Kurucinfo,
-                NewsSites.Alfahir,
-                NewsSites.HuszonnegyHu,
-                NewsSites.NegyNegyNegy,
-                NewsSites.HVG,
-                NewsSites.Telex,
-                NewsSites.Index,
-                NewsSites.Merce
-            };
+                warnings.Add($"Warning: {defaultError} Falling back to built-in default site list.");
+                defaultSites = [.. DateArchiveFallbackSites];
+            }
+
+            foreach (var warning in defaultWarnings)
+            {
+                warnings.Add(warning);
+            }
 
             AddUniqueSites(sites, defaultSites);
         }
@@ -232,6 +240,12 @@ public sealed class ArchiveCommandInputResolver : IArchiveCommandInputResolver
 
             if (Enum.TryParse<NewsSites>(token, true, out var parsedSite))
             {
+                if (!IsDateArchiveSupported(parsedSite))
+                {
+                    warnings.Add($"Warning: '{parsedSite}' does not support date archive scraping and will be skipped.");
+                    continue;
+                }
+
                 AddUniqueSites(sites, [parsedSite]);
                 continue;
             }
@@ -253,6 +267,70 @@ public sealed class ArchiveCommandInputResolver : IArchiveCommandInputResolver
         return true;
     }
 
+    private static bool TryResolveDefaultSites(string feedConfigPath, out List<NewsSites> sites, out string error, out List<string> warnings)
+    {
+        sites = [];
+        warnings = [];
+        error = string.Empty;
+
+        var configPath = ResolveConfigPath(feedConfigPath);
+        if (!File.Exists(configPath))
+        {
+            error = $"Default site resolution failed because feed config was not found at '{configPath}'.";
+            return false;
+        }
+
+        try
+        {
+            var config = new ConfigurationBuilder()
+                .AddJsonFile(configPath, optional: false, reloadOnChange: false)
+                .Build();
+
+            var feeds = config.GetSection("Feeds").Get<string[]>() ?? [];
+            if (feeds.Length == 0)
+            {
+                error = $"Default site resolution failed because Feeds is empty in '{configPath}'.";
+                return false;
+            }
+
+            foreach (var feedUrl in feeds)
+            {
+                if (!Uri.TryCreate(feedUrl, UriKind.Absolute, out var uri))
+                {
+                    warnings.Add($"Warning: Ignoring invalid feed URL '{feedUrl}'.");
+                    continue;
+                }
+
+                if (!TryMapHostToSite(uri.Host, out var site))
+                {
+                    warnings.Add($"Warning: Feed host '{uri.Host}' is not mapped to a known site and will be ignored.");
+                    continue;
+                }
+
+                if (!IsDateArchiveSupported(site))
+                {
+                    warnings.Add($"Warning: '{site}' from feed config does not support date archive scraping and will be skipped.");
+                    continue;
+                }
+
+                AddUniqueSites(sites, [site]);
+            }
+
+            if (sites.Count == 0)
+            {
+                error = $"Default site resolution failed because no date-compatible mapped sites were found in '{configPath}'.";
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = $"Default site resolution failed: {ex.Message}";
+            return false;
+        }
+    }
+
     private static string ResolveConfigPath(string feedConfigPath)
     {
         if (Path.IsPathRooted(feedConfigPath))
@@ -261,6 +339,39 @@ public sealed class ArchiveCommandInputResolver : IArchiveCommandInputResolver
         }
 
         return Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), feedConfigPath));
+    }
+
+    private static bool TryMapHostToSite(string host, out NewsSites site)
+    {
+        site = host.Trim().ToLowerInvariant() switch
+        {
+            "origo.hu" or "www.origo.hu" => NewsSites.Origo,
+            "ripost.hu" or "www.ripost.hu" => NewsSites.Ripost,
+            "mandiner.hu" or "www.mandiner.hu" => NewsSites.Mandiner,
+            "metropol.hu" or "www.metropol.hu" => NewsSites.Metropol,
+            "magyarnemzet.hu" or "www.magyarnemzet.hu" => NewsSites.MagyarNemzet,
+            "pestisracok.hu" or "www.pestisracok.hu" => NewsSites.PestiSracok,
+            "magyarjelen.hu" or "www.magyarjelen.hu" => NewsSites.MagyarJelen,
+            "kuruc.info" or "www.kuruc.info" => NewsSites.Kurucinfo,
+            "alfahir.hu" or "www.alfahir.hu" or "blobs.alfahir.hu" => NewsSites.Alfahir,
+            "24.hu" or "www.24.hu" => NewsSites.HuszonnegyHu,
+            "444.hu" or "www.444.hu" => NewsSites.NegyNegyNegy,
+            "hvg.hu" or "www.hvg.hu" => NewsSites.HVG,
+            "telex.hu" or "www.telex.hu" => NewsSites.Telex,
+            "rtl.hu" or "www.rtl.hu" or "rss.rtl.hu" => NewsSites.RTL,
+            "index.hu" or "www.index.hu" => NewsSites.Index,
+            "merce.hu" or "www.merce.hu" => NewsSites.Merce,
+            _ => default,
+        };
+
+        return Enum.IsDefined(site);
+    }
+
+    private static bool IsDateArchiveSupported(NewsSites site)
+    {
+        return site is not NewsSites.Kurucinfo
+            and not NewsSites.Alfahir
+            and not NewsSites.RTL;
     }
 
     private static void AddUniqueSites(List<NewsSites> target, IEnumerable<NewsSites> toAdd)
