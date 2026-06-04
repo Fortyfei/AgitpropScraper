@@ -426,6 +426,7 @@ test-results/
 # Mac bundle stuff
 *.dmg
 *.app
+!Agitprop.AppHost.App/
 
 # content below from: https://github.com/github/gitignore/blob/master/Global/macOS.gitignore
 # General
