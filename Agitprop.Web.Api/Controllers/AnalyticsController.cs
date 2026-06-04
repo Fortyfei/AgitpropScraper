@@ -4,6 +4,7 @@ using Agitprop.Core.Interfaces;
 using Agitprop.Web.Api.DTOs.Responses;
 
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Agitprop.Web.Api.Controllers
 {
@@ -14,16 +15,20 @@ namespace Agitprop.Web.Api.Controllers
     private readonly ILogger<AnalyticsController> _logger;
     private readonly IEntityRepository _entityRepository;
     private readonly ITrendingRepository _trendingRepository;
+    private readonly IMemoryCache _cache;
     private static readonly ActivitySource _activitySource = new("Agitprop.Web.Api.Controllers.ActivitiesController");
+    private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(15);
 
         public AnalyticsController(
             ILogger<AnalyticsController> logger,
             IEntityRepository repository,
-            ITrendingRepository trendingRepository)
+            ITrendingRepository trendingRepository,
+            IMemoryCache cache)
         {
             _logger = logger;
             _entityRepository = repository;
             _trendingRepository = trendingRepository;
+            _cache = cache;
         }
     
 
@@ -43,6 +48,10 @@ namespace Agitprop.Web.Api.Controllers
         {
             return BadRequest(new { error = "The from date must be earlier than or equal to the to date." });
         }
+
+        var cacheKey = $"topmentions:{from:yyyy-MM-dd}:{to:yyyy-MM-dd}";
+        if (_cache.TryGetValue(cacheKey, out TopMentionedEntitiesResponse? cached) && cached is not null)
+            return Ok(cached);
 
         try
         {
@@ -70,7 +79,9 @@ namespace Agitprop.Web.Api.Controllers
                 .ThenBy(entity => entity.Name)
                 .ToList();
 
-            return Ok(new TopMentionedEntitiesResponse { Entities = topEntities });
+            var response = new TopMentionedEntitiesResponse { Entities = topEntities };
+            _cache.Set(cacheKey, response, CacheDuration);
+            return Ok(response);
         }
         catch (Exception ex)
         {

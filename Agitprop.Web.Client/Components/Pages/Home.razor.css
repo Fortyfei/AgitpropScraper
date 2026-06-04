@@ -145,6 +145,8 @@
     padding: 1.4rem;
     cursor: pointer;
     transition: transform 0.15s ease, box-shadow 0.15s ease;
+    text-decoration: none;
+    color: inherit;
 }
 
 .podium-card:hover {
@@ -210,6 +212,8 @@
     background: #ffffff;
     cursor: pointer;
     transition: transform 0.15s ease, box-shadow 0.15s ease;
+    text-decoration: none;
+    color: inherit;
 }
 
 .entity-rank-card:hover {

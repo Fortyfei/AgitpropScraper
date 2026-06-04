@@ -16,6 +16,46 @@ public class AnalyticsService
         _logger = logger;
     }
 
+    public async Task<List<DomainStat>> GetEntityDomainStatsAsync(string entityId, DateOnly from, DateOnly to)
+    {
+        var endpoint = $"api/entities/{Uri.EscapeDataString(entityId)}/domain-stats?from={ToQueryDate(from)}&to={ToQueryDate(to)}";
+        var response = await TryGetAsync<EntityDomainStatsResponseDto>(endpoint);
+        return response?.Domains.Select(d => new DomainStat
+        {
+            Domain = d.Domain,
+            Count = d.Count,
+            Percent = d.Percent
+        }).ToList() ?? [];
+    }
+
+    public async Task<EntityInfo?> GetEntityByIdAsync(string entityId)
+    {
+        var endpoint = $"api/entities/{Uri.EscapeDataString(entityId)}";
+        var response = await TryGetAsync<EntityDetailDto>(endpoint);
+        if (response is null) return null;
+        return new EntityInfo { Id = response.Id, Name = response.Name, Type = response.Type };
+    }
+
+    public async Task<ArticlePage?> GetEntityArticlesAsync(string entityId, DateOnly from, DateOnly to, int page, int pageSize)
+    {
+        var endpoint = $"api/entities/{Uri.EscapeDataString(entityId)}/articles?from={ToQueryDate(from)}&to={ToQueryDate(to)}&page={page}&pageSize={pageSize}";
+        var response = await TryGetAsync<EntityArticlesResponseDto>(endpoint);
+        if (response is null) return null;
+        return new ArticlePage
+        {
+            TotalCount = response.TotalCount,
+            Page = response.Page,
+            PageSize = response.PageSize,
+            Items = response.Items.Select(a => new ArticleSummary
+            {
+                Id = a.Id,
+                Title = a.Title,
+                Url = a.Url,
+                PublishedTime = a.PublishedTime
+            }).ToList()
+        };
+    }
+
     public async Task<IEnumerable<EntitySummary>> GetTopMentionedEntitiesAsync(DateOnly from, DateOnly to)
     {
         var endpoint = $"api/analytics/topmentions?from={ToQueryDate(from)}&to={ToQueryDate(to)}";
@@ -92,6 +132,42 @@ public class AnalyticsService
     private static string ToQueryDate(DateOnly date)
     {
         return date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    }
+
+    private sealed class EntityDomainStatsResponseDto
+    {
+        public List<DomainStatItemDto> Domains { get; set; } = [];
+        public int TotalCount { get; set; }
+    }
+
+    private sealed class DomainStatItemDto
+    {
+        public string Domain { get; set; } = string.Empty;
+        public int Count { get; set; }
+        public double Percent { get; set; }
+    }
+
+    private sealed class EntityDetailDto
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string Type { get; set; } = string.Empty;
+    }
+
+    private sealed class EntityArticlesResponseDto
+    {
+        public List<ArticleItemDto> Items { get; set; } = [];
+        public int TotalCount { get; set; }
+        public int Page { get; set; }
+        public int PageSize { get; set; }
+    }
+
+    private sealed class ArticleItemDto
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Title { get; set; } = string.Empty;
+        public string Url { get; set; } = string.Empty;
+        public DateTime PublishedTime { get; set; }
     }
 
     private sealed class TopMentionedEntitiesResponseDto

@@ -36,11 +36,11 @@
                             if (position < podiumEntities.Length)
                             {
                                 var entity = podiumEntities[position];
-                                <div class="podium-card podium-place-@(position + 1)">
+                                <a href="/entity/@entity.Id" class="podium-card podium-place-@(position + 1)">
                                     <div class="podium-rank">@((position + 1).ToString())</div>
                                     <div class="podium-name">@entity.Name</div>
                                     <div class="podium-count">@entity.Mentions.ToString("N0") mentions</div>
-                                </div>
+                                </a>
                             }
                         }
                     </div>
@@ -63,7 +63,7 @@
                     <div class="entity-rank-list">
                         @foreach (var item in TopEntities.Skip(3).Take(5).Select((entity, index) => (entity, index)))
                         {
-                            <div class="entity-rank-card">
+                            <a href="/entity/@item.entity.Id" class="entity-rank-card">
                                 <div class="entity-rank-left">
                                     <span class="entity-rank-place">@((item.index + 4).ToString())</span>
                                     <span class="entity-rank-count">@item.entity.Mentions.ToString("N0")</span>
@@ -71,7 +71,7 @@
                                 <div class="entity-rank-content">
                                     <div class="entity-rank-name">@item.entity.Name</div>
                                 </div>
-                            </div>
+                            </a>
                         }
                     </div>
                 </div>
@@ -100,7 +100,7 @@
                                 <ApexPointSeries TItem="TimelinePoint" Items="series.Timeline" Name="@series.Name"
                                                  SeriesType="SeriesType.Line"
                                                  Stroke="@(new SeriesStroke { Color = series.Color, Width = 2 })"
-                                                 XValue="@(point => point.Date.ToDateTime(TimeOnly.MinValue))"
+                                                 XValue="@(point => DateTime.SpecifyKind(point.Date.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc))"
                                                  YValue="@(point => (decimal?)point.Count)" />
                             }
 
@@ -124,6 +124,18 @@
             Zoom = new Zoom { Enabled = false },
             Selection = new Selection { Enabled = false },
             Toolbar = new Toolbar { Show = false }
+        },
+        Yaxis =
+        [
+            new YAxis
+            {
+                Labels = new YAxisLabels { Formatter = "function(val) { return Math.round(val); }" },
+                ForceNiceScale = true
+            }
+        ],
+        Tooltip = new Tooltip
+        {
+            Y = new TooltipY { Formatter = "function(val) { return Math.round(val); }" }
         }
     };
 
