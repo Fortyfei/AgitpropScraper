@@ -1,5 +1,6 @@
 {
   "configurations": [
+
     {
       "type": "aspire",
       "request": "launch",
@@ -11,6 +12,12 @@
       "request": "launch",
       "name": "Launch Agitprop Worker AppHost",
       "program": "${workspaceFolder}/Agitprop.AppHost.Worker/Agitprop.AppHost.Worker.csproj"
+    },
+    {
+      "type": "aspire",
+      "request": "launch",
+      "name": "Launch Agitprop App AppHost",
+      "program": "${workspaceFolder}/Agitprop.AppHost.App/Agitprop.AppHost.App.csproj"
     }
   ]
 }
