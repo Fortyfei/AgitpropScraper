@@ -1,0 +1,297 @@
+@page "/entity/{Id}"
+@rendermode InteractiveServer
+@using Agitprop.Web.Client.Models
+@inject Agitprop.Web.Client.Services.AnalyticsService Analytics
+@using ApexCharts
+
+<PageTitle>@(Entity?.Name ?? "Entity")</PageTitle>
+
+<div class="page-block entity-detail-page">
+
+    @if (IsLoadingEntity)
+    {
+        <div class="entity-detail-loading">Loading…</div>
+    }
+    else if (Entity is null)
+    {
+        <div class="alert alert-warning" role="alert">Entity not found.</div>
+    }
+    else
+    {
+        <div class="entity-detail-header panel-card">
+            <div class="entity-detail-title-row">
+                <h1 class="entity-detail-name">@Entity.Name</h1>
+                @if (!string.IsNullOrWhiteSpace(Entity.Type))
+                {
+                    <span class="entity-type-badge">@Entity.Type</span>
+                }
+            </div>
+
+            <div class="entity-detail-meta">
+                <span class="entity-mention-count">
+                    <strong>@TotalMentions.ToString("N0")</strong> mentions in the last <strong>@SelectedTimeframe.Label</strong>
+                </span>
+
+                <div class="timeframe-selector">
+                    @for (var i = 0; i < TimeframeOptions.Count; i++)
+                    {
+                        var option = TimeframeOptions[i];
+                        var idx = i;
+                        <button type="button"
+                                class="timeframe-pill @(SelectedTimeframeIndex == idx ? "active" : string.Empty)"
+                                disabled="@IsLoadingData"
+                                @onclick="() => ChangeTimeframe(idx)">
+                            @option.Label
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+        {
+            <div class="alert alert-warning" role="alert">@ErrorMessage</div>
+        }
+
+        <div class="entity-distributions-grid">
+            <section class="panel-card domain-breakdown-panel">
+                <div class="panel-header">
+                    <h2>By source</h2>
+                    <span>Mentions per domain</span>
+                </div>
+
+                @if (IsLoadingData)
+                {
+                    <span>Loading…</span>
+                }
+                else if (DomainBreakdown.Count == 0)
+                {
+                    <span class="chart-empty">No data for this timeframe.</span>
+                }
+                else
+                {
+                    <div class="domain-list">
+                        @foreach (var domain in DomainBreakdown)
+                        {
+                            <div class="domain-row">
+                                <div class="domain-row-header">
+                                    <span class="domain-name">@domain.Domain</span>
+                                    <span class="domain-count">@domain.Count.ToString("N0")</span>
+                                </div>
+                                <div class="domain-bar-track">
+                                    <div class="domain-bar-fill" style="width: @(domain.Percent.ToString("F1", System.Globalization.CultureInfo.InvariantCulture))%"></div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </section>
+
+            <section class="panel-card chart-panel">
+                <div class="panel-header">
+                    <h2>Daily mentions</h2>
+                    <span>Mentions over time</span>
+                </div>
+
+                @if (IsLoadingData)
+                {
+                    <span>Loading…</span>
+                }
+                else if (Timeline.Count == 0)
+                {
+                    <span class="chart-empty">No trend data for this timeframe.</span>
+                }
+                else
+                {
+                    <ApexChart @key="SelectedTimeframeIndex" TItem="TimelinePoint"
+                               XAxisType="XAxisType.Datetime"
+                               Height="300"
+                               Options="ChartOptions">
+                        <ApexPointSeries TItem="TimelinePoint"
+                                         Items="Timeline"
+                                         Name="@Entity.Name"
+                                         SeriesType="SeriesType.Line"
+                                         Stroke="@(new SeriesStroke { Color = "#2563eb", Width = 2 })"
+                                         XValue="@(p => DateTime.SpecifyKind(p.Date.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc))"
+                                         YValue="@(p => (decimal?)p.Count)" />
+                    </ApexChart>
+                }
+            </section>
+        </div>
+
+        <section class="panel-card article-list-panel">
+            <div class="panel-header">
+                <h2>Articles</h2>
+                <span>@TotalArticles.ToString("N0") total</span>
+            </div>
+
+            @if (IsLoadingData && Articles.Count == 0)
+            {
+                <span>Loading…</span>
+            }
+            else if (Articles.Count == 0)
+            {
+                <span class="chart-empty">No articles found for this timeframe.</span>
+            }
+            else
+            {
+                <ul class="entity-article-list">
+                    @foreach (var article in Articles)
+                    {
+                        <li class="entity-article-item">
+                            <a href="@article.Url" target="_blank" rel="noopener noreferrer" class="entity-article-title">@article.Title</a>
+                            <span class="entity-article-meta">@ExtractDomain(article.Url) · @article.PublishedTime.ToString("MMM d, yyyy")</span>
+                        </li>
+                    }
+                </ul>
+
+                @if (Articles.Count < TotalArticles)
+                {
+                    <div class="load-more-row">
+                        <button class="load-more-btn" @onclick="LoadMoreArticles" disabled="@IsLoadingMore">
+                            @(IsLoadingMore ? "Loading…" : $"Load more ({TotalArticles - Articles.Count} remaining)")
+                        </button>
+                    </div>
+                }
+            }
+        </section>
+    }
+</div>
+
+@code {
+    [Parameter] public string Id { get; set; } = string.Empty;
+
+    private static readonly ApexChartOptions<TimelinePoint> ChartOptions = new()
+    {
+        Chart = new Chart
+        {
+            Zoom = new Zoom { Enabled = false },
+            Selection = new Selection { Enabled = false },
+            Toolbar = new Toolbar { Show = false }
+        },
+        Yaxis =
+        [
+            new YAxis
+            {
+                Labels = new YAxisLabels { Formatter = "function(val) { return Math.round(val); }" },
+                ForceNiceScale = true
+            }
+        ],
+        Tooltip = new Tooltip
+        {
+            Y = new TooltipY { Formatter = "function(val) { return Math.round(val); }" }
+        }
+    };
+
+    private static readonly List<TimeframeOption> TimeframeOptions = new()
+    {
+        new TimeframeOption("3 days", 3),
+        new TimeframeOption("7 days", 7),
+        new TimeframeOption("3 weeks", 21)
+    };
+
+    private EntityInfo? Entity { get; set; }
+    private List<TimelinePoint> Timeline { get; set; } = [];
+    private List<DomainStat> DomainBreakdown { get; set; } = [];
+    private List<ArticleSummary> Articles { get; set; } = [];
+    private int TotalArticles { get; set; }
+    private int TotalMentions { get; set; }
+    private int CurrentArticlePage { get; set; } = 1;
+    private const int PageSize = 20;
+
+    private bool IsLoadingEntity { get; set; } = true;
+    private bool IsLoadingData { get; set; }
+    private bool IsLoadingMore { get; set; }
+    private string? ErrorMessage { get; set; }
+    private int SelectedTimeframeIndex { get; set; }
+    private TimeframeOption SelectedTimeframe => TimeframeOptions[SelectedTimeframeIndex];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        IsLoadingEntity = true;
+        Entity = await Analytics.GetEntityByIdAsync(Id);        IsLoadingEntity = false;
+
+        if (Entity is not null)
+            await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        IsLoadingData = true;
+        ErrorMessage = null;
+        Articles = [];
+        DomainBreakdown = [];
+        CurrentArticlePage = 1;
+
+        try
+        {
+            var range = GetSelectedRange();
+            var timelineTask = Analytics.GetEntitiesTimelineAsync(range.From, range.To, [Id]);
+            var articlesTask = Analytics.GetEntityArticlesAsync(Id, range.From, range.To, 1, PageSize);
+            var domainTask = Analytics.GetEntityDomainStatsAsync(Id, range.From, range.To);
+
+            await Task.WhenAll(timelineTask, articlesTask, domainTask);
+
+            var timelineData = await timelineTask;
+            Timeline = timelineData.TryGetValue(Id, out var pts) ? pts : [];
+
+            var articlePage = await articlesTask;
+            if (articlePage is not null)
+            {
+                Articles = articlePage.Items;
+                TotalArticles = articlePage.TotalCount;
+            }
+
+            DomainBreakdown = await domainTask;
+            TotalMentions = TotalArticles;
+        }
+        catch
+        {
+            ErrorMessage = "Unable to load entity data.";
+        }
+        finally
+        {
+            IsLoadingData = false;
+        }
+    }
+
+    private async Task LoadMoreArticles()
+    {
+        IsLoadingMore = true;
+        try
+        {
+            CurrentArticlePage++;
+            var range = GetSelectedRange();
+            var page = await Analytics.GetEntityArticlesAsync(Id, range.From, range.To, CurrentArticlePage, PageSize);
+            if (page is not null)
+                Articles.AddRange(page.Items);
+        }
+        finally
+        {
+            IsLoadingMore = false;
+        }
+    }
+
+    private async Task ChangeTimeframe(int idx)
+    {
+        if (SelectedTimeframeIndex == idx) return;
+        SelectedTimeframeIndex = idx;
+        await LoadDataAsync();
+    }
+
+    private (DateOnly From, DateOnly To) GetSelectedRange()
+    {
+        var to = DateOnly.FromDateTime(DateTime.UtcNow);
+        var from = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-SelectedTimeframe.Days));
+        return (from, to);
+    }
+
+    private static string ExtractDomain(string url)
+    {
+        if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            return uri.Host.Replace("www.", string.Empty);
+        return url;
+    }
+
+    private sealed record TimeframeOption(string Label, int Days);
+}

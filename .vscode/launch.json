@@ -1,29 +1,23 @@
 {
   "configurations": [
+
     {
-      "name": "C#: Agitprop.CLI Debug",
-      "type": "coreclr",
+      "type": "aspire",
       "request": "launch",
-      "preLaunchTask": "build",
-      "program": "${workspaceFolder}/Agitprop.CLI/bin/Debug/net10.0/Agitprop.CLI.exe",
-      "args": [
-        "scrape-archive",
-        "-d",
-        "2025-11-22",
-        "-s",
-        "ripost",
-        "-c",
-        "-v"
-      ],
-      "cwd": "${workspaceFolder}",
-      "console": "internalConsole",
-      "stopAtEntry": false
+      "name": "Launch Agitprop Full AppHost",
+      "program": "${workspaceFolder}/Agitprop.AppHost/Agitprop.AppHost.csproj"
     },
     {
       "type": "aspire",
       "request": "launch",
-      "name": "Aspire: Launch default apphost",
-      "program": "${workspaceFolder}"
+      "name": "Launch Agitprop Worker AppHost",
+      "program": "${workspaceFolder}/Agitprop.AppHost.Worker/Agitprop.AppHost.Worker.csproj"
+    },
+    {
+      "type": "aspire",
+      "request": "launch",
+      "name": "Launch Agitprop App AppHost",
+      "program": "${workspaceFolder}/Agitprop.AppHost.App/Agitprop.AppHost.App.csproj"
     }
   ]
 }

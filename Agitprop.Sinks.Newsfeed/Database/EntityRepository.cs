@@ -87,6 +87,79 @@ public class EntityRepository : IEntityRepository
         }
     }
 
+    public IEnumerable<(string Domain, int Count)> GetMentioningArticlesByDomainAsync(string entityId, DateOnly startDate, DateOnly endDate)
+    {
+        using var trace = _activitySource.StartActivity("GetMentioningArticlesByDomain", ActivityKind.Internal);
+        trace?.SetTag("entityId", entityId);
+
+        var from = DateTime.SpecifyKind(startDate.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
+        var to = DateTime.SpecifyKind(endDate.ToDateTime(TimeOnly.MaxValue), DateTimeKind.Utc);
+
+        try
+        {
+            var uuid = Guid.Parse(entityId);
+
+            var urls = _dbContext.Mentions
+                .Where(m => m.EntityId == uuid)
+                .Include(m => m.Article)
+                .Where(m => m.Article.PublishedTime >= from && m.Article.PublishedTime <= to)
+                .Select(m => m.Article.Url)
+                .AsNoTracking()
+                .AsEnumerable();
+
+            return urls
+                .Select(url => Uri.TryCreate(url, UriKind.Absolute, out var uri)
+                    ? uri.Host.Replace("www.", string.Empty, StringComparison.OrdinalIgnoreCase)
+                    : url)
+                .GroupBy(domain => domain, StringComparer.OrdinalIgnoreCase)
+                .Select(g => (Domain: g.Key, Count: g.Count()))
+                .OrderByDescending(x => x.Count)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to retrieve domain breakdown for entity {entityId}", entityId);
+            trace?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            throw;
+        }
+    }
+
+    public (IEnumerable<Article> Items, int TotalCount) GetMentioningArticlesPaginatedAsync(string entityId, DateOnly startDate, DateOnly endDate, int page, int pageSize)
+    {
+        using var trace = _activitySource.StartActivity("GetMentioningArticlesPaginated", ActivityKind.Internal);
+        trace?.SetTag("entityId", entityId);
+        trace?.SetTag("page", page);
+        trace?.SetTag("pageSize", pageSize);
+
+        var from = DateTime.SpecifyKind(startDate.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
+        var to = DateTime.SpecifyKind(endDate.ToDateTime(TimeOnly.MaxValue), DateTimeKind.Utc);
+
+        try
+        {
+            var uuid = Guid.Parse(entityId);
+
+            var query = _dbContext.Mentions
+                .Where(m => m.EntityId == uuid)
+                .Include(m => m.Article)
+                .Where(m => m.Article.PublishedTime >= from && m.Article.PublishedTime <= to)
+                .Select(m => m.Article)
+                .OrderByDescending(a => a.PublishedTime)
+                .AsNoTracking();
+
+            var totalCount = query.Count();
+            var items = query.Skip((page - 1) * pageSize).Take(pageSize).ToCoreModel();
+
+            trace?.SetTag("totalCount", totalCount);
+            return (items, totalCount);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to retrieve paginated mentioning articles for entity {entityId}", entityId);
+            trace?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            throw;
+        }
+    }
+
     public IEnumerable<Article> GetMentioningArticlesAsync(string entityId, DateOnly startDate, DateOnly endDate)
     {
         using var trace = _activitySource.StartActivity("GetMentioningArticles", ActivityKind.Internal);

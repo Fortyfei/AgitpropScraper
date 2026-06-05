@@ -1,5 +1,5 @@
 {
   "appHost": {
-    "path": "Agitprop.AppHost/Agitprop.AppHost.csproj"
+    "path": "Agitprop.AppHost.App/Agitprop.AppHost.App.csproj"
   }
 }

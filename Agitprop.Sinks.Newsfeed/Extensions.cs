@@ -28,7 +28,8 @@ public static class Extensions
     {
         builder.Services.AddHttpClient<INamedEntityRecognizer, NamedEntityRecognizer>(client =>
         {
-            client.BaseAddress = new("https://nlpService");
+            var baseUrl = builder.Configuration.GetValue<string>("NLPSERVICE_HTTP", "http://nlpservice").TrimEnd('/');
+            client.BaseAddress = new Uri(baseUrl);
             client.Timeout = TimeSpan.FromSeconds(180);
 
         })

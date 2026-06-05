@@ -1,0 +1,262 @@
+﻿@page "/"
+@page "/home"
+@rendermode InteractiveServer
+@using Agitprop.Web.Client.Models
+@inject Agitprop.Web.Client.Services.AnalyticsService Analytics
+
+<PageTitle>Landing</PageTitle>
+
+<div class="page-block landing-page">
+    <section class="landing-panel">
+        <div class="timeframe-selected">
+            Showing results for the last <strong>@SelectedTimeframe.Label</strong>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+        {
+            <div class="alert alert-warning" role="alert">@ErrorMessage</div>
+        }
+
+        <div class="landing-panel-content">
+            <section class="landing-podium">
+                <div class="panel-card podium-panel">
+                    <div class="panel-header">
+                        <h2>Top entities</h2>
+                        <span>Most mentioned entities from the last @SelectedTimeframe.Label</span>
+                    </div>
+
+                    <div class="podium-grid">
+                        @{
+                            var podiumEntities = TopEntities.Take(3).ToArray();
+                            var podiumOrder = new[] { 2, 0, 1 };
+                        }
+
+                        @foreach (var position in podiumOrder)
+                        {
+                            if (position < podiumEntities.Length)
+                            {
+                                var entity = podiumEntities[position];
+                                <a href="/entity/@entity.Id" class="podium-card podium-place-@(position + 1)">
+                                    <div class="podium-rank">@((position + 1).ToString())</div>
+                                    <div class="podium-name">@entity.Name</div>
+                                    <div class="podium-count">@entity.Mentions.ToString("N0") mentions</div>
+                                </a>
+                            }
+                        }
+                    </div>
+
+                    <div class="timeframe-box">
+                        <div class="timeframe-selector">
+                            @for (var i = 0; i < TimeframeOptions.Count; i++)
+                            {
+                                var option = TimeframeOptions[i];
+                                var optionIndex = i;
+                                <button type="button"
+                                        class="timeframe-pill @(SelectedTimeframeIndex == optionIndex ? "active" : string.Empty)"
+                                        disabled="@IsLoading" @onclick="() => ChangeTimeframe(optionIndex)">
+                                    @option.Label
+                                </button>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="entity-rank-list">
+                        @foreach (var item in TopEntities.Skip(3).Take(5).Select((entity, index) => (entity, index)))
+                        {
+                            <a href="/entity/@item.entity.Id" class="entity-rank-card">
+                                <div class="entity-rank-left">
+                                    <span class="entity-rank-place">@((item.index + 4).ToString())</span>
+                                    <span class="entity-rank-count">@item.entity.Mentions.ToString("N0")</span>
+                                </div>
+                                <div class="entity-rank-content">
+                                    <div class="entity-rank-name">@item.entity.Name</div>
+                                </div>
+                            </a>
+                        }
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel-card chart-panel">
+                <div class="panel-header">
+                    <h2>Trend line</h2>
+                    <span>Mentions over time for the top entities</span>
+                </div>
+
+                <div>
+                    @if (IsLoading)
+                    {
+                        <span>Loading trend line...</span>
+                    }
+                    else if (TopEntities.Any() && SelectedTrendSeries.Any(series => series.Timeline.Count > 0))
+                    {
+                        <!-- KEY FIX: forces full re-render -->
+                        <ApexChart @key="SelectedTimeframeIndex" TItem="TimelinePoint" XAxisType="XAxisType.Datetime"
+                                   Height="360"
+                                   Options="ReadOnlyChartOptions">
+
+                            @foreach (var series in SelectedTrendSeries)
+                            {
+                                <ApexPointSeries TItem="TimelinePoint" Items="series.Timeline" Name="@series.Name"
+                                                 SeriesType="SeriesType.Line"
+                                                 Stroke="@(new SeriesStroke { Color = series.Color, Width = 2 })"
+                                                 XValue="@(point => DateTime.SpecifyKind(point.Date.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc))"
+                                                 YValue="@(point => (decimal?)point.Count)" />
+                            }
+
+                        </ApexChart>
+                    }
+                    else
+                    {
+                        <span>No trend data available for the selected timeframe.</span>
+                    }
+                </div>
+            </section>
+        </div>
+    </section>
+</div>
+
+@code {
+    private readonly ApexChartOptions<TimelinePoint> ReadOnlyChartOptions = new()
+    {
+        Chart = new Chart
+        {
+            Zoom = new Zoom { Enabled = false },
+            Selection = new Selection { Enabled = false },
+            Toolbar = new Toolbar { Show = false }
+        },
+        Yaxis =
+        [
+            new YAxis
+            {
+                Labels = new YAxisLabels { Formatter = "function(val) { return Math.round(val); }" },
+                ForceNiceScale = true
+            }
+        ],
+        Tooltip = new Tooltip
+        {
+            Y = new TooltipY { Formatter = "function(val) { return Math.round(val); }" }
+        }
+    };
+
+    private IReadOnlyList<EntitySummary> TopEntities { get; set; } = Array.Empty<EntitySummary>();
+
+    private Dictionary<string, List<TimelinePoint>> EntityTimelines { get; set; }
+        = new(StringComparer.OrdinalIgnoreCase);
+
+    private int _loadVersion;
+
+    private int SelectedTimeframeIndex { get; set; }
+    private bool IsLoading { get; set; }
+    private string? ErrorMessage { get; set; }
+
+    private TimeframeOption SelectedTimeframe => TimeframeOptions[SelectedTimeframeIndex];
+
+    // ✅ FIX: removed filtering that killed the chart
+    private IEnumerable<EntityTrendSeries> SelectedTrendSeries =>
+        TopEntities.Select((entity, index) => new EntityTrendSeries
+        {
+            EntityId = entity.Id,
+            Name = entity.Name,
+            Color = TrendColor(index),
+            Timeline = EntityTimelines.TryGetValue(entity.Id, out var timeline)
+                ? timeline
+                : new List<TimelinePoint>()
+        });
+
+    private static readonly List<TimeframeOption> TimeframeOptions = new()
+    {
+        new TimeframeOption("3 days", 3),
+        new TimeframeOption("7 days", 7),
+        new TimeframeOption("3 weeks", 21)
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        SelectedTimeframeIndex = 0;
+        await LoadHomepageDataAsync();
+    }
+
+    private async Task LoadHomepageDataAsync()
+    {
+        var loadVersion = Interlocked.Increment(ref _loadVersion);
+
+        IsLoading = true;
+        ErrorMessage = null;
+
+        try
+        {
+            var range = GetSelectedRange();
+
+            var topEntities = (await Analytics.GetTopMentionedEntitiesAsync(range.From, range.To))
+                .Take(8)
+                .ToArray();
+
+            var timelines = new Dictionary<string, List<TimelinePoint>>(StringComparer.OrdinalIgnoreCase);
+
+            if (topEntities.Any())
+            {
+                var rawTimeline = await Analytics.GetEntitiesTimelineAsync(
+                    range.From,
+                    range.To,
+                    topEntities.Select(entity => entity.Id));
+
+                timelines = rawTimeline.ToDictionary(
+                    entry => entry.Key.Trim(),
+                    entry => entry.Value ?? new List<TimelinePoint>(),
+                    StringComparer.OrdinalIgnoreCase);
+            }
+
+            if (loadVersion != _loadVersion)
+            {
+                return;
+            }
+
+            TopEntities = topEntities;
+            EntityTimelines = timelines;
+        }
+        catch
+        {
+            if (loadVersion != _loadVersion)
+            {
+                return;
+            }
+
+            ErrorMessage = "Unable to load homepage data.";
+            TopEntities = Array.Empty<EntitySummary>();
+            EntityTimelines = new Dictionary<string, List<TimelinePoint>>(StringComparer.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            if (loadVersion == _loadVersion)
+            {
+                IsLoading = false;
+            }
+        }
+    }
+
+    private async Task ChangeTimeframe(int optionIndex)
+    {
+        if (SelectedTimeframeIndex == optionIndex)
+            return;
+
+        SelectedTimeframeIndex = optionIndex;
+
+        await LoadHomepageDataAsync();
+    }
+
+    private (DateOnly From, DateOnly To) GetSelectedRange()
+    {
+        var to = DateOnly.FromDateTime(DateTime.UtcNow);
+        var from = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-SelectedTimeframe.Days));
+        return (from, to);
+    }
+
+    private static string TrendColor(int index)
+    {
+        var palette = new[] { "#2563eb", "#16a34a", "#c2410c", "#7c3aed", "#0891b2", "#be123c" };
+        return palette[index % palette.Length];
+    }
+
+    private sealed record TimeframeOption(string Label, int Days);
+}

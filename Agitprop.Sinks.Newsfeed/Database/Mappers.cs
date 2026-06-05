@@ -32,7 +32,10 @@ public static class Mappers
             Title = article.Title,
             Url = article.Url,
             PublishedTime = article.PublishedTime,
-            MentionedEntities = article.Mentions.Select(m => m.Entity.ToCoreModel()).ToList()
+            MentionedEntities = article.Mentions?
+                .Where(m => m.Entity != null)
+                .Select(m => m.Entity!.ToCoreModel())
+                .ToList() ?? new List<Entity>()
         };
     }
 
