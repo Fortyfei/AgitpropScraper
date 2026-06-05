@@ -10,11 +10,12 @@ internal class Program
 
         var registry = builder.AddContainerRegistry("ghcr", "ghcr.io", "fortyfei/agitprop");
 
-        var compose = builder.AddDockerComposeEnvironment("Agitprop")
+        var compose = builder.AddDockerComposeEnvironment("agitprop")
                              .WithDashboard(d => d.WithHostPort(18888));
 
         var messaging = builder.AddRabbitMQ("messaging")
                                .WithManagementPlugin(15672)
+                               .WithEndpoint(scheme: "amqp", port: 5672, targetPort: 5672, isExternal: true)
                                .WithExternalHttpEndpoints()
                                .WithOtlpExporter()
                                .PublishAsDockerComposeService((resource, service) => { service.Name = "messaging"; });
@@ -22,7 +23,7 @@ internal class Program
         var postgres = builder.AddPostgres("postgres")
                               .WithDataVolume(isReadOnly: false)
                               .WithPgAdmin(pgAdmin => { pgAdmin.WithHostPort(5050); pgAdmin.WithImageTag("latest"); })
-                              .WithExternalHttpEndpoints()
+                              .WithEndpoint(scheme: "tcp", port: 5432, targetPort: 5432, isExternal: true)
                               .WithLifetime(ContainerLifetime.Persistent)
                               .WithOtlpExporter()
                               .PublishAsDockerComposeService((resource, service) => { service.Name = "postgres"; });
@@ -55,7 +56,8 @@ internal class Program
                                .WithReference(messaging)
                                .WaitFor(consumer)
                                .WithOtlpExporter()
-                               .PublishAsDockerComposeService((resource, service) => { service.Name = "rssReader"; });
+                               .PublishAsDockerComposeService((resource, service) => { service.Name = "rssReader"; })
+                               .WithEnvironmentAwareImagePush();
 
         var backend = builder.AddProject<Agitprop_Web_Api>("backend")
                              .WaitFor(newsfeedDb)
@@ -67,7 +69,14 @@ internal class Program
                              .WithContainerRegistry(registry)
                              .WithEnvironmentAwareImagePush();
 
-        // var frontend = builder.
+        var frontend = builder.AddProject<Agitprop_Web_Client>("frontend")
+                              .WaitFor(backend)
+                              .WithReference(backend)
+                              .WithExternalHttpEndpoints()
+                              .WithOtlpExporter()
+                              .PublishAsDockerComposeService((resource, service) => { service.Name = "frontend"; })
+                              .WithContainerRegistry(registry)
+                              .WithEnvironmentAwareImagePush();
 
         builder.Build().Run();
     }

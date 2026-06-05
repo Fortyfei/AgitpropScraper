@@ -1,41 +1,25 @@
-using Agitprop.Core.Models;
-
 namespace Agitprop.Web.Api;
 
-internal static class Extensions
+/// <summary>
+/// Provides extension methods for configuring OpenTelemetry tracing in the Web API.
+/// </summary>
+public static class Extensions
 {
-    internal static IEnumerable<EntityDto> ToEntityDtos(this IEnumerable<Entity> entities)
+    /// <summary>
+    /// Configures OpenTelemetry tracing for the Web API service.
+    /// </summary>
+    /// <param name="builder">The web application builder.</param>
+    /// <returns>The updated web application builder.</returns>
+    public static WebApplicationBuilder ConfigureWebApiTracing(this WebApplicationBuilder builder)
     {
-        foreach (var entity in entities)
-        {
-            yield return entity.ToEntityDto();
-        }
-    }
-    internal static EntityDto ToEntityDto(this Entity e)
-    {
-        return new EntityDto
-        {
-            Id = e.Id?.ToString() ?? "<empty>",
-            Name = e.Name,
-        };
-    }
+        builder.Services.AddOpenTelemetry()
+            .WithTracing(tracing => tracing
+                .AddSource("Agitprop.NewsfeedSink")
+                .AddSource("Agitprop.NewsfeedDB")
+                .AddSource("Agitprop.Repository.EntityRepository")
+                .AddSource("Agitprop.Repository.TrendingRepository")
+            );
 
-    internal static IEnumerable<ArticleDto> ToArticleDto(this IEnumerable<Article> articles)
-    {
-        foreach (var article in articles)
-        {
-            yield return article.ToArticleDto();
-        }
+        return builder;
     }
-    internal static ArticleDto ToArticleDto(this Article a)
-    {
-        return new ArticleDto
-        {
-            Id = a.Id ?? "<empty>",
-            Title=a.Title,
-            ArticleUrl = a.Url,
-            ArticlePublishedTime = a.PublishedTime,
-        };
-    }
-
 }

@@ -18,6 +18,7 @@ builder.Services.AddSwaggerGen();
 
 builder.AddNewsfeedRepositories();
 builder.Services.AddControllers();
+builder.Services.AddMemoryCache();
 
 builder.Services.AddCors(options =>
 {

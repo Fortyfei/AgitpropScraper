@@ -25,7 +25,8 @@ internal class NegynegynegyArchiveScrollAction : IBrowserAction
         {
             try
             {
-                var loadBtnSelector = "#ember4";
+                // /html/body/div[1]/div/div[4]/div[3]/button
+                var loadBtnSelector = "#body > div:nth-child(8) > div > div._2r9i95._1chu0ywh.p4kpu3e.p4kpu3hp.p4kpu3i4 > div._1chu0ywh.p4kpu3fk._1chu0yw9._2r9i9e.slotDoubleColumn > button";
                 var btn = await page.QuerySelectorAsync(loadBtnSelector);
                 await btn.ClickAsync();
                 // Click the button

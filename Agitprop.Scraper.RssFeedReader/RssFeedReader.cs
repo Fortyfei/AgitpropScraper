@@ -5,7 +5,6 @@ using Agitprop.Core.Enums;
 using MassTransit;
 using System.Diagnostics;
 using Agitprop.Sinks.Newsfeed;
-using System.Threading.Tasks;
 
 namespace Agitprop.Scraper.RssFeedReader;
 
