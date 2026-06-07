@@ -1,0 +1,213 @@
+@page "/entities"
+@rendermode InteractiveServer
+@using Agitprop.Web.Client.Models
+@inject Agitprop.Web.Client.Services.AnalyticsService Analytics
+@implements IDisposable
+
+<PageTitle>Entities</PageTitle>
+
+<div class="page-block entity-browser-page">
+    <section class="panel-card browser-header">
+        <div class="browser-title-row">
+            <div>
+                <h1 class="browser-title">Entities</h1>
+                <span class="browser-subtitle">Browse all monitored entities ranked by mention count</span>
+            </div>
+        </div>
+
+        <div class="browser-controls">
+            <div class="browser-search-wrap">
+                <input class="browser-search-input"
+                       type="search"
+                       placeholder="Search by name…"
+                       value="@SearchQuery"
+                       @oninput="OnSearchInput" />
+            </div>
+
+            <div class="timeframe-selector">
+                @for (var i = 0; i < TimeframeOptions.Count; i++)
+                {
+                    var option = TimeframeOptions[i];
+                    var idx = i;
+                    <button type="button"
+                            class="timeframe-pill @(SelectedTimeframeIndex == idx ? "active" : string.Empty)"
+                            disabled="@IsLoading"
+                            @onclick="() => ChangeTimeframe(idx)">
+                        @option.Label
+                    </button>
+                }
+            </div>
+        </div>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+    {
+        <div class="alert alert-warning" role="alert">@ErrorMessage</div>
+    }
+
+    <section class="panel-card entity-list-panel">
+        @if (IsLoading && Items.Count == 0)
+        {
+            <div class="browser-loading">Loading…</div>
+        }
+        else if (Items.Count == 0)
+        {
+            <div class="browser-empty">No entities found for the selected timeframe@(string.IsNullOrWhiteSpace(SearchQuery) ? "." : " and search query.")</div>
+        }
+        else
+        {
+            <div class="browser-list-header">
+                <span class="browser-result-count">
+                    @TotalCount.ToString("N0") @(TotalCount == 1 ? "entity" : "entities")
+                    @if (!string.IsNullOrWhiteSpace(SearchQuery))
+                    {<text> matching "<strong>@SearchQuery</strong>"</text>}
+                </span>
+            </div>
+
+            <ul class="entity-browser-list">
+                @foreach (var item in Items)
+                {
+                    <li>
+                        <a href="/entity/@item.Id" class="entity-browser-row">
+                            <div class="entity-browser-left">
+                                <span class="entity-browser-name">@item.Name</span>
+                                @if (!string.IsNullOrWhiteSpace(item.Type))
+                                {
+                                    <span class="entity-type-badge">@item.Type</span>
+                                }
+                            </div>
+                            <span class="entity-browser-count">@item.MentionCount.ToString("N0") mentions</span>
+                        </a>
+                    </li>
+                }
+            </ul>
+
+            @if (TotalPages > 1)
+            {
+                <div class="browser-pagination">
+                    <button class="pagination-btn" @onclick="PrevPage" disabled="@(CurrentPage <= 1 || IsLoading)">← Prev</button>
+                    <span class="pagination-info">Page @CurrentPage of @TotalPages</span>
+                    <button class="pagination-btn" @onclick="NextPage" disabled="@(CurrentPage >= TotalPages || IsLoading)">Next →</button>
+                </div>
+            }
+        }
+    </section>
+</div>
+
+@code {
+    private const int PageSize = 25;
+
+    private static readonly List<TimeframeOption> TimeframeOptions = new()
+    {
+        new TimeframeOption("3 days", 3),
+        new TimeframeOption("7 days", 7),
+        new TimeframeOption("3 weeks", 21)
+    };
+
+    private List<EntityBrowseItem> Items { get; set; } = [];
+    private int TotalCount { get; set; }
+    private int CurrentPage { get; set; } = 1;
+    private int TotalPages => TotalCount == 0 ? 1 : (int)Math.Ceiling(TotalCount / (double)PageSize);
+
+    private int SelectedTimeframeIndex { get; set; } = 1; // default: 7 days
+    private TimeframeOption SelectedTimeframe => TimeframeOptions[SelectedTimeframeIndex];
+
+    private string SearchQuery { get; set; } = string.Empty;
+    private bool IsLoading { get; set; }
+    private string? ErrorMessage { get; set; }
+
+    private System.Threading.Timer? _debounceTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        IsLoading = true;
+        ErrorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var range = GetSelectedRange();
+            var result = await Analytics.GetEntitiesBrowseAsync(
+                range.From, range.To, CurrentPage, PageSize,
+                string.IsNullOrWhiteSpace(SearchQuery) ? null : SearchQuery.Trim());
+
+            if (result is not null)
+            {
+                Items = result.Items;
+                TotalCount = result.TotalCount;
+            }
+            else
+            {
+                Items = [];
+                TotalCount = 0;
+                ErrorMessage = "Unable to load entities.";
+            }
+        }
+        catch
+        {
+            ErrorMessage = "Unable to load entities.";
+            Items = [];
+            TotalCount = 0;
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private void OnSearchInput(ChangeEventArgs e)
+    {
+        SearchQuery = e.Value?.ToString() ?? string.Empty;
+        _debounceTimer?.Dispose();
+        _debounceTimer = new System.Threading.Timer(async _ =>
+        {
+            CurrentPage = 1;
+            await InvokeAsync(async () =>
+            {
+                await LoadAsync();
+                StateHasChanged();
+            });
+        }, null, 350, System.Threading.Timeout.Infinite);
+    }
+
+    private async Task ChangeTimeframe(int idx)
+    {
+        if (SelectedTimeframeIndex == idx) return;
+        SelectedTimeframeIndex = idx;
+        CurrentPage = 1;
+        await LoadAsync();
+    }
+
+    private async Task PrevPage()
+    {
+        if (CurrentPage <= 1) return;
+        CurrentPage--;
+        await LoadAsync();
+    }
+
+    private async Task NextPage()
+    {
+        if (CurrentPage >= TotalPages) return;
+        CurrentPage++;
+        await LoadAsync();
+    }
+
+    private (DateOnly From, DateOnly To) GetSelectedRange()
+    {
+        var to = DateOnly.FromDateTime(DateTime.UtcNow);
+        var from = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-SelectedTimeframe.Days));
+        return (from, to);
+    }
+
+    public void Dispose()
+    {
+        _debounceTimer?.Dispose();
+    }
+
+    private sealed record TimeframeOption(string Label, int Days);
+}

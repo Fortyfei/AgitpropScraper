@@ -33,6 +33,58 @@ public class EntitiesController : ControllerBase
         _cache = cache;
     }
 
+    [HttpGet]
+    public ActionResult<EntityBrowseResponse> GetEntities(
+        [FromQuery] DateOnly from,
+        [FromQuery] DateOnly to,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        [FromQuery] string? search = null)
+    {
+        using var activity = _activitySource.StartActivity("GetEntities", ActivityKind.Server);
+
+        if (from == default || to == default)
+            return BadRequest(new { error = "Both 'from' and 'to' query parameters are required." });
+
+        if (from > to)
+            return BadRequest(new { error = "The 'from' date must be earlier than or equal to the 'to' date." });
+
+        if (page < 1) page = 1;
+        if (pageSize < 1 || pageSize > 100) pageSize = 25;
+
+        var safeSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+        var cacheKey = $"entities-browse:{from:yyyy-MM-dd}:{to:yyyy-MM-dd}:p{page}:ps{pageSize}:s{safeSearch}";
+        if (_cache.TryGetValue(cacheKey, out EntityBrowseResponse? cached) && cached is not null)
+            return Ok(cached);
+
+        try
+        {
+            var (items, totalCount) = _entityRepository.GetEntitiesWithMentionCountAsync(from, to, page, pageSize, safeSearch);
+
+            var response = new EntityBrowseResponse
+            {
+                TotalCount = totalCount,
+                Page = page,
+                PageSize = pageSize,
+                Items = items.Select(x => new EntityBrowseItem
+                {
+                    Id = x.Entity.Id ?? string.Empty,
+                    Name = x.Entity.Name,
+                    Type = x.Entity.Type ?? string.Empty,
+                    MentionCount = x.MentionCount
+                }).ToList()
+            };
+
+            _cache.Set(cacheKey, response, CacheDuration);
+            return Ok(response);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error browsing entities");
+            return StatusCode(500, new { error = "Failed to retrieve entities." });
+        }
+    }
+
     [HttpGet("{id}/domain-stats")]
     public ActionResult<EntityDomainStatsResponse> GetEntityDomainStats(
         string id,
