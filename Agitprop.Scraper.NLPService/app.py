@@ -13,6 +13,11 @@ import os
 import time
 import uuid
 import spacy
+from opentelemetry import metrics
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+from opentelemetry.sdk.resources import Resource, SERVICE_NAME
+from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
 
 
 REQUEST_ID_CTX: ContextVar[str] = ContextVar("request_id", default="-")
@@ -48,8 +53,24 @@ def configure_logging() -> logging.Logger:
     return app_logger
 
 
+def configure_metrics() -> metrics.Histogram:
+    service_name = os.environ.get("OTEL_SERVICE_NAME", "nlpservice")
+    resource = Resource.create({SERVICE_NAME: service_name})
+    exporter = OTLPMetricExporter()
+    reader = PeriodicExportingMetricReader(exporter)
+    provider = MeterProvider(resource=resource, metric_readers=[reader])
+    metrics.set_meter_provider(provider)
+    meter = metrics.get_meter("agitprop.nlpservice")
+    return meter.create_histogram(
+        name="http.server.request.duration",
+        description="Duration of HTTP requests in seconds",
+        unit="s",
+    )
+
+
 app = FastAPI(title="NLP Service", description="Named Entity Recognition API using spaCy")
 logger = configure_logging()
+http_request_duration = configure_metrics()
 
 try:
     model_load_start = time.perf_counter()
@@ -72,8 +93,17 @@ async def log_requests(request: Request, call_next):
 
     try:
         response = await call_next(request)
-        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        elapsed_s = time.perf_counter() - started
+        elapsed_ms = int(elapsed_s * 1000)
         response.headers["x-request-id"] = request_id
+        http_request_duration.record(
+            elapsed_s,
+            attributes={
+                "http.request.method": request.method,
+                "http.route": request.url.path,
+                "http.response.status_code": response.status_code,
+            },
+        )
         logger.info(
             "Completed request: %s %s -> %d in %d ms",
             request.method,
