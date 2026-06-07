@@ -239,6 +239,57 @@ public class EntityRepository : IEntityRepository
         }
     }
 
+    public (IEnumerable<(Entity Entity, int MentionCount)> Items, int TotalCount) GetEntitiesWithMentionCountAsync(
+        DateOnly from, DateOnly to, int page, int pageSize, string? search = null)
+    {
+        using var trace = _activitySource.StartActivity("GetEntitiesWithMentionCount", ActivityKind.Internal);
+        trace?.SetTag("from", from.ToString());
+        trace?.SetTag("to", to.ToString());
+        trace?.SetTag("page", page);
+        trace?.SetTag("pageSize", pageSize);
+        trace?.SetTag("search", search);
+
+        var fromUtc = DateTime.SpecifyKind(from.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
+        var toUtc = DateTime.SpecifyKind(to.ToDateTime(TimeOnly.MaxValue), DateTimeKind.Utc);
+
+        try
+        {
+            var baseQuery = _dbContext.Entities
+                .Where(e => e.Mentions.Any(m =>
+                    m.Article.PublishedTime >= fromUtc &&
+                    m.Article.PublishedTime <= toUtc));
+
+            if (!string.IsNullOrWhiteSpace(search))
+                baseQuery = baseQuery.Where(e => EF.Functions.ILike(e.Name, $"%{search}%"));
+
+            var totalCount = baseQuery.Count();
+
+            var items = baseQuery
+                .Select(e => new
+                {
+                    Entity = e,
+                    MentionCount = e.Mentions.Count(m =>
+                        m.Article.PublishedTime >= fromUtc &&
+                        m.Article.PublishedTime <= toUtc)
+                })
+                .OrderByDescending(x => x.MentionCount)
+                .ThenBy(x => x.Entity.Name)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .AsNoTracking()
+                .ToList();
+
+            trace?.SetTag("totalCount", totalCount);
+            return (items.Select(x => (x.Entity.ToCoreModel(), x.MentionCount)), totalCount);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to retrieve entities with mention counts");
+            trace?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            throw;
+        }
+    }
+
     public async Task<IEnumerable<Entity>> GetAllEntitiesAsync(DateOnly startDate, DateOnly endDate)
     {
         using var trace = _activitySource.StartActivity("GetAllEntities", ActivityKind.Internal);

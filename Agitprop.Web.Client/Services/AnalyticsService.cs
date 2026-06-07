@@ -16,6 +16,30 @@ public class AnalyticsService
         _logger = logger;
     }
 
+    public async Task<EntityBrowsePage?> GetEntitiesBrowseAsync(DateOnly from, DateOnly to, int page, int pageSize, string? search)
+    {
+        var query = $"api/entities?from={ToQueryDate(from)}&to={ToQueryDate(to)}&page={page}&pageSize={pageSize}";
+        if (!string.IsNullOrWhiteSpace(search))
+            query += $"&search={Uri.EscapeDataString(search)}";
+
+        var response = await TryGetAsync<EntityBrowseResponseDto>(query);
+        if (response is null) return null;
+
+        return new EntityBrowsePage
+        {
+            TotalCount = response.TotalCount,
+            Page = response.Page,
+            PageSize = response.PageSize,
+            Items = response.Items.Select(i => new EntityBrowseItem
+            {
+                Id = i.Id,
+                Name = i.Name,
+                Type = i.Type,
+                MentionCount = i.MentionCount
+            }).ToList()
+        };
+    }
+
     public async Task<List<DomainStat>> GetEntityDomainStatsAsync(string entityId, DateOnly from, DateOnly to)
     {
         var endpoint = $"api/entities/{Uri.EscapeDataString(entityId)}/domain-stats?from={ToQueryDate(from)}&to={ToQueryDate(to)}";
@@ -132,6 +156,22 @@ public class AnalyticsService
     private static string ToQueryDate(DateOnly date)
     {
         return date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    }
+
+    private sealed class EntityBrowseResponseDto
+    {
+        public List<EntityBrowseItemDto> Items { get; set; } = [];
+        public int TotalCount { get; set; }
+        public int Page { get; set; }
+        public int PageSize { get; set; }
+    }
+
+    private sealed class EntityBrowseItemDto
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string Type { get; set; } = string.Empty;
+        public int MentionCount { get; set; }
     }
 
     private sealed class EntityDomainStatsResponseDto
