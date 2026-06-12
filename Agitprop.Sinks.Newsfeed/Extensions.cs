@@ -10,7 +10,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.EntityFrameworkCore;
-using OpenTelemetry.Trace;
 
 namespace Agitprop.Sinks.Newsfeed;
 
@@ -28,20 +27,19 @@ public static class Extensions
     {
         builder.Services.AddHttpClient<INamedEntityRecognizer, NamedEntityRecognizer>(client =>
         {
-            var baseUrl = builder.Configuration.GetValue<string>("NLPSERVICE_HTTP", "http://nlpservice").TrimEnd('/');
+            var baseUrl = builder.Configuration.GetValue<string>("NLPSERVICE_HTTP", "http+https://nlpservice").TrimEnd('/');
             client.BaseAddress = new Uri(baseUrl);
-            client.Timeout = TimeSpan.FromSeconds(180);
+            client.Timeout = TimeSpan.FromMinutes(10);
 
         })
         .RemoveAllResilienceHandlers()
         .AddStandardResilienceHandler(conf =>
         {
-            conf.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(5);
+            conf.AttemptTimeout.Timeout = TimeSpan.FromMinutes(7);
+            conf.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(20);
 
-            conf.RateLimiter.DefaultRateLimiterOptions.PermitLimit = 20;
-            conf.RateLimiter.DefaultRateLimiterOptions.QueueLimit = 200;
-
-            conf.Retry.MaxRetryAttempts = 5;
+            conf.CircuitBreaker.SamplingDuration = TimeSpan.FromMinutes(20);
+            conf.Retry.MaxRetryAttempts = 3;
             conf.Retry.UseJitter = true;
             conf.Retry.BackoffType = Polly.DelayBackoffType.Exponential;
             conf.Retry.Delay = TimeSpan.FromSeconds(15);

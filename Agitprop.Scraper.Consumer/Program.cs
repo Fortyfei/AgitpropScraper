@@ -24,6 +24,9 @@ public class Program
     {
         var builder = Host.CreateApplicationBuilder(args);
 
+        // Add default service configurations.
+        builder.AddServiceDefaults();
+
         // Configure infrastructure with browser support.
         builder.ConfigureInfrastructureWithBrowser(false);
 
@@ -34,9 +37,6 @@ public class Program
 
         // Add the Newsfeed sink for processing scraped data.
         builder.AddNewsfeedSink();
-
-        // Add default service configurations.
-        builder.AddServiceDefaults();
 
         builder.Configuration.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
         builder.Configuration.AddUserSecrets<Program>();    

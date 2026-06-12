@@ -113,12 +113,20 @@ async def log_requests(request: Request, call_next):
         )
         return response
     except Exception:
-        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        elapsed_s = time.perf_counter() - started
+        http_request_duration.record(
+            elapsed_s,
+            attributes={
+                "http.request.method": request.method,
+                "http.route": request.url.path,
+                "http.response.status_code": 500,
+            },
+        )
         logger.exception(
             "Unhandled error for request: %s %s after %d ms",
             request.method,
             request.url.path,
-            elapsed_ms,
+            int(elapsed_s * 1000),
         )
         raise
     finally:
