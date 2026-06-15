@@ -65,10 +65,13 @@
             </div>
 
             <ul class="entity-browser-list">
-                @foreach (var item in Items)
+                @for (var i = 0; i < Items.Count; i++)
                 {
+                    var item = Items[i];
+                    var rank = (CurrentPage - 1) * PageSize + i + 1;
                     <li>
                         <a href="/entity/@item.Id" class="entity-browser-row">
+                            <span class="entity-browser-index">@rank</span>
                             <div class="entity-browser-left">
                                 <span class="entity-browser-name">@item.Name</span>
                                 @if (!string.IsNullOrWhiteSpace(item.Type))
@@ -156,7 +159,7 @@
         }
         finally
         {
-            IsLoading = false;
+                IsLoading = false;
         }
     }
 
