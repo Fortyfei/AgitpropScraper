@@ -12,6 +12,7 @@ class Program
 
         rootCommand.AddScrapeArticleCommand();
         rootCommand.AddScrapeArchiveCommand();
+        rootCommand.AddRetryCommand();
 
         await rootCommand.InvokeAsync(args);
     }
