@@ -59,6 +59,12 @@ public sealed class ScrapeCommandOrchestrator : IScrapeCommandOrchestrator
         return await publisher.PublishAsync(request, cancellationToken);
     }
 
+    public async Task<RetryFailedFeedsExecutionResult> RetryFailedFeedsAsync(RetryFailedFeedsRequest request, CancellationToken cancellationToken = default)
+    {
+        var publisher = request.IsRetryEnabled ? _rabbitMqPublisher : _noOpPublisher;
+        return await publisher.RetryFailedFeedsAsync(request, cancellationToken);
+    }
+
     private static Spider CreateSpider()
     {
         var cookiesStorage = new CookieStorage();

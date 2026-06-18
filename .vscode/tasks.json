@@ -13,21 +13,21 @@
             "problemMatcher": "$msCompile"
         },
         {
-            "label": "Run AppHost (App)",
-            "type": "shell",
-            "command": "dotnet run --project Agitprop.AppHost.App/Agitprop.AppHost.App.csproj",
-            "inAgents": true,
-            "problemMatcher": []
-        },
-        {
-            "label": "Run AppHost (Web)",
+            "label": "Run Full Infrastructure",
             "type": "shell",
             "command": "dotnet run --project Agitprop.AppHost/Agitprop.AppHost.csproj",
             "inAgents": true,
             "problemMatcher": []
         },
         {
-            "label": "Run AppHost (Worker)",
+            "label": "Run Web App",
+            "type": "shell",
+            "command": "dotnet run --project Agitprop.AppHost.App/Agitprop.AppHost.App.csproj",
+            "inAgents": true,
+            "problemMatcher": []
+        },
+        {
+            "label": "Run Worker",
             "type": "shell",
             "command": "dotnet run --project Agitprop.AppHost.Worker/Agitprop.AppHost.Worker.csproj",
             "inAgents": true,

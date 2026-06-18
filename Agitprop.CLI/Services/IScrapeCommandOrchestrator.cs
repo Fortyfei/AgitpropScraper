@@ -10,6 +10,8 @@ public interface IScrapeCommandOrchestrator
     Task<ArchiveSiteScrapeExecutionResult> ExecuteArchiveSiteAsync(ArchiveSiteScrapeRequest request, CancellationToken cancellationToken = default);
 
     Task<PublishExecutionResult> PublishArticlesAsync(PublishArticlesRequest request, CancellationToken cancellationToken = default);
+
+    Task<RetryFailedFeedsExecutionResult> RetryFailedFeedsAsync(RetryFailedFeedsRequest request, CancellationToken cancellationToken = default);
 }
 
 public sealed record ArticleScrapeRequest(string Url, bool ShortenOutput);
@@ -26,3 +28,19 @@ public sealed record PublishArticlesRequest(List<ScrapingJobDescription> Article
 }
 
 public sealed record PublishExecutionResult(bool Success, int PublishedCount, string? ErrorMessage, bool PublishingEnabled);
+
+public sealed record RetryFailedFeedsRequest(string? ConnectionString, string FailedQueueName, string TargetQueueName, int MaxMessages)
+{
+    public bool IsRetryEnabled =>
+        !string.IsNullOrWhiteSpace(ConnectionString)
+        && !string.IsNullOrWhiteSpace(FailedQueueName)
+        && !string.IsNullOrWhiteSpace(TargetQueueName)
+        && MaxMessages >= 0;
+}
+
+public sealed record RetryFailedFeedsExecutionResult(
+    bool Success,
+    int RequeuedCount,
+    int ScannedCount,
+    string? ErrorMessage,
+    bool RetryEnabled);
