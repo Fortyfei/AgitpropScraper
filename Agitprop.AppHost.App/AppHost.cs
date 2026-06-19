@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 
 using Projects;
 
@@ -8,25 +9,23 @@ internal class Program
     {
         var builder = DistributedApplication.CreateBuilder(args);
 
-        var compose = builder.AddDockerComposeEnvironment("agitprop")
-                     .WithDashboard(d => d.WithHostPort(18888));
+        var compose = builder.AddDockerComposeEnvironment("agitprop");
 
         builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
 
-        var newsfeedDb = builder.AddConnectionString("newsfeed");
+        //var newsfeedDb = builder.AddConnectionString("newsfeed");
+        var postgres = builder.AddPostgres("postgres").WithDataVolume(isReadOnly: false);
+        var newsfeedDb = postgres.AddDatabase("newsfeed");
 
         var backend = builder.AddProject<Agitprop_Web_Api>("backend")
                              .WaitFor(newsfeedDb)
                              .WithReference(newsfeedDb)
-                             .WithOtlpExporter()
-                             .PublishAsDockerComposeService((resource, service) => { service.Name = "backend"; });
+                             .WithOtlpExporter();
 
         var frontend = builder.AddProject<Agitprop_Web_Client>("frontend")
                               .WaitFor(backend)
                               .WithReference(backend)
-                              .WithExternalHttpEndpoints()
-                              .WithOtlpExporter()
-                              .PublishAsDockerComposeService((resource, service) => { service.Name = "frontend"; });
+                              .WithOtlpExporter();
 
         builder.Build().Run();
     }
