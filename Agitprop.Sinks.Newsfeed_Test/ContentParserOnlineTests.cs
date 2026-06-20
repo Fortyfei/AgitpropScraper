@@ -7,7 +7,6 @@ public class ContentParserOnlineTests
 	[TestCase(NewsSites.Alfahir)]
 	[TestCase(NewsSites.HVG)]
 	[TestCase(NewsSites.Index)]
-	//[TestCase("TestData/kurucinfo/testCases.json")]
 	[TestCase(NewsSites.MagyarJelen)]
 	[TestCase(NewsSites.MagyarNemzet)]
 	[TestCase(NewsSites.Mandiner)]

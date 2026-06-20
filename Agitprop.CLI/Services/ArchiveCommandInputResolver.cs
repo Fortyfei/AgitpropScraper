@@ -352,7 +352,6 @@ public sealed class ArchiveCommandInputResolver : IArchiveCommandInputResolver
             "magyarnemzet.hu" or "www.magyarnemzet.hu" => NewsSites.MagyarNemzet,
             "pestisracok.hu" or "www.pestisracok.hu" => NewsSites.PestiSracok,
             "magyarjelen.hu" or "www.magyarjelen.hu" => NewsSites.MagyarJelen,
-            "kuruc.info" or "www.kuruc.info" => NewsSites.Kurucinfo,
             "alfahir.hu" or "www.alfahir.hu" or "blobs.alfahir.hu" => NewsSites.Alfahir,
             "24.hu" or "www.24.hu" => NewsSites.HuszonnegyHu,
             "444.hu" or "www.444.hu" => NewsSites.NegyNegyNegy,
@@ -369,8 +368,7 @@ public sealed class ArchiveCommandInputResolver : IArchiveCommandInputResolver
 
     private static bool IsDateArchiveSupported(NewsSites site)
     {
-        return site is not NewsSites.Kurucinfo
-            and not NewsSites.Alfahir
+        return site is not NewsSites.Alfahir
             and not NewsSites.RTL;
     }
 

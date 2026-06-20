@@ -97,7 +97,6 @@ public sealed class ScrapeCommandOrchestrator : IScrapeCommandOrchestrator
             NewsSites.Telex => $"https://telex.hu/sitemap/{date.Year:D4}/{date.Month:D2}/{date.Day:D2}/news.xml",
             NewsSites.Index => $"https://index.hu/sitemap/cikkek_{date:yyyyMM}.xml",
             NewsSites.Merce => $"https://www.merce.hu/{date.Year:D4}/{date.Month:D2}/{date.Day:D2}",
-            NewsSites.Kurucinfo => throw new NotImplementedException("Kurucinfo scraping by date is not supported"),
             NewsSites.Alfahir => throw new NotImplementedException("Alfahir scraping by date is not supported"),
             NewsSites.RTL => throw new NotImplementedException("RTL scraping by date is not supported"),
             _ => throw new NotImplementedException($"Scraping by date is not supported for {site}"),

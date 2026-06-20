@@ -25,7 +25,6 @@ internal static class ContentParserFactory
             NewsSites.MagyarNemzet => new MagyarNemzetArticleContentParser(),
             NewsSites.PestiSracok => new PestiSracokArticleContentParser(),
             NewsSites.MagyarJelen => new MagyarJelenArticleContentParser(),
-            NewsSites.Kurucinfo => throw new NotImplementedException("Kurucinfo is not currently parsable"),
             NewsSites.Alfahir => new AlfahirArticleContentParser(),
             NewsSites.HuszonnegyHu => new HuszonnegyArticleContentParser(),
             NewsSites.NegyNegyNegy => new NegynegynegyArticleContentParser(),
