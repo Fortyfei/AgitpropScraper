@@ -2,7 +2,7 @@ using Agitprop.Core.Enums;
 using Agitprop.Sinks.Newsfeed.Factories;
 
 namespace Agitprop.Sinks.Newsfeed_Test;
-public partial class ContentParserTests
+public partial class ContentParserOfflineTests
 {
     [TestCase(NewsSites.Alfahir)]
     [TestCase(NewsSites.HVG)]
