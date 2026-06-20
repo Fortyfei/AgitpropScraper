@@ -1,6 +1,7 @@
 [
     {
         "HtmlPath": "TestData/alfahir/1.html",
+        "Url": "https://alfahir.hu/hirek/ezuttal-egy-85-eves-bacsit-vertek-felholtra-az-otthonaban",
         "ExpectedContent": {
             "SourceSite": "Alfahir",
             "PublishDate": "2025-01-08T17:01:05+01:00",

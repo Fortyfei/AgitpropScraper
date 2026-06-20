@@ -1,6 +1,7 @@
 [
     {
         "HtmlPath": "TestData/magyarnemzet/1.html",
+        "Url":"https://magyarnemzet.hu/belfold/2025/01/harom-embert-halt-meg-szombaton-lakastuzek-miatt",
         "ExpectedContent": {
             "SourceSite": "MagyarNemzet",
             "PublishDate": "2025-01-11T21:57:46+01:00",

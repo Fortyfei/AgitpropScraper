@@ -1,6 +1,7 @@
 [
     {
         "HtmlPath": "TestData/magyarjelen/1.html",
+        "Url":"https://magyarjelen.hu/rengeteg-embert-erdekel-hatalmas-siker-a-hazai-vasar-dombovaron/",
         "ExpectedContent": {
             "SourceSite": "MagyarJelen",
             "PublishDate": "2025-01-11T12:28:18+00:00",

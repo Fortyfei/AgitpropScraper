@@ -1,6 +1,7 @@
 [
     {
         "HtmlPath": "TestData/origo/1.html",
+        "Url":"https://www.origo.hu/itthon/2025/01/satuba-fogtak-magyarorszagot-de-sikerult-kitorni-belole",
         "ExpectedContent": {
             "SourceSite": "Origo",
             "PublishDate": "2025-01-28T16:09:28+01:00",

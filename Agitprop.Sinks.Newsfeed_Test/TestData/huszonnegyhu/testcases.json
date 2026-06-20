@@ -1,6 +1,7 @@
 [
     {
         "HtmlPath": "TestData/huszonnegyhu/1.html",
+        "Url": "https://24.hu/belfold/2025/01/28/magyar-peter-fovaros-cegvezetok-palyaztatas-vitezy-david-fidesz-oellenzek/",
         "ExpectedContent": {
             "SourceSite": "HuszonnegyHu",
             "PublishDate": "2025-01-28T19:20:41Z",

@@ -1,6 +1,7 @@
 [
     {
         "HtmlPath": "TestData/metropol/1.html",
+        "Url":"https://metropol.hu/aktualis/2025/01/deutsch-tamas-levelet-irt-manfred-webernek-ne-legyen-cinkostarsa-magyar-peternek",
         "ExpectedContent": {
             "SourceSite": "Metropol",
             "PublishDate": "2025-01-26T09:21:17+01:00",

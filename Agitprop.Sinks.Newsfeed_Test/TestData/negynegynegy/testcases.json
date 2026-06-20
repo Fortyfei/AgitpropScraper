@@ -1,6 +1,7 @@
 [
     {
         "HtmlPath": "TestData/negynegynegy/1.html",
+        "Url":"https://444.hu/2025/01/11/fico-oroszbarat-politikaja-ellen-tuntettek-a-szlovak-nagyvarosokban",
         "ExpectedContent": {
             "SourceSite": "Negynegynegy",
             "PublishDate": "2025-01-11T07:17:21+01:00",
@@ -9,6 +10,7 @@
     },
     {
         "HtmlPath": "TestData/negynegynegy/2.html",
+        "Url":"https://444.hu/2025/01/11/fico-oroszbarat-politikaja-ellen-tuntettek-a-szlovak-nagyvarosokban",
         "ExpectedContent": {
             "SourceSite": "Negynegynegy",
             "PublishDate": "2025-01-11T07:17:21+01:00",

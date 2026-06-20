@@ -1,6 +1,7 @@
 [
     {
         "HtmlPath": "TestData/merce/1.html",
+        "Url":"https://merce.hu/2025/01/11/lyotard-az-integralhatatlan-es-korrumpalhatatlan-esemeny-filozofusa/",
         "ExpectedContent": {
             "SourceSite": "Merce",
             "PublishDate": "2025-01-11T06:00+01:00",

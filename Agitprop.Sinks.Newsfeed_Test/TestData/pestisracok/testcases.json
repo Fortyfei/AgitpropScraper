@@ -1,6 +1,7 @@
 [
     {
         "HtmlPath": "TestData/pestisracok/1.html",
+        "Url":"https://pestisracok.hu/ha-az-ukran-vasut-nem-ad-neked-jegyet-az-a-magyarok-hibaja/",
         "ExpectedContent": {
             "SourceSite": "PestiSracok",
             "PublishDate": "2025-01-11T07:29:32+00:00",
