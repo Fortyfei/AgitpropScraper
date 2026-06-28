@@ -1,37 +1,68 @@
 {
-    "version": "2.0.0",
-    "tasks": [
-        {
-            "label": "build",
-            "command": "dotnet",
-            "type": "process",
-            "args": [
-                "build",
-                "/property:GenerateFullPaths=true",
-                "/consoleloggerparameters:NoSummary"
-            ],
-            "problemMatcher": "$msCompile"
-        },
-        {
-            "label": "Run Full Infrastructure",
-            "type": "shell",
-            "command": "dotnet run --project Agitprop.AppHost/Agitprop.AppHost.csproj",
-            "inAgents": true,
-            "problemMatcher": []
-        },
-        {
-            "label": "Run Web App",
-            "type": "shell",
-            "command": "dotnet run --project Agitprop.AppHost.App/Agitprop.AppHost.App.csproj",
-            "inAgents": true,
-            "problemMatcher": []
-        },
-        {
-            "label": "Run Worker",
-            "type": "shell",
-            "command": "dotnet run --project Agitprop.AppHost.Worker/Agitprop.AppHost.Worker.csproj",
-            "inAgents": true,
-            "problemMatcher": []
-        }
-    ]
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "build",
+			"command": "dotnet",
+			"type": "process",
+			"args": [
+				"build",
+				"/property:GenerateFullPaths=true",
+				"/consoleloggerparameters:NoSummary"
+			],
+			"problemMatcher": "$msCompile"
+		},
+		{
+			"label": "Run Full Infrastructure",
+			"type": "shell",
+			"command": "dotnet run --project Agitprop.AppHost/Agitprop.AppHost.csproj",
+			"inAgents": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Run Web App",
+			"type": "shell",
+			"command": "dotnet run --project Agitprop.AppHost.App/Agitprop.AppHost.App.csproj",
+			"inAgents": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Run Worker",
+			"type": "shell",
+			"command": "dotnet run --project Agitprop.AppHost.Worker/Agitprop.AppHost.Worker.csproj",
+			"inAgents": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Run Content Parser Online Tests",
+			"command": "dotnet test --filter \"FullyQualifiedName~ContentParserOnlineTests\"",
+			"problemMatcher": "$msTest",
+			"type": "process",
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			}
+		},
+		{
+			"label": "Run Content Parser Offline Tests",
+			"command": "dotnet test --filter \"FullyQualifiedName~ContentParserOfflineTests\"",
+			"problemMatcher": "$msTest",
+			"type": "process",
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			}
+		},
+		{
+			"label": "Maintain Content Parsers",
+			"type": "shell",
+			"command": "dotnet test --filter \"FullyQualifiedName~ContentParserOnlineTests\"",
+			"problemMatcher": "$msTest",
+			"type": "process",
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			}
+		}
+	]
 }

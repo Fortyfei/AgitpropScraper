@@ -1,4 +1,3 @@
----
 name: Maintain Content Parsers
 version: 1.0.0
 description: Maintain and update content parsers for news sites by running tests, updating test data, and verifying parser correctness
@@ -8,22 +7,37 @@ tags:
   - maintenance
   - newsfeed
 
-## Overview
-This prompt helps maintain and update content parsers for news sites in the AgitpropScraper project. It provides a systematic approach to
+## Task: Maintain Content Parsers
 
-1. Run online content parser tests to identify failures
-2. For failed sites, fetch current HTML content from the web
-3. Save the HTML to testdata directories
-4. Update content parsers based on new test data
-5. Run online tests again to verify correctness
-6. Use git for version control at meaningful steps
+This task provides a systematic approach to maintain and update content parsers for news sites in the AgitpropScraper project.
 
-## Usage
-This prompt is designed to be used in a VS Code workspace with the AgitpropScraper repository. It can be invoked by:
+### Task Steps
 
-1. Opening the prompt in VS Code
-2. Running the prompt with the appropriate context
-3. Following the step-by-step guidance provided
+1. **Run Content Parser Tests**: Execute both online and offline tests to identify failures
+2. **Analyze Failures**: Review test output to identify which sites are failing
+3. **Update Test Data**: Fetch current HTML for failed sites and save to testdata directories
+4. **Fix Parsers**: Update content parsers based on new test data
+5. **Verify Changes**: Run offline tests, then online tests to verify correctness
+6. **Commit Changes**: Use git to commit test data and parser updates
+
+### Quick Start Commands
+
+```bash
+# Run online tests to identify failures
+dotnet test --filter "FullyQualifiedName~ContentParserOnlineTests"
+
+# Run offline tests to verify parser changes
+dotnet test --filter "FullyQualifiedName~ContentParserOfflineTests"
+```
+
+### Task Invocation
+
+To start this task, run:
+```bash
+dotnet test --filter "FullyQualifiedName~ContentParserOnlineTests"
+```
+
+This will execute the online content parser tests and identify which news sites are failing.
 
 ## Steps
 
@@ -31,9 +45,9 @@ This prompt is designed to be used in a VS Code workspace with the AgitpropScrap
 First, run the online content parser tests to identify which sites are failing:
 
 ```bash
-First run `dotnet build` and confirm it exits with code 0. If the build fails, fix compilation errors before interpreting any test output. Only proceed to parse test results after a clean build.
 dotnet test --filter "FullyQualifiedName~ContentParserOnlineTests"
 ```
+First run `dotnet build` and confirm it exits with code 0. If the build fails, fix compilation errors before interpreting any test output. Only proceed to parse test results after a clean build.
 
 ### Step 2: Identify Failed Sites
 Review the test output to identify which news sites are failing. Note the site names and any error messages.
@@ -58,16 +72,16 @@ Based on the new test data, update the corresponding content parser:
 ### Step 5: Run Offline Tests
 Run the offline content parser tests to verify your updates:
 
-```bash
 First run `dotnet build` and confirm it exits with code 0. If the build fails, fix compilation errors before interpreting any test output. Only proceed to parse test results after a clean build.
+```bash
 dotnet test --filter "FullyQualifiedName~ContentParserOfflineTests"
 ```
 
 ### Step 6: Run Online Tests Again
 Run the online tests again to verify that all parsers are working correctly:
 
-```bash
 First run `dotnet build` and confirm it exits with code 0. If the build fails, fix compilation errors before interpreting any test output. Only proceed to parse test results after a clean build.
+```bash
 dotnet test --filter "FullyQualifiedName~ContentParserOnlineTests"
 ```
 
@@ -79,14 +93,14 @@ If online tests still fail after two full iterations of Steps 3–6 for the same
 Use git to commit your changes at meaningful steps:
 
 1. After updating test data: `git add Agitprop.Sinks.Newsfeed_Test/TestData/{siteName}/`
-2. After updating parsers: `git add Agitprop.Sinks.Newsfeed.Scrapers.ContentParsers/{SiteName}ArticleContentParser.cs`
+2. After successfully updating a parser: `git add Agitprop.Sinks.Newsfeed.Scrapers.ContentParsers/{SiteName}ArticleContentParser.cs`
 3. After all changes are complete: 
    - If updating a single site: `git commit -m "Update content parser for {siteName}: refresh HTML fixture and parser logic"`
    - If updating multiple sites in one pass: `git commit -m "Refresh HTML fixtures and parsers for: {site1}, {site2}, ..."`
 
 ## Definitions
 
-In all commands below, {siteName} is the lowercase directory name as it appears under Agitprop.Sinks.Newsfeed_Test/TestData/ (e.g., bbc-news). {SiteName} is the PascalCase class name prefix as it appears in the ContentParsers directory (e.g., BbcNews). Derive both values from the failing test name shown in Step 2 output.
+In all commands below, {siteName} is the lowercase directory name as it appears under Agitprop.Sinks.Newsfeed_Test/TestData/ (e.g., bbc-news). {SiteName} is the PascalCase class name prefix as it appears in the ContentParsers directory (e.g., BbcNews). Derive both values from the failing test name shown in Step 2 output. The test name will appear as ContentParserOnlineTests.{SiteName}Test. Strip the trailing "Test" suffix to get {SiteName} (PascalCase). Convert to kebab-case to get {siteName} (e.g., BbcNews → bbc-news).
 
 ## Example Invocation
 
