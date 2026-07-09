@@ -14,10 +14,10 @@ This task provides a systematic approach to maintain and update content parsers 
 ### Task Steps
 
 1. **Run Content Parser Tests**: Execute both online and offline tests to identify failures
-2. **Analyze Failures**: Review test output to identify which sites are failing
-3. **Update Test Data**: Fetch current HTML for failed sites and save to testdata directories
-4. **Fix Parsers**: Update content parsers based on new test data
-5. **Verify Changes**: Run offline tests, then online tests to verify correctness
+2. **Analyze Failures**: Review test output to identify which sites are failing and which expected texts map to multiple HTML snapshots
+3. **Update Test Data**: Fetch current HTML for failed sites and save dated snapshots into the site testdata directory
+4. **Fix Parsers**: Update content parsers based on the newest HTML snapshot while keeping older selectors compatible
+5. **Verify Changes**: Run offline tests, then online tests to verify correctness across all snapshots
 6. **Commit Changes**: Use git to commit test data and parser updates
 
 ### Quick Start Commands
@@ -53,13 +53,15 @@ First run `dotnet build` and confirm it exits with code 0. If the build fails, f
 Review the test output to identify which news sites are failing. Note the site names and any error messages.
 
 ### Step 3: Fetch Current HTML for Failed Sites
-For each failed site:
+For each failed site and each affected article snapshot:
 
 1. Navigate to the site in a browser
 2. Copy the full HTML content
 3. Save it to the appropriate testdata directory:
-   - Location: `Agitprop.Sinks.Newsfeed_Test/TestData/{siteName}/1.html`
-   - Replace existing HTML file with the current version
+   - Location: `Agitprop.Sinks.Newsfeed_Test/TestData/{siteName}/{articleDate}.html`
+   - Use the article's publish date as the filename so UI changes can be tracked over time
+   - Keep older dated snapshots when they represent a distinct historical UI variant for the same expected text
+4. Update the testcase entry so the same expected text can point to multiple HTML files when needed
 
 ### Step 4: Update Content Parsers
 Based on the new test data, update the corresponding content parser:
@@ -67,7 +69,8 @@ Based on the new test data, update the corresponding content parser:
 1. Open the content parser file for the site
 2. Review the parsing logic
 3. Update the parser to correctly extract content from the new HTML structure
-4. Test the updated parser with the new test data
+4. Prefer adding or reordering XPath fallbacks instead of replacing the older selector outright, so the parser stays backward compatible
+5. Test the updated parser with every HTML snapshot for that expected text
 
 ### Step 5: Run Offline Tests
 Run the offline content parser tests to verify your updates:
@@ -102,6 +105,8 @@ Use git to commit your changes at meaningful steps:
 
 In all commands below, {siteName} is the lowercase directory name as it appears under Agitprop.Sinks.Newsfeed_Test/TestData/ (e.g., bbc-news). {SiteName} is the PascalCase class name prefix as it appears in the ContentParsers directory (e.g., BbcNews). Derive both values from the failing test name shown in Step 2 output. The test name will appear as ContentParserOnlineTests.{SiteName}Test. Strip the trailing "Test" suffix to get {SiteName} (PascalCase). Convert to kebab-case to get {siteName} (e.g., BbcNews → bbc-news).
 
+When a testcase needs more than one HTML snapshot for the same expected text, keep the snapshots under the same site folder and distinguish them by article publish date in the filename. The testcase may point to multiple `HtmlPath` values for the same expected content.
+
 ## Example Invocation
 
 To use this prompt, you would typically:
@@ -118,6 +123,7 @@ To use this prompt, you would typically:
 - Keep a record of which sites you've updated
 - Test one site at a time to isolate issues
 - If a parser needs significant changes, consider creating a backup first
+- When updating a parser, preserve older XPath fallbacks unless they are known to be obsolete
 
 ## Troubleshooting
 

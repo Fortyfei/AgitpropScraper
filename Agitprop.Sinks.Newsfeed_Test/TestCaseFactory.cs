@@ -10,7 +10,7 @@ public static class TestCaseFactory
     {
         var testCasePath = $"TestData/{site.ToString().ToLower()}/testcases.json";
 
-        var testCases = JsonSerializer.Deserialize<List<ContentParserTestCase>>(File.ReadAllText(testCasePath));
+        var testCases = JsonSerializer.Deserialize<List<ContentParserTestCase>>(File.ReadAllText(testCasePath)) ?? [];
         foreach (var testCase in testCases)
         {
             yield return testCase;

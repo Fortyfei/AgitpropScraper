@@ -24,15 +24,18 @@ public partial class ContentParserOfflineTests
         var scraper = ContentParserFactory.GetContentParser(site);
         foreach (var testCase in TestCaseFactory.GetContentParserTestCases(site))
         {
-            var htmlContent = File.ReadAllText(testCase.HtmlPath);
-            var result = scraper.ParseContentAsync(htmlContent).Result;
-            Assert.Multiple(() =>
+            foreach (var htmlPath in testCase.GetHtmlPaths())
             {
+                var htmlContent = File.ReadAllText(htmlPath);
+                var result = scraper.ParseContentAsync(htmlContent).Result;
+                Assert.Multiple(() =>
+                {
 
-                Assert.That(result.SourceSite, Is.EqualTo(testCase.ExpectedContent.SourceSite));
-                Assert.That(result.PublishDate, Is.EqualTo(testCase.ExpectedContent.PublishDate));
-                Assert.That(result.Text, Is.EqualTo(testCase.ExpectedContent.Text));
-            });
+                    Assert.That(result.SourceSite, Is.EqualTo(testCase.ExpectedContent.SourceSite));
+                    Assert.That(result.PublishDate, Is.EqualTo(testCase.ExpectedContent.PublishDate));
+                    Assert.That(result.Text, Is.EqualTo(testCase.ExpectedContent.Text));
+                });
+            }
         }
     }
 }
