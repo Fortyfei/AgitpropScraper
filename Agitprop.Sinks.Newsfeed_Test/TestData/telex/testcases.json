@@ -1,14 +1,26 @@
 [
-    {
-        "HtmlPaths": [
-            "TestData/telex/1.html",
-            "TestData/telex/2026-07-10.html"
-        ],
-        "Url":"https://telex.hu/kulfold/2025/01/30/tucker-carlson-vlagyimir-putyin-merenylet-joe-biden",
-        "ExpectedContent": {
-            "SourceSite": "Telex",
-            "PublishDate": "2025-01-30T15:21:36.000Z",
-            "Text": "Tucker Carlson szerint Bidenék merényletet terveztek Putyin ellen Az orosz parlamenti alsóház, az Állami Duma elnöke, Vjacseszlav Volodin nyilatkozatot küldött az amerikai kongresszusnak és az ENSZ-nek, miután Tucker Carlson podcastsorozatának legújabb epizódjában azt mondta, hogy Joe Biden kormánya merényletet tervezett Vlagyimir Putyin orosz elnök ellen.Carlson vendége Matt Taibbi újságíró volt. Egyebek mellett arról beszélgettek, hogy mi várható Donald Trump második elnökségétől, de szóba került a koronavírus, a Biden-adminisztráció és az orosz-ukrán háború is. Az adás egyik pontján Carlson a korábbi amerikai külügyminiszterről beszélt, és azt mondta, hogy „Antony Blinken igazi háborút szorgalmazott, még Putyint is megpróbálta megölni”.Taibbi meglepődve visszakérdezett, hogy tényleg igaz-e, amit a műsorvezető mondott. Carlson azt válaszolta, hogy igen, de azt nem részletezte, hogy mire alapozta az állítását. Utána azt kezdte fejtegetni, hogy Putyin után ki venné át a hatalmat Oroszországban, és kinek a kezébe kerülne az ország nukleáris arzenálja. Carlson szerint azért akarta az előző amerikai kormány fenntartani az ukrajnai konfliktust, hogy elterelje a figyelmet a kínosabb belügyekről. A teljes beszélgetést egyébként itt nézheti meg.Az orosz állami hírügynökség, a TASZSZ azt írta, Volodin azért küldte el a dokumentumot az amerikai kongresszusnak és az ENSZ-nek, hogy magyarázatot adjanak Carlson állítására, mely szerint Joe Biden és Antony Blinken merényletet terveztek Putyin ellen.Tucker Carlson tavaly februárban Vlagyimir Putyinnal készített interjút Moszkvában. 2024 decemberében pedig Szergej Lavrov orosz külügyminiszterrel is beszélgetett. A Fox News korábbi műsorvezetője korábban is tett már megbotránkoztató kijelentéseket, egyszer például azt mondta, hogy nyitott a laposföld-elméletre."
-        }
+  {
+    "HtmlPaths": [
+      "TestData/telex/1.html"
+    ],
+    "Url": "",
+    "RunOnline": false,
+    "ExpectedContent": {
+      "SourceSite": "Telex",
+      "PublishDate": "2025-01-30T15:21:36.0000000Z",
+      "Text": "Tucker Carlson szerint Bidenék merényletet terveztek Putyin ellen Az orosz parlamenti alsóház, az Állami Duma elnöke, Vjacseszlav Volodin nyilatkozatot küldött az amerikai kongresszusnak és az ENSZ-nek, miután Tucker Carlson podcastsorozatának legújabb epizódjában azt mondta, hogy Joe Biden kormánya merényletet tervezett Vlagyimir Putyin orosz elnök ellen.Carlson vendége Matt Taibbi újságíró volt. Egyebek mellett arról beszélgettek, hogy mi várható Donald Trump második elnökségétől, de szóba került a koronavírus, a Biden-adminisztráció és az orosz-ukrán háború is. Az adás egyik pontján Carlson a korábbi amerikai külügyminiszterről beszélt, és azt mondta, hogy „Antony Blinken igazi háborút szorgalmazott, még Putyint is megpróbálta megölni”.Taibbi meglepődve visszakérdezett, hogy tényleg igaz-e, amit a műsorvezető mondott. Carlson azt válaszolta, hogy igen, de azt nem részletezte, hogy mire alapozta az állítását. Utána azt kezdte fejtegetni, hogy Putyin után ki venné át a hatalmat Oroszországban, és kinek a kezébe kerülne az ország nukleáris arzenálja. Carlson szerint azért akarta az előző amerikai kormány fenntartani az ukrajnai konfliktust, hogy elterelje a figyelmet a kínosabb belügyekről. A teljes beszélgetést egyébként itt nézheti meg.Az orosz állami hírügynökség, a TASZSZ azt írta, Volodin azért küldte el a dokumentumot az amerikai kongresszusnak és az ENSZ-nek, hogy magyarázatot adjanak Carlson állítására, mely szerint Joe Biden és Antony Blinken merényletet terveztek Putyin ellen.Tucker Carlson tavaly februárban Vlagyimir Putyinnal készített interjút Moszkvában. 2024 decemberében pedig Szergej Lavrov orosz külügyminiszterrel is beszélgetett. A Fox News korábbi műsorvezetője korábban is tett már megbotránkoztató kijelentéseket, egyszer például azt mondta, hogy nyitott a laposföld-elméletre."
     }
+  },
+  {
+    "HtmlPaths": [
+      "TestData/telex/2026-07-10.html"
+    ],
+    "Url": "https://telex.hu/kulfold/2025/01/30/tucker-carlson-vlagyimir-putyin-merenylet-joe-biden",
+    "RunOnline": true,
+    "ExpectedContent": {
+      "SourceSite": "Telex",
+      "PublishDate": "2025-01-30T15:21:36.0000000Z",
+      "Text": "Tucker Carlson szerint Bidenék merényletet terveztek Putyin ellen Az orosz parlamenti alsóház, az Állami Duma elnöke, Vjacseszlav Volodin nyilatkozatot küldött az amerikai kongresszusnak és az ENSZ-nek, miután Tucker Carlson podcastsorozatának legújabb epizódjában azt mondta, hogy Joe Biden kormánya merényletet tervezett Vlagyimir Putyin orosz elnök ellen.Carlson vendége Matt Taibbi újságíró volt. Egyebek mellett arról beszélgettek, hogy mi várható Donald Trump második elnökségétől, de szóba került a koronavírus, a Biden-adminisztráció és az orosz-ukrán háború is. Az adás egyik pontján Carlson a korábbi amerikai külügyminiszterről beszélt, és azt mondta, hogy „Antony Blinken igazi háborút szorgalmazott, még Putyint is megpróbálta megölni”.Taibbi meglepődve visszakérdezett, hogy tényleg igaz-e, amit a műsorvezető mondott. Carlson azt válaszolta, hogy igen, de azt nem részletezte, hogy mire alapozta az állítását. Utána azt kezdte fejtegetni, hogy Putyin után ki venné át a hatalmat Oroszországban, és kinek a kezébe kerülne az ország nukleáris arzenálja. Carlson szerint azért akarta az előző amerikai kormány fenntartani az ukrajnai konfliktust, hogy elterelje a figyelmet a kínosabb belügyekről. A teljes beszélgetést egyébként itt nézheti meg.Az orosz állami hírügynökség, a TASZSZ azt írta, Volodin azért küldte el a dokumentumot az amerikai kongresszusnak és az ENSZ-nek, hogy magyarázatot adjanak Carlson állítására, mely szerint Joe Biden és Antony Blinken merényletet terveztek Putyin ellen.Tucker Carlson tavaly februárban Vlagyimir Putyinnal készített interjút Moszkvában. 2024 decemberében pedig Szergej Lavrov orosz külügyminiszterrel is beszélgetett. A Fox News korábbi műsorvezetője tett már megbotránkoztató kijelentéseket, egyszer például azt mondta, hogy nyitott a laposföld-elméletre."
+    }
+  }
 ]

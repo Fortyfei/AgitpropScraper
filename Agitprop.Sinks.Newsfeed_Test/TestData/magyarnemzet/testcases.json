@@ -1,14 +1,26 @@
 [
-    {
-        "HtmlPaths": [
-            "TestData/magyarnemzet/1.html",
-            "TestData/magyarnemzet/2026-07-10.html"
-        ],
-        "Url":"https://magyarnemzet.hu/belfold/2025/01/harom-embert-halt-meg-szombaton-lakastuzek-miatt",
-        "ExpectedContent": {
-            "SourceSite": "MagyarNemzet",
-            "PublishDate": "2025-01-11T21:57:46+01:00",
-            "Text": "Három embert halt meg szombaton lakástüzek miatt Idén összesen már hatan vesztek oda különböző tűzesetekben Magyarországon. Két helyszínen hárman vesztették életüket lakástűz miatt – közölte a BM Országos Katasztrófavédelmi Főigazgatóság. Dóka Imre helyettes szóvivő közölte, szombat délután egy makói házhoz riasztották a tűzoltókat, miután az ott lakókat hosszabb ideje nem érték el. Egy szabadnapos tűzoltó, aki a Vágóhíd utcai ingatlan redőnyén égésnyomokat talált, a hivatásos egységek kiérkezése előtt bejutott az ingatlanba, ahol egy korábbi tűz miatt kiégett szobában két embert talált, akik életüket vesztették – tudatta a szóvivő. Szintén szombat délután kigyulladt, és teljes terjedelmében égett egy ötven négyzetméteres lakóház Akasztón, a Petőfi Sándor utcában. A tűz keletkezésének idején két ember tartózkodott az épületben. A tűzoltók több oldalról oltották a lángokat. Az égő épületből az ablakon keresztül kimentették a bent tartózkodókat, mindketten megsérültek. Egyiküket megpróbálták újraéleszteni, de a gyors beavatkozás ellenére sem lehetett az életén segíteni. Az épületből egy gázpalackot is kivittek a tűzoltók, amelyet hőhatás ért, ezért azt visszahűtötték. Mindkét tűz keletkezési okát és körülményeit vizsgálja a katasztrófavédelem. A szombati esetekkel együtt idén már hatan vesztették életüket lakástűzben – mutatott rá a szóvivő. A tüzek mielőbbi észleléséhez a legjobb megoldás, ha füstérzékelőt telepítünk az otthonunkba. Egy plafonra szerelt füstérzékelő a tűz keletkezésekor azonnal jelez, amikor még van idő megfékezni, vagy elhagyni az épületet – emelte ki Dóka Imre. Borítókép: Illusztráció (Fotó: Pexels)"
-        }
+  {
+    "HtmlPaths": [
+      "TestData/magyarnemzet/1.html"
+    ],
+    "Url": "",
+    "RunOnline": false,
+    "ExpectedContent": {
+      "SourceSite": "MagyarNemzet",
+      "PublishDate": "2025-01-11T20:57:46.0000000Z",
+      "Text": "Három embert halt meg szombaton lakástüzek miatt Idén összesen már hatan vesztek oda különböző tűzesetekben Magyarországon. Két helyszínen hárman vesztették életüket lakástűz miatt – közölte a BM Országos Katasztrófavédelmi Főigazgatóság. Dóka Imre helyettes szóvivő közölte, szombat délután egy makói házhoz riasztották a tűzoltókat, miután az ott lakókat hosszabb ideje nem érték el. Egy szabadnapos tűzoltó, aki a Vágóhíd utcai ingatlan redőnyén égésnyomokat talált, a hivatásos egységek kiérkezése előtt bejutott az ingatlanba, ahol egy korábbi tűz miatt kiégett szobában két embert talált, akik életüket vesztették – tudatta a szóvivő. Szintén szombat délután kigyulladt, és teljes terjedelmében égett egy ötven négyzetméteres lakóház Akasztón, a Petőfi Sándor utcában. A tűz keletkezésének idején két ember tartózkodott az épületben. A tűzoltók több oldalról oltották a lángokat. Az égő épületből az ablakon keresztül kimentették a bent tartózkodókat, mindketten megsérültek. Egyiküket megpróbálták újraéleszteni, de a gyors beavatkozás ellenére sem lehetett az életén segíteni. Az épületből egy gázpalackot is kivittek a tűzoltók, amelyet hőhatás ért, ezért azt visszahűtötték. Mindkét tűz keletkezési okát és körülményeit vizsgálja a katasztrófavédelem. A szombati esetekkel együtt idén már hatan vesztették életüket lakástűzben – mutatott rá a szóvivő. A tüzek mielőbbi észleléséhez a legjobb megoldás, ha füstérzékelőt telepítünk az otthonunkba. Egy plafonra szerelt füstérzékelő a tűz keletkezésekor azonnal jelez, amikor még van idő megfékezni, vagy elhagyni az épületet – emelte ki Dóka Imre. Borítókép: Illusztráció (Fotó: Pexels)"
     }
+  },
+  {
+    "HtmlPaths": [
+      "TestData/magyarnemzet/2026-07-10.html"
+    ],
+    "Url": "https://magyarnemzet.hu/belfold/2025/01/harom-embert-halt-meg-szombaton-lakastuzek-miatt",
+    "RunOnline": true,
+    "ExpectedContent": {
+      "SourceSite": "MagyarNemzet",
+      "PublishDate": "2025-01-11T20:57:46.0000000Z",
+      "Text": "Három embert halt meg szombaton lakástüzek miatt Idén összesen már hatan vesztek oda különböző tűzesetekben Magyarországon. Borítókép: Illusztráció (Fotó: Pexels)"
+    }
+  }
 ]

@@ -74,6 +74,11 @@ public static class TestCaseFactory
         {
             foreach (var testCase in GetContentParserTestCases(site))
             {
+                if (!testCase.RunOnline || string.IsNullOrWhiteSpace(testCase.Url))
+                {
+                    continue;
+                }
+
                 yield return new TestCaseData(site, testCase)
                     .SetName($"""{site}_{testCase.ExpectedContent.PublishDate:yyyyMMdd}""");
             }
