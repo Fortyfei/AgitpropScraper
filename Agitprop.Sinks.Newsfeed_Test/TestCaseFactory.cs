@@ -62,7 +62,7 @@ public static class TestCaseFactory
                 foreach (var htmlPath in testCase.GetHtmlPaths())
                 {
                     yield return new TestCaseData(site, testCase, htmlPath)
-                        .SetName($"{site}_{Path.GetFileName(htmlPath)}");
+                        .SetName($"""{site}_{Path.GetFileNameWithoutExtension(htmlPath)}""");
                 }
             }
         }
@@ -75,7 +75,7 @@ public static class TestCaseFactory
             foreach (var testCase in GetContentParserTestCases(site))
             {
                 yield return new TestCaseData(site, testCase)
-                    .SetName($"ContentParserOnline_{site}_{testCase.Url}");
+                    .SetName($"""{site}_{testCase.ExpectedContent.PublishDate:yyyyMMdd}""");
             }
         }
     }
