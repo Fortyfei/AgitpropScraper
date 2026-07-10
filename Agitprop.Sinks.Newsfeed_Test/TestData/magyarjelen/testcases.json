@@ -1,6 +1,5 @@
 [
     {
-        "HtmlPath": "TestData/magyarjelen/1.html",
         "HtmlPaths": [
             "TestData/magyarjelen/1.html",
             "TestData/magyarjelen/2026-07-10.html"

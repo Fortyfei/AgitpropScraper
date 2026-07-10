@@ -1,6 +1,5 @@
 [
     {
-        "HtmlPath": "TestData/mandiner/1.html",
         "HtmlPaths": [
             "TestData/mandiner/1.html",
             "TestData/mandiner/2026-07-10.html"
