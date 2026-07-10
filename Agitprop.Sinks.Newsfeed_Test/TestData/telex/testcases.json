@@ -1,6 +1,10 @@
 [
     {
         "HtmlPath": "TestData/telex/1.html",
+        "HtmlPaths": [
+            "TestData/telex/1.html",
+            "TestData/telex/2026-07-10.html"
+        ],
         "Url":"https://telex.hu/kulfold/2025/01/30/tucker-carlson-vlagyimir-putyin-merenylet-joe-biden",
         "ExpectedContent": {
             "SourceSite": "Telex",

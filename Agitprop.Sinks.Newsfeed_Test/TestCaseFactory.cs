@@ -62,7 +62,7 @@ public static class TestCaseFactory
                 foreach (var htmlPath in testCase.GetHtmlPaths())
                 {
                     yield return new TestCaseData(site, testCase, htmlPath)
-                        .SetName($"ContentParserOffline_{site}_{Path.GetFileName(htmlPath)}");
+                        .SetName($"{site}_{Path.GetFileName(htmlPath)}");
                 }
             }
         }

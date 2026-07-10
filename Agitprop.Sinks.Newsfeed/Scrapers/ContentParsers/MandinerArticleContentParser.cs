@@ -2,6 +2,7 @@ using Agitprop.Core.Enums;
 
 namespace Agitprop.Sinks.Newsfeed.Scrapers.ContentParsers;
 
+// TODO: Parser broken as of 2026-07-10 - site structure may require manual inspection.
 internal class MandinerArticleContentParser : BaseArticleContentParser
 {
     protected override List<string> DateXPaths => new List<string> { "//meta[@property='article:published_time']" };

@@ -35,7 +35,12 @@
 		},
 		{
 			"label": "Run Content Parser Online Tests",
-			"command": "dotnet test --filter \"FullyQualifiedName~ContentParserOnlineTests\"",
+			"command": "dotnet",
+			"args": [
+				"test",
+				"--filter",
+				"FullyQualifiedName~ContentParserOnlineTests"
+			],
 			"problemMatcher": "$msTest",
 			"type": "process",
 			"presentation": {
@@ -45,7 +50,12 @@
 		},
 		{
 			"label": "Run Content Parser Offline Tests",
-			"command": "dotnet test --filter \"FullyQualifiedName~ContentParserOfflineTests\"",
+			"command": "dotnet",
+			"args": [
+				"test",
+				"--filter",
+				"FullyQualifiedName~ContentParserOfflineTests"
+			],
 			"problemMatcher": "$msTest",
 			"type": "process",
 			"presentation": {
@@ -55,10 +65,14 @@
 		},
 		{
 			"label": "Maintain Content Parsers",
-			"type": "shell",
-			"command": "dotnet test --filter \"FullyQualifiedName~ContentParserOnlineTests\"",
-			"problemMatcher": "$msTest",
 			"type": "process",
+			"command": "dotnet",
+			"args": [
+				"test",
+				"--filter",
+				"FullyQualifiedName~ContentParserOnlineTests"
+			],
+			"problemMatcher": "$msTest",
 			"presentation": {
 				"reveal": "always",
 				"panel": "shared"

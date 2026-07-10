@@ -1,6 +1,10 @@
 [
     {
         "HtmlPath": "TestData/index/1.html",
+        "HtmlPaths": [
+            "TestData/index/1.html",
+            "TestData/index/2026-07-10.html"
+        ],
         "Url":"https://index.hu/kulfold/2025/01/11/vilaghaboru-analogia-geopolitika-rusi-tortenelem-1938/",
         "ExpectedContent": {
             "SourceSite": "Index",

@@ -2,6 +2,7 @@ using Agitprop.Core;
 using Agitprop.Core.Enums;
 using Agitprop.Core.Exceptions;
 using Agitprop.Core.Interfaces;
+using System.Globalization;
 
 using HtmlAgilityPack;
 
@@ -42,17 +43,80 @@ internal abstract class BaseArticleContentParser : IContentParser
         return nodes;
     }
 
+    private static bool TryParseDateString(string dateText, out DateTime date)
+    {
+        var styles = DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.AssumeLocal;
+        if (DateTime.TryParse(dateText, CultureInfo.InvariantCulture, styles, out date))
+        {
+            return true;
+        }
+
+        if (DateTime.TryParse(dateText, new CultureInfo("hu-HU"), styles, out date))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryExtractDate(HtmlNode node, out DateTime date)
+    {
+        date = DateTime.MinValue;
+
+        var candidateValues = new List<string>();
+        var content = node.Attributes["content"]?.Value;
+        if (!string.IsNullOrWhiteSpace(content))
+        {
+            candidateValues.Add(content);
+        }
+
+        var dateTime = node.Attributes["datetime"]?.Value;
+        if (!string.IsNullOrWhiteSpace(dateTime))
+        {
+            candidateValues.Add(dateTime);
+        }
+
+        var dateTimeCamel = node.Attributes["dateTime"]?.Value;
+        if (!string.IsNullOrWhiteSpace(dateTimeCamel))
+        {
+            candidateValues.Add(dateTimeCamel);
+        }
+
+        var innerText = node.InnerText?.Trim();
+        if (!string.IsNullOrWhiteSpace(innerText))
+        {
+            candidateValues.Add(innerText);
+        }
+
+        foreach (var value in candidateValues)
+        {
+            if (TryParseDateString(value, out date))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public Task<ContentParserResult> ParseContentAsync(HtmlDocument html)
     {
         try
         {
+            DateTime date = DateTime.MinValue;
+            foreach (var xpath in DateXPaths)
+            {
+                var dateNode = html.DocumentNode.SelectSingleNode(xpath);
+                if (dateNode != null && TryExtractDate(dateNode, out date))
+                {
+                    break;
+                }
+            }
 
-            var dateNode = SelectSingleNode(html, DateXPaths);
-            if (dateNode == null || dateNode.Attributes["content"] == null)
+            if (date == DateTime.MinValue)
+            {
                 throw new ContentParserException("Date not found or missing content attribute");
-
-            DateTime date = DateTime.Parse(dateNode.Attributes["content"].Value);
-            if (date == DateTime.MinValue) throw new ContentParserException("Date not found");
+            }
 
             var titleNode = SelectSingleNode(html, TitleXPaths);
             if (titleNode == null)

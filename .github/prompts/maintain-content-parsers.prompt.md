@@ -134,3 +134,4 @@ If tests continue to fail:
 3. Review the parser logic against the new HTML structure
 4. Run tests with more verbose output to see specific failures
 5. Consider using browser developer tools to inspect the current site structure
+6. If a VS Code task fails with `Path to shell executable ... does not exist`, ensure process tasks use split command/args (for example: `"command": "dotnet"` with `"args": ["test", "--filter", "FullyQualifiedName~ContentParserOnlineTests"]`) or run the equivalent command directly in the terminal.

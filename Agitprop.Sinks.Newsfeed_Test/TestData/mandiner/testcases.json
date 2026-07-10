@@ -1,6 +1,10 @@
 [
     {
         "HtmlPath": "TestData/mandiner/1.html",
+        "HtmlPaths": [
+            "TestData/mandiner/1.html",
+            "TestData/mandiner/2026-07-10.html"
+        ],
         "Url":"https://mandiner.hu/kulfold/2025/01/egy-hajlektalan-okozhatta-a-tortenelmi-tuzkatasztrofat-orizetbe-vettek-a-gyanusitottat",
         "ExpectedContent": {
             "SourceSite": "Mandiner",

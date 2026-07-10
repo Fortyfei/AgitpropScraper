@@ -1,6 +1,10 @@
 [
     {
         "HtmlPath": "TestData/ripost/1.html",
+        "HtmlPaths": [
+            "TestData/ripost/1.html",
+            "TestData/ripost/2026-07-10.html"
+        ],
         "Url":"https://ripost.hu/politik/2025/01/orban-viktor-nem-magyarorszag-elszigetelt-hanem-az-eu",
         "ExpectedContent": {
             "SourceSite": "Ripost",

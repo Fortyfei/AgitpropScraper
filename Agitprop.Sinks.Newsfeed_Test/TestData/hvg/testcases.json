@@ -1,6 +1,10 @@
 [
     {
         "HtmlPath": "TestData/hvg/1.html",
+        "HtmlPaths": [
+            "TestData/hvg/1.html",
+            "TestData/hvg/2026-07-10.html"
+        ],
         "Url":"https://hvg.hu/vilag/20250111_Ket-villamos-utkozott-Strasbourgban-otven-ember-serult-meg",
         "ExpectedContent": {
             "SourceSite": "HVG",
