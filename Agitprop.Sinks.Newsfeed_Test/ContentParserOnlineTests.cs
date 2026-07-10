@@ -4,37 +4,20 @@ using Agitprop.Sinks.Newsfeed.Factories;
 namespace Agitprop.Sinks.Newsfeed_Test;
 public class ContentParserOnlineTests
 {
-	[TestCase(NewsSites.Alfahir)]
-	[TestCase(NewsSites.HVG)]
-	[TestCase(NewsSites.Index)]
-	[TestCase(NewsSites.MagyarJelen)]
-	[TestCase(NewsSites.MagyarNemzet)]
-	[TestCase(NewsSites.Mandiner)]
-	[TestCase(NewsSites.Merce)]
-	[TestCase(NewsSites.Metropol)]
-	[TestCase(NewsSites.Origo)]
-	[TestCase(NewsSites.PestiSracok)]
-	[TestCase(NewsSites.Ripost)]
-	[TestCase(NewsSites.RTL)]
-	[TestCase(NewsSites.Telex)]
-	[TestCase(NewsSites.HuszonnegyHu)]
-	[TestCase(NewsSites.NegyNegyNegy)]
-	public void ContentParserTest(NewsSites site)
+	[TestCaseSource(typeof(TestCaseFactory), nameof(TestCaseFactory.GetContentParserOnlineCases))]
+	public void ContentParserTest(NewsSites site, ContentParserTestCase testCase)
 	{
 		var scraper = ContentParserFactory.GetContentParser(site);
 		using var httpClient = new HttpClient();
 
-		foreach (var testCase in TestCaseFactory.GetContentParserTestCases(site))
-		{
-			var htmlContent = httpClient.GetStringAsync(testCase.Url).Result;
-			var result = scraper.ParseContentAsync(htmlContent).Result;
-			Assert.Multiple(() =>
-			{
+		var htmlContent = httpClient.GetStringAsync(testCase.Url).Result;
+		var result = scraper.ParseContentAsync(htmlContent).Result;
 
-				Assert.That(result.SourceSite, Is.EqualTo(testCase.ExpectedContent.SourceSite));
-				Assert.That(result.PublishDate, Is.EqualTo(testCase.ExpectedContent.PublishDate));
-				Assert.That(result.Text, Is.EqualTo(testCase.ExpectedContent.Text));
-			});
-		}
+		Assert.Multiple(() =>
+		{
+			Assert.That(result.SourceSite, Is.EqualTo(testCase.ExpectedContent.SourceSite));
+			Assert.That(result.PublishDate, Is.EqualTo(testCase.ExpectedContent.PublishDate));
+			Assert.That(result.Text, Is.EqualTo(testCase.ExpectedContent.Text));
+		});
 	}
 }
