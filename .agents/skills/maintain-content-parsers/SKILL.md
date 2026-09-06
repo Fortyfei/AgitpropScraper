@@ -1,3 +1,8 @@
+---
+name: maintain-content-parsers
+description: maintain-content-parsers
+disable-model-invocation: true
+---
 name: Maintain Content Parsers
 version: 1.0.0
 description: Maintain and update content parsers for news sites by running tests, updating test data, and verifying parser correctness
