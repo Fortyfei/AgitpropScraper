@@ -17,16 +17,14 @@ internal class Program
                                .WithManagementPlugin(15672)
                                .WithEndpoint(scheme: "amqp", port: 5672, targetPort: 5672, isExternal: true)
                                .WithExternalHttpEndpoints()
-                               .WithOtlpExporter()
-                               .PublishAsDockerComposeService((resource, service) => { service.Name = "messaging"; });
+                               .WithOtlpExporter();
 
         var postgres = builder.AddPostgres("postgres")
                               .WithDataVolume(isReadOnly: false)
                               .WithPgAdmin(pgAdmin => { pgAdmin.WithHostPort(5050); pgAdmin.WithImageTag("latest"); })
                               .WithEndpoint(scheme: "tcp", port: 5432, targetPort: 5432, isExternal: true)
                               .WithLifetime(ContainerLifetime.Persistent)
-                              .WithOtlpExporter()
-                              .PublishAsDockerComposeService((resource, service) => { service.Name = "postgres"; });
+                              .WithOtlpExporter();
 
         var newsfeedDb = postgres.AddDatabase("newsfeed");
 
@@ -35,7 +33,6 @@ internal class Program
                                 .WithEnvironment("Reload", "True")
                                 .WithEnvironment("LOG_LEVEL", "debug")
                                 .WithOtlpExporter()
-                                .PublishAsDockerComposeService((resource, service) => { service.Name = "nlpservice"; })
                                 .WithContainerRegistry(registry)
                                 .WithEnvironmentAwareImagePush();
 
@@ -47,7 +44,6 @@ internal class Program
                               .WaitFor(nlpService)
                               .WithReference(nlpService)
                               .WithOtlpExporter()
-                              .PublishAsDockerComposeService((resource, service) => { service.Name = "consumer"; })
                               .WithContainerRegistry(registry)
                               .WithEnvironmentAwareImagePush();
 
@@ -56,7 +52,6 @@ internal class Program
                                .WithReference(messaging)
                                .WaitFor(consumer)
                                .WithOtlpExporter()
-                               .PublishAsDockerComposeService((resource, service) => { service.Name = "rssReader"; })
                                .WithEnvironmentAwareImagePush();
 
         var backend = builder.AddProject<Agitprop_Web_Api>("backend")
@@ -65,7 +60,6 @@ internal class Program
                              .WaitFor(messaging)
                              .WithReference(messaging)
                              .WithOtlpExporter()
-                             .PublishAsDockerComposeService((resource, service) => { service.Name = "backend"; })
                              .WithContainerRegistry(registry)
                              .WithEnvironmentAwareImagePush();
 
@@ -74,7 +68,6 @@ internal class Program
                               .WithReference(backend)
                               .WithExternalHttpEndpoints()
                               .WithOtlpExporter()
-                              .PublishAsDockerComposeService((resource, service) => { service.Name = "frontend"; })
                               .WithContainerRegistry(registry)
                               .WithEnvironmentAwareImagePush();
 

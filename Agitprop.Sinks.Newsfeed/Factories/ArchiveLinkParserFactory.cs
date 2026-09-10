@@ -25,7 +25,6 @@ internal static class ArchiveLinkParserFactory
             NewsSites.MagyarNemzet => new MagyarNemzetArchiveLinkParser(),
             NewsSites.PestiSracok => new PestiSracokArchiveLinkParser(),
             NewsSites.MagyarJelen => new MagyarJelenArchiveLinkParser(),
-            NewsSites.Kurucinfo => new KurucinfoArchiveLinkParser(),
             NewsSites.Alfahir => new AlfahirArchiveLinkParser(),
             NewsSites.HuszonnegyHu => new HuszonnegyArchiveLinkParser(),
             NewsSites.NegyNegyNegy => new NegynegynegyArchiveLinkParser(),

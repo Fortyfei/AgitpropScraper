@@ -1,9 +1,15 @@
 using Agitprop.Core;
 
 namespace Agitprop.Sinks.Newsfeed_Test;
-internal class ContentParserTestCase
+public class ContentParserTestCase
 {
-    public string HtmlPath { get; set; }
+    public List<string> HtmlPaths { get; set; } = [];
+    public string Url { get; set; } = null!;
+    public ContentParserResult ExpectedContent { get; set; } = null!;
+    public bool RunOnline { get; set; } = true;
 
-    public ContentParserResult ExpectedContent { get; set; }
+    public IEnumerable<string> GetHtmlPaths()
+    {
+        return HtmlPaths;
+    }
 }

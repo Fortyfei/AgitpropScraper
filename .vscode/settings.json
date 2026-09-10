@@ -17,6 +17,7 @@
         "editor.defaultFormatter": "vscode.typescript-language-features"
     },
     "chat.tools.terminal.autoApprove": {
-        "aspire": true
+        "aspire": true,
+        "dotnet test": true
     }
 }
