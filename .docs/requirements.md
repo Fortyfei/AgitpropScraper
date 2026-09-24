@@ -39,6 +39,6 @@
 - Documentation lives under `.docs/` only; all other `.md` files at repo root are moved or deleted.
 - Mermaid diagrams for every pipeline and component interaction.
 - All connection strings (`newsfeed`, `messaging`) required at runtime; startup throws if missing.
-- EF Core migrations applied at startup when `ASPNETCORE_ENVIRONMENT=Development` or
-  `ApplyMigrationsAtStartup=true`.
+- EF Core migrations are applied by the Web API startup path when
+  `ASPNETCORE_ENVIRONMENT=Development` or `ApplyMigrationsAtStartup=true`.
 - The CLI uses System.CommandLine with three commands: `scrape-article`, `scrape-archive`, `retry`.

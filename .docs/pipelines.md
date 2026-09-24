@@ -236,9 +236,9 @@ dotnet run --project Agitprop.AppHost/Agitprop.AppHost.csproj
 1. **RabbitMQ** starts first (infrastructure).
 2. **PostgreSQL** + **Database** start next.
 3. **NLP Service** (`nlpservice`) starts and loads `hu_core_news_lg` model.
-4. **Consumer** waits for `newsfeedDb`, `messaging`, `nlpService`. Applies EF migrations if Development or `ApplyMigrationsAtStartup=true`. Registers MassTransit endpoints.
+4. **Consumer** waits for `newsfeedDb`, `messaging`, `nlpService`. Registers MassTransit endpoints and uses the shared database.
 5. **RSS Feed Reader** waits for `messaging`, `Consumer`. Registers as `IHostedService`.
-6. **Web API** waits for `newsfeedDb`, `messaging`. Applies migrations. Maps controllers.
+6. **Web API** waits for `newsfeedDb`, `messaging`. Applies migrations at startup when configured, then maps controllers.
 7. **Web Client** waits for backend (Web API) + external HTTP. Blazor InteractiveServer rendering.
 
 ### Step 3: Runtime Operation
