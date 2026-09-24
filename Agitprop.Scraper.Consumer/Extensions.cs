@@ -1,5 +1,4 @@
 using System;
-using System.Reflection;
 
 using Agitprop.Consumer.Consumers;
 using Agitprop.Scraper.Consumer.Consumers;
@@ -29,7 +28,6 @@ public static class Extensions
         {
             x.SetKebabCaseEndpointNameFormatter();
             x.SetInMemorySagaRepositoryProvider();
-            var entryAssembly = Assembly.GetEntryAssembly();
             x.AddConsumer<NewsfeedJobConsumer, NewsfeedJobConsumerDefinition>();
             x.UsingRabbitMq((context, cfg) =>
             {

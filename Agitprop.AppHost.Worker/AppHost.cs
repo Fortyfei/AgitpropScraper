@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Configuration;
-
 using Projects;
 
 internal class Program
@@ -11,8 +9,6 @@ internal class Program
         var compose = builder.AddDockerComposeEnvironment("agitprop")
                      .WithDashboard(d => d.WithHostPort(18888));
 
-        builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
-        
         var messaging = builder.AddConnectionString("messaging");
         var newsfeedDb = builder.AddConnectionString("newsfeed");
 

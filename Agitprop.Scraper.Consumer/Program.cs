@@ -38,7 +38,6 @@ public class Program
         // Add the Newsfeed sink for processing scraped data.
         builder.AddNewsfeedSink();
 
-        builder.Configuration.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
         builder.Configuration.AddUserSecrets<Program>();    
         
         var newsfeedConnectionString = builder.Configuration.GetConnectionString("newsfeed");

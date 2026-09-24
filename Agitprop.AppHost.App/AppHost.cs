@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 
 using Projects;
@@ -11,9 +10,6 @@ internal class Program
 
         var compose = builder.AddDockerComposeEnvironment("agitprop");
 
-        builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
-
-        //var newsfeedDb = builder.AddConnectionString("newsfeed");
         var postgres = builder.AddPostgres("postgres").WithDataVolume(isReadOnly: false);
         var newsfeedDb = postgres.AddDatabase("newsfeed");
 
