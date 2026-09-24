@@ -20,20 +20,6 @@
 			"problemMatcher": []
 		},
 		{
-			"label": "Run Web App",
-			"type": "shell",
-			"command": "dotnet run --project Agitprop.AppHost.App/Agitprop.AppHost.App.csproj",
-			"inAgents": true,
-			"problemMatcher": []
-		},
-		{
-			"label": "Run Worker",
-			"type": "shell",
-			"command": "dotnet run --project Agitprop.AppHost.Worker/Agitprop.AppHost.Worker.csproj",
-			"inAgents": true,
-			"problemMatcher": []
-		},
-		{
 			"label": "Run Content Parser Online Tests",
 			"command": "dotnet",
 			"args": [

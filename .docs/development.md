@@ -134,9 +134,7 @@ dotnet run --project Agitprop.CLI/Agitprop.CLI.csproj -- retry --failedQueue <qu
 | Task | Description |
 |------|-------------|
 | `build` | `dotnet build` with full paths |
-| `Run Full Infrastructure` | Start Aspire AppHost |
-| `Run Web App` | Start Web API + Client only |
-| `Run Worker` | Start Worker variant |
+| `Run Full Infrastructure` | Start the canonical full Aspire AppHost |
 | `Run Content Parser Online Tests` | Filtered online tests |
 | `Run Content Parser Offline Tests` | Filtered offline tests |
 

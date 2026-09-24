@@ -47,27 +47,20 @@ var frontend = builder.AddProject<Projects.Agitprop_Web_Client>("frontend")
     .WithExternalHttpEndpoints();
 ```
 
-## 2. AppHost Variants
+## 2. AppHost
 
-The project provides **three AppHost variants** for different deployment scenarios:
+The project provides one canonical AppHost for the full distributed application:
 
 | Project | Use Case | What's included |
 |---------|----------|-----------------|
 | `Agitprop.AppHost` | Full distributed app | postgres + newsfeedDb + nlpService + consumer + rss-reader + backend + frontend + rabbitmq + dashboard |
-| `Agitprop.AppHost.App` | App-only deployment | postgres + newsfeedDb + backend + frontend + dashboard |
-| `Agitprop.AppHost.Worker` | Worker-only deployment | nlpService + consumer + dashboard |
 
-### Run a specific variant:
+### Run the application:
 
 ```bash
 # Full app
 dotnet run --project Agitprop.AppHost/Agitprop.AppHost.csproj
 
-# App variant
-dotnet run --project Agitprop.AppHost.App/Agitprop.AppHost.App.csproj
-
-# Worker variant
-dotnet run --project Agitprop.AppHost.Worker/Agitprop.AppHost.Worker.csproj
 ```
 
 ## 3. Docker & Image Publishing

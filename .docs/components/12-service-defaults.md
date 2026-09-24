@@ -28,4 +28,4 @@ builder.AddServiceDefaults();
 ```
 
 Called by: `Agitprop.Scraper.Consumer`, `Agitprop.Scraper.RssFeedReader`,
-`Agitprop.Web.Api`, `Agitprop.Web.Client`, and `Agitprop.AppHost.App/Worker`.
+`Agitprop.Web.Api`, and `Agitprop.Web.Client`.
