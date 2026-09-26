@@ -18,7 +18,7 @@ internal abstract class BaseArticleContentParser : IContentParser
     protected abstract List<string> ArticleXPaths { get; }
     protected abstract NewsSites SourceSite { get; }
 
-    private HtmlNode SelectSingleNode(HtmlDocument doc, List<string> xpaths)
+    private HtmlNode? SelectSingleNode(HtmlDocument doc, List<string> xpaths)
     {
         foreach (var xpath in xpaths)
         {

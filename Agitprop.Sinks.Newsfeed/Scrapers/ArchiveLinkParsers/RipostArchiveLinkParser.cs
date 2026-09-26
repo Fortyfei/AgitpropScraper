@@ -21,7 +21,7 @@ internal class RipostArchiveLinkParser : SitemapLinkParser, ILinkParser
 
     public Task<List<ScrapingJobDescription>> GetLinksAsync(string baseUrl, HtmlDocument doc)
     {
-        var result = GetLinks(doc.ToString())
+        var result = GetLinks(doc.DocumentNode.OuterHtml)
                          .Select(link => new NewsfeedJobDescrpition
                          {
                              Url = new Uri(link).ToString(),

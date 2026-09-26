@@ -22,7 +22,8 @@ internal class OrigoArchiveLinkParser : ILinkParser
     {
         var hrefs = doc.DocumentNode.Descendants("article")
                    .Select(article => article.Descendants("a").FirstOrDefault())
-                   .Where(a => a != null)
+                   .Where(a => a is not null)
+                   .Select(a => a!)
                    .Select(a => a.GetAttributeValue("href", ""))
                    .ToList();
         var result = hrefs.Select(link => new Uri(baseUri, link).ToString())
