@@ -13,6 +13,7 @@ public static class Mappers
         {
             Id = entity.Id.ToString(),
             Name = entity.Name,
+            Type = entity.Type,
         };
     }
 
