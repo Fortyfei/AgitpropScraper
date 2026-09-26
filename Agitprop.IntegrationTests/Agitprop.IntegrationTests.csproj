@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Agitprop.Testing.AppHost\Agitprop.Testing.AppHost.csproj" />
+    <ProjectReference Include="..\Agitprop.Sinks.Newsfeed\Agitprop.Sinks.Newsfeed.csproj" />
   </ItemGroup>
 
   <ItemGroup>
