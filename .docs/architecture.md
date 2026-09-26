@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-AgitpropScraper is a **modular monolith** orchestrated by **Aspire 13.4.2**. The diagram below shows the
+AgitpropScraper is a **modular monolith** orchestrated by **Aspire 13.5.4**. The diagram below shows the
 runtime topology (container registry, services, and infrastructure). Every service
 exposes OpenTelemetry OTLP (traces + metrics) and uses the shared
 `Agitprop.ServiceDefaults` package for health checks and resilience.

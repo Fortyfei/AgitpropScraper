@@ -217,7 +217,7 @@ sequenceDiagram
 ### Step 1: Aspire Startup
 
 ```
-dotnet run --project Agitprop.AppHost/Agitprop.AppHost.csproj
+aspire start --apphost Agitprop.AppHost/Agitprop.AppHost.csproj
 ```
 
 1. **AppHost** creates the `DistributedApplication` builder.

@@ -23,8 +23,8 @@ dotnet restore
 ### 2.1 Start Full Infrastructure (Aspire)
 
 ```bash
-# Starts all services, dashboard on http://localhost:18888
-dotnet run --project Agitprop.AppHost/Agitprop.AppHost.csproj
+# Starts all services through Aspire; inspect the dashboard URL printed by Aspire
+aspire start --apphost Agitprop.AppHost/Agitprop.AppHost.csproj
 ```
 
 **What starts:**
