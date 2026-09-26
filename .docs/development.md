@@ -78,17 +78,28 @@ dotnet build Agitprop.slnx
 ### 3.2 Run Unit Tests
 
 ```bash
-# All tests
-dotnet test
+# Deterministic parser fixture tests
+dotnet test Agitprop.Sinks.Newsfeed_Test/Agitprop.Sinks.Newsfeed_Test.csproj --configuration Release
 
-# Content parser offline tests (fixtures)
+# Spider and NLP client unit tests
+dotnet test Agitprop.UnitTests/Agitprop.UnitTests.csproj --configuration Release
+
+# Content parser offline tests (fixtures only)
 dotnet test Agitprop.Sinks.Newsfeed_Test/Agitprop.Sinks.Newsfeed_Test.csproj \
   --filter "FullyQualifiedName~ContentParserOfflineTests"
 
-# Content parser online tests (live sites)
+# Archive parser fixture tests
+dotnet test Agitprop.Sinks.Newsfeed_Test/Agitprop.Sinks.Newsfeed_Test.csproj \
+  --filter "FullyQualifiedName~ArchiveParserTests"
+
+# Content parser online tests (opt-in; accesses live sites)
 dotnet test Agitprop.Sinks.Newsfeed_Test/Agitprop.Sinks.Newsfeed_Test.csproj \
   --filter "FullyQualifiedName~ContentParserOnlineTests"
 ```
+
+The default test run excludes the `[Explicit]` live-site parser checks. The two test projects
+used by CI are deterministic and do not require Aspire, PostgreSQL, RabbitMQ, a browser, or the
+spaCy model.
 
 ### 3.3 Run Content Parser Maintenance
 
@@ -126,8 +137,8 @@ dotnet run --project Agitprop.CLI/Agitprop.CLI.csproj -- retry --failedQueue <qu
    - `DateXPaths`, `TitleXPaths`, `LeadXPaths`, `ArticleXPaths` (list of XPath strings)
    - `SourceSite` (enum value from `NewsSites`)
 3. Add case in `ContentParserFactory.GetContentParser(NewsSites site)`.
-4. Add HTML fixtures under `Agitprop.Sinks.Newsfeed_Test/ContentParserTests/Offline/<Site>/` with expected output.
-5. Run the default test suite, which excludes explicit live-site checks. Run offline parser tests with `dotnet test --filter "FullyQualifiedName~ContentParserOfflineTests"`.
+4. Add HTML fixtures and expected parser output under `Agitprop.Sinks.Newsfeed_Test/TestData/<site>/`, and update that site's `testcases.json`.
+5. Run `dotnet test Agitprop.Sinks.Newsfeed_Test/Agitprop.Sinks.Newsfeed_Test.csproj --configuration Release`; the default run excludes explicit live-site checks. Use the documented online command only when validating a current live URL.
 
 ## 7. Useful VS Code Tasks
 

@@ -72,17 +72,19 @@ All extend the abstract `BaseArticleContentParser : IContentParser`.
 
 ## Test Project (`Agitprop.Sinks.Newsfeed_Test`)
 
-- `ContentParserOfflineTests/` — deterministic parser checks against fixture HTML snapshots.
-- `ContentParserOnlineTests/` — explicit, opt-in checks against live sites whose content can change.
+- `ContentParserOfflineTests.cs` and `ArchiveParserTests.cs` — deterministic checks against HTML fixtures under `TestData/`.
+- `ContentParserOnlineTests.cs` — explicit, opt-in checks against live sites whose content can change.
+
+`Agitprop.UnitTests` contains service-free tests for crawl orchestration and the NLP HTTP client.
 
 ### Running tests:
 
 ```bash
-# Offline (fixture-based)
-dotnet test Agitprop.Sinks.Newsfeed_Test/Agitprop.Sinks.Newsfeed_Test.csproj \
-  --filter "FullyQualifiedName~ContentParserOfflineTests"
+# Deterministic tests used by CI
+dotnet test Agitprop.Sinks.Newsfeed_Test/Agitprop.Sinks.Newsfeed_Test.csproj --configuration Release
+dotnet test Agitprop.UnitTests/Agitprop.UnitTests.csproj --configuration Release
 
-# Online (live sites)
+# Online (explicit; accesses live sites)
 dotnet test Agitprop.Sinks.Newsfeed_Test/Agitprop.Sinks.Newsfeed_Test.csproj \
   --filter "FullyQualifiedName~ContentParserOnlineTests"
 ```
