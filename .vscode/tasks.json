@@ -50,7 +50,7 @@
 			}
 		},
 		{
-			"label": "Maintain Content Parsers",
+			"label": "Run Live Content Parser Tests",
 			"type": "process",
 			"command": "dotnet",
 			"args": [

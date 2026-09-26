@@ -3,6 +3,7 @@ using Agitprop.Sinks.Newsfeed.Factories;
 using System.Net;
 
 namespace Agitprop.Sinks.Newsfeed_Test;
+[Explicit("Live-site parser checks are opt-in because source content can change.")]
 public class ContentParserOnlineTests
 {
 	[TestCaseSource(typeof(TestCaseFactory), nameof(TestCaseFactory.GetContentParserOnlineCases))]

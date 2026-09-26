@@ -72,8 +72,8 @@ All extend the abstract `BaseArticleContentParser : IContentParser`.
 
 ## Test Project (`Agitprop.Sinks.Newsfeed_Test`)
 
-- `ContentParserOfflineTests/` — tests parsers against fixture HTML snapshots.
-- `ContentParserOnlineTests/` — tests parsers against live sites.
+- `ContentParserOfflineTests/` — deterministic parser checks against fixture HTML snapshots.
+- `ContentParserOnlineTests/` — explicit, opt-in checks against live sites whose content can change.
 
 ### Running tests:
 

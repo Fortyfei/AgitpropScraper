@@ -127,7 +127,7 @@ dotnet run --project Agitprop.CLI/Agitprop.CLI.csproj -- retry --failedQueue <qu
    - `SourceSite` (enum value from `NewsSites`)
 3. Add case in `ContentParserFactory.GetContentParser(NewsSites site)`.
 4. Add HTML fixtures under `Agitprop.Sinks.Newsfeed_Test/ContentParserTests/Offline/<Site>/` with expected output.
-5. Run offline tests: `dotnet test --filter "FullyQualifiedName~ContentParserOfflineTests"`.
+5. Run the default test suite, which excludes explicit live-site checks. Run offline parser tests with `dotnet test --filter "FullyQualifiedName~ContentParserOfflineTests"`.
 
 ## 7. Useful VS Code Tasks
 
