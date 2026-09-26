@@ -23,8 +23,6 @@ internal static class PaginatorFactory
             NewsSites.Mandiner => new MandinerArchivePaginator(),
             NewsSites.Metropol => new MetropolArchivePaginator(),
             NewsSites.MagyarNemzet => new MagyarNemzetArchivePaginator(),
-            NewsSites.PestiSracok => new PestiSracokArchivePaginator(),
-            NewsSites.MagyarJelen => new MagyarJelenArchivePaginator(),
             NewsSites.Alfahir => new AlfahirArchivePaginator(),
             NewsSites.HuszonnegyHu => new HuszonnegyArchivePaginator(),
             NewsSites.NegyNegyNegy => new NegynegynegyArchivePaginator(),

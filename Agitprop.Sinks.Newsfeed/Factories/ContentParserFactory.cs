@@ -23,8 +23,6 @@ internal static class ContentParserFactory
             NewsSites.Mandiner => new MandinerArticleContentParser(),
             NewsSites.Metropol => new MetropolArticleContentParser(),
             NewsSites.MagyarNemzet => new MagyarNemzetArticleContentParser(),
-            NewsSites.PestiSracok => new PestiSracokArticleContentParser(),
-            NewsSites.MagyarJelen => new MagyarJelenArticleContentParser(),
             NewsSites.Alfahir => new AlfahirArticleContentParser(),
             NewsSites.HuszonnegyHu => new HuszonnegyArticleContentParser(),
             NewsSites.NegyNegyNegy => new NegynegynegyArticleContentParser(),

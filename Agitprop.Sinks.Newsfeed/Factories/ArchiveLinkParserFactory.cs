@@ -23,8 +23,6 @@ internal static class ArchiveLinkParserFactory
             NewsSites.Mandiner => new MandinerArchiveLinkParser(),
             NewsSites.Metropol => new MetropolArchiveLinkParser(),
             NewsSites.MagyarNemzet => new MagyarNemzetArchiveLinkParser(),
-            NewsSites.PestiSracok => new PestiSracokArchiveLinkParser(),
-            NewsSites.MagyarJelen => new MagyarJelenArchiveLinkParser(),
             NewsSites.Alfahir => new AlfahirArchiveLinkParser(),
             NewsSites.HuszonnegyHu => new HuszonnegyArchiveLinkParser(),
             NewsSites.NegyNegyNegy => new NegynegynegyArchiveLinkParser(),

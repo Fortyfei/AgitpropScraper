@@ -18,7 +18,6 @@ All extend the abstract `BaseArticleContentParser : IContentParser`.
 | Parser | Source Site |
 |--------|-------------|
 | `BaseArticleContentParser.cs` | Base class — XPath fallback extraction |
-| `MagyarJelenArticleContentParser.cs` | Magyar Jelen |
 | `IndexArticleContentParser.cs` | Index |
 | `HvgArticleContentParser.cs` | HVG |
 | `HuszonnegyArticleContentParser.cs` | 24.hu |
@@ -31,7 +30,6 @@ All extend the abstract `BaseArticleContentParser : IContentParser`.
 | `TelexArticleContentParser.cs` | Telex |
 | `RtlArticleContentParser.cs` | RTL |
 | `RipostArticleContentParser.cs` | Ripost |
-| `PestisracokArticleContentParser.cs` | PestiSracok |
 | `OrigoArticleContentParser.cs` | Origó |
 
 #### BaseArticleContentParser
