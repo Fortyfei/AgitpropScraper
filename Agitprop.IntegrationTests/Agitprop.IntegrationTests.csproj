@@ -9,10 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="coverlet.collector">
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
+    <PackageReference Include="Aspire.Hosting.Testing" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="NUnit" />
     <PackageReference Include="NUnit.Analyzers">
@@ -23,10 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Agitprop.Core\Agitprop.Core.csproj" />
-    <ProjectReference Include="..\Agitprop.Infrastructure\Agitprop.Infrastructure.csproj" />
-    <ProjectReference Include="..\Agitprop.Scraper.NLPService\Agitprop.Scraper.NLPService.csproj" />
-    <ProjectReference Include="..\Agitprop.Sinks.Newsfeed\Agitprop.Sinks.Newsfeed.csproj" />
+    <ProjectReference Include="..\Agitprop.Testing.AppHost\Agitprop.Testing.AppHost.csproj" />
   </ItemGroup>
 
   <ItemGroup>

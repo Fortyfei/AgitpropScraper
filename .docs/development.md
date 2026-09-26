@@ -84,6 +84,9 @@ dotnet test Agitprop.Sinks.Newsfeed_Test/Agitprop.Sinks.Newsfeed_Test.csproj --c
 # Spider and NLP client unit tests
 dotnet test Agitprop.UnitTests/Agitprop.UnitTests.csproj --configuration Release
 
+# Aspire API + PostgreSQL integration test (requires Docker)
+dotnet test Agitprop.IntegrationTests/Agitprop.IntegrationTests.csproj --configuration Release
+
 # Content parser offline tests (fixtures only)
 dotnet test Agitprop.Sinks.Newsfeed_Test/Agitprop.Sinks.Newsfeed_Test.csproj \
   --filter "FullyQualifiedName~ContentParserOfflineTests"
@@ -97,9 +100,9 @@ dotnet test Agitprop.Sinks.Newsfeed_Test/Agitprop.Sinks.Newsfeed_Test.csproj \
   --filter "FullyQualifiedName~ContentParserOnlineTests"
 ```
 
-The default test run excludes the `[Explicit]` live-site parser checks. The two test projects
-used by CI are deterministic and do not require Aspire, PostgreSQL, RabbitMQ, a browser, or the
-spaCy model.
+The default fixture/unit test projects exclude the `[Explicit]` live-site parser checks and do
+not require Aspire, PostgreSQL, RabbitMQ, a browser, or the spaCy model. The Aspire integration
+project starts an isolated PostgreSQL container and API process, so it requires Docker.
 
 ### 3.3 Run Content Parser Maintenance
 
