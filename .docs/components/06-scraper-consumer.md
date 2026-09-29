@@ -4,7 +4,7 @@
 
 The **MassTransit consumer service** that processes scraping jobs from the
 RabbitMQ queue. This is the core orchestration layer that ties together the
-Spider, parsers, NLP service, and the Newsfeed sink.
+Spider, parsers, in-process NLP library, and the Newsfeed sink.
 
 ## Responsibilities
 
@@ -13,9 +13,9 @@ Spider, parsers, NLP service, and the Newsfeed sink.
 2. **Job building** — uses `ScrapingJobFactory` to construct a `ScrapingJob`
    with the appropriate `ContentParsers`, `LinkParsers`, and `Paginator`.
 3. **Crawling** — calls `ISpider.CrawlAsync()` to crawl the target URL.
-4. **NLP enrichment** — the sink (`NewsfeedSink`) calls the NLP service via
-   `NamedEntityRecognizer` to extract named entities (PER/LOC/ORG/MISC) from
-   article text.
+4. **NLP enrichment** — the sink (`NewsfeedSink`) calls
+   `NamedEntityRecognizer` in-process to extract Hungarian named entities
+   (PER/LOC/ORG/MISC) from article text using ONNX Runtime.
 5. **Persistence** — saves entities + mention links to PostgreSQL via EF Core.
 6. **Database ownership** — uses the shared PostgreSQL database; migrations are
    applied by the Web API startup path rather than by this worker.
@@ -55,4 +55,5 @@ Requires two connection strings; throws `InvalidOperationException` if missing:
 
 - MassTransit: `ConnectionStrings:messaging` → RabbitMQ AMQP
 - Database: `ConnectionStrings:newsfeed` → PostgreSQL
-- NLP service address: configured via service discovery in AppHost
+- NLP model directory: `NLP__ModelDirectory` (defaults to `ner-model` beside the binaries)
+- Model assets must be provisioned before startup; the consumer fails fast if they are missing.

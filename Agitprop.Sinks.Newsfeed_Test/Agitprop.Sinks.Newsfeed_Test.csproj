@@ -21,10 +21,13 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="NUnit3TestAdapter" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Agitprop.Core\Agitprop.Core.csproj" />
+    <ProjectReference Include="..\Agitprop.Scraper.NLPService\Agitprop.Scraper.NLPService.csproj" />
     <ProjectReference Include="..\Agitprop.Sinks.Newsfeed\Agitprop.Sinks.Newsfeed.csproj" />
   </ItemGroup>
 

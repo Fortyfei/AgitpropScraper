@@ -1,192 +1,305 @@
-﻿using Polly;
-using Microsoft.Extensions.Configuration;
-using System.Text;
+using System.Diagnostics;
 using System.Text.Json;
 using Agitprop.Core;
 using Agitprop.Core.Interfaces;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using System.Diagnostics;
 
 namespace Agitprop.Scraper.NLPService;
 
-/// <summary>
-/// Provides functionality for recognizing named entities in text using an external service, with retries and tracing.
-/// </summary>
-public class NamedEntityRecognizer : INamedEntityRecognizer
+public sealed class NamedEntityRecognizer : INamedEntityRecognizer, IDisposable
 {
-    private readonly HttpClient _client;
+    private const int MaximumModelTokens = 512;
+    private const int ChunkOverlapTokens = 64;
+    private static readonly ActivitySource ActivitySource = new("Agitprop.NamedEntityRecognizer");
+    private static readonly HashSet<string> SupportedEntityTypes = new(StringComparer.Ordinal)
+    {
+        "PER", "LOC", "ORG", "MISC"
+    };
+
+    private readonly NerTokenizer _tokenizer;
+    private readonly INerModel _model;
+    private readonly IReadOnlyList<string> _labels;
     private readonly ILogger<NamedEntityRecognizer> _logger;
-    private readonly int _retryCount;
-    private static readonly ActivitySource _activitySource = new("Agitprop.NamedEntityRecognizer");
 
-    public NamedEntityRecognizer(HttpClient client, ILogger<NamedEntityRecognizer> logger, IConfiguration? configuration = null)
+    public NamedEntityRecognizer(
+        ILogger<NamedEntityRecognizer> logger,
+        IConfiguration configuration)
     {
-        _client = client;
         _logger = logger;
-        _retryCount = configuration?.GetValue<int>("Retry:NLPService", 3) ?? 3;
+
+        var configuredDirectory = configuration["NLP:ModelDirectory"];
+        var modelDirectory = string.IsNullOrWhiteSpace(configuredDirectory)
+            ? Path.Combine(AppContext.BaseDirectory, "ner-model")
+            : Path.GetFullPath(configuredDirectory);
+        var modelPath = Path.Combine(modelDirectory, "model.onnx");
+        var tokenizerPath = Path.Combine(modelDirectory, "tokenizer.json");
+        var configPath = Path.Combine(modelDirectory, "config.json");
+
+        NerModelProvisioner.EnsureAssets(modelDirectory, _logger);
+
+        _tokenizer = NerTokenizer.Load(tokenizerPath);
+        _labels = LoadLabels(configPath);
+        _model = new OnnxNerModel(modelPath, _labels.Count);
+
+        _logger.LogInformation("Loaded Hungarian NER model from {ModelPath}", modelPath);
     }
 
-    public async Task<string> PingAsync()
+    internal NamedEntityRecognizer(
+        NerTokenizer tokenizer,
+        INerModel model,
+        IReadOnlyList<string> labels,
+        ILogger<NamedEntityRecognizer> logger)
     {
-        using var activity = _activitySource.StartActivity("PingNLPService", ActivityKind.Client);
-        try
-        {
-            _logger.LogInformation("Pinging NLP service");
-            var response = await Policy
-                .Handle<Exception>()
-                .OrResult<HttpResponseMessage>(r => !r.IsSuccessStatusCode)
-                .WaitAndRetryAsync(
-                    _retryCount,
-                    attempt => TimeSpan.FromSeconds(0.5 * attempt),
-                    (outcome, ts, attempt, ctx) =>
-                    {
-                        if (outcome.Exception != null)
-                            _logger.LogWarning(outcome.Exception, "[RETRY] Exception pinging NLP service on attempt {Attempt}", attempt);
-                        else if (outcome.Result != null)
-                            _logger.LogWarning("[RETRY] Failed to ping NLP service on attempt {Attempt}. Status: {StatusCode}", attempt, outcome.Result.StatusCode);
-                    })
-                .ExecuteAsync(() => _client.GetAsync("health"));
-
-            response.EnsureSuccessStatusCode();
-            var result = await response.Content.ReadAsStringAsync();
-            activity?.SetStatus(ActivityStatusCode.Ok);
-            return result;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to ping NLP service");
-            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-            throw;
-        }
+        _tokenizer = tokenizer;
+        _model = model;
+        _labels = labels;
+        _logger = logger;
     }
 
-    public async Task<NamedEntityCollection> AnalyzeSingleAsync(string corpus)
+    public Task<NamedEntityCollection> AnalyzeSingleAsync(string corpus)
     {
-        using var activity = _activitySource.StartActivity("AnalyzeSingleCorpus", ActivityKind.Client);
-        activity?.SetTag("corpus.length", corpus?.ToString()?.Length ?? 0);
-
-        _logger.LogInformation("Analyzing single corpus");
-
-        // Send an object matching the FastAPI Pydantic model: { "text": "..." }
-        var payload = new { text = corpus };
-        var json = JsonSerializer.Serialize(payload);
-        var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-        try
-        {
-            var response = await Policy
-                .Handle<Exception>()
-                .OrResult<HttpResponseMessage>(r => !r.IsSuccessStatusCode)
-                .WaitAndRetryAsync(
-                    _retryCount,
-                    attempt => TimeSpan.FromSeconds(0.5 * attempt),
-                    (outcome, ts, attempt, ctx) =>
-                    {
-                        if (outcome.Exception != null)
-                            _logger.LogWarning(outcome.Exception, "[RETRY] Exception analyzing single corpus on attempt {Attempt}", attempt);
-                        else if (outcome.Result != null)
-                            _logger.LogWarning("[RETRY] Failed to analyze single corpus on attempt {Attempt}. Status: {StatusCode}", attempt, outcome.Result.StatusCode);
-                    })
-                .ExecuteAsync(() => _client.PostAsync("analyzeSingle", content));
-
-            activity?.SetTag("response", response);
-            var responseBody = await response.Content.ReadAsStringAsync();
-            if (!response.IsSuccessStatusCode)
-            {
-                _logger.LogWarning("NLP service returned non-success status {StatusCode}. Body: {Body}", response.StatusCode, responseBody);
-                activity?.SetStatus(ActivityStatusCode.Error, $"NLP service {response.StatusCode}");
-                throw new InvalidOperationException($"NLP service returned {(int)response.StatusCode}: {response.ReasonPhrase}");
-            }
-            
-            try
-            {
-                var entities = JsonSerializer.Deserialize<List<NamedEntity>>(responseBody,
-                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? [];
-                var result = new NamedEntityCollection { Entities = entities };
-                _logger.LogInformation("Single corpus analyzed successfully. Entities found: {Count}", result.All.Count);
-                activity?.SetStatus(ActivityStatusCode.Ok);
-                return result;
-            }
-            catch (JsonException ex)
-            {
-                _logger.LogError(ex, "Failed to deserialize NLP service response: {Response}", responseBody);
-                activity?.SetStatus(ActivityStatusCode.Error, "JSON deserialization failed");
-                throw new InvalidOperationException("Failed to parse NLP service response", ex);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to analyze single corpus");
-            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-            throw;
-        }
+        ArgumentNullException.ThrowIfNull(corpus);
+        return Task.Run(() => Analyze(corpus));
     }
-    
 
-    public async Task<NamedEntityCollection[]> AnalyzeBatchAsync(string[] corpora)
+    public Task<NamedEntityCollection[]> AnalyzeBatchAsync(string[] corpora)
     {
-        using var activity = _activitySource.StartActivity("AnalyzeBatchCorpus", ActivityKind.Client);
-        activity?.SetTag("batch.size", corpora?.Length ?? 0);
-
-        _logger.LogInformation("Analyzing batch of {Count} corpora", corpora?.Length ?? 0);
-
-        // Send an object matching the FastAPI Pydantic model: { "texts": [...] }
-        var payload = new { texts = corpora };
-        var json = JsonSerializer.Serialize(payload);
-        var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-        try
+        ArgumentNullException.ThrowIfNull(corpora);
+        return Task.Run(() =>
         {
-            var response = await Policy
-                .Handle<Exception>()
-                .OrResult<HttpResponseMessage>(r => !r.IsSuccessStatusCode)
-                .WaitAndRetryAsync(
-                    _retryCount,
-                    attempt => TimeSpan.FromSeconds(0.5 * attempt),
-                    (outcome, ts, attempt, ctx) =>
-                    {
-                        if (outcome.Exception != null)
-                            _logger.LogWarning(outcome.Exception, "[RETRY] Exception analyzing batch corpus on attempt {Attempt}", attempt);
-                        else if (outcome.Result != null)
-                            _logger.LogWarning("[RETRY] Failed to analyze batch corpus on attempt {Attempt}. Status: {StatusCode}", attempt, outcome.Result.StatusCode);
-                    })
-                .ExecuteAsync(() => _client.PostAsync("analyzeBatch", content));
+            var results = new NamedEntityCollection[corpora.Length];
+            for (var index = 0; index < corpora.Length; index++)
+            {
+                results[index] = Analyze(corpora[index]);
+            }
 
-            activity?.SetTag("response", response);
-            activity?.SetTag("responseContent", response.Content);
-            var responseBody = await response.Content.ReadAsStringAsync();
-            if (!response.IsSuccessStatusCode)
-            {
-                _logger.LogWarning("NLP service returned non-success status {StatusCode} for batch. Body: {Body}", response.StatusCode, responseBody);
-                activity?.SetStatus(ActivityStatusCode.Error, $"NLP service {response.StatusCode}");
-                throw new InvalidOperationException($"NLP service returned {(int)response.StatusCode}: {response.ReasonPhrase}");
-            }
-            
-            try
-            {
-                var batchEntities = JsonSerializer.Deserialize<List<List<NamedEntity>>>(responseBody,
-                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? [];
-                
-                var result = batchEntities.Select(entities => 
-                    new NamedEntityCollection { Entities = entities }).ToArray();
-                
-                _logger.LogInformation("Batch analysis completed successfully. Total corpora: {Count}", result.Length);
-                activity?.SetStatus(ActivityStatusCode.Ok);
-                return result;
-            }
-            catch (JsonException ex)
-            {
-                _logger.LogError(ex, "Failed to deserialize NLP service batch response: {Response}", responseBody);
-                activity?.SetStatus(ActivityStatusCode.Error, "JSON deserialization failed");
-                throw new InvalidOperationException("Failed to parse NLP service batch response", ex);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to analyze batch corpus");
-
-            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-            throw;
-        }
+            return results;
+        });
     }
+
+    public void Dispose() => _model.Dispose();
+
+    private NamedEntityCollection Analyze(string corpus)
+    {
+        ArgumentNullException.ThrowIfNull(corpus);
+        using var activity = ActivitySource.StartActivity("AnalyzeCorpus", ActivityKind.Internal);
+        activity?.SetTag("corpus.length", corpus.Length);
+
+        var words = _tokenizer.Tokenize(corpus);
+        if (words.Count == 0)
+        {
+            return new NamedEntityCollection();
+        }
+
+        var predictions = PredictWordLabels(words);
+        var entities = GetNamedEntities(corpus, words, predictions);
+
+        _logger.LogInformation(
+            "Analyzed text (characters={CharacterCount}, entities={EntityCount})",
+            corpus.Length,
+            entities.Count);
+        activity?.SetTag("entities.count", entities.Count);
+
+        return new NamedEntityCollection { Entities = entities };
+    }
+
+    private int[] PredictWordLabels(IReadOnlyList<TokenizedWord> words)
+    {
+        var pieces = new List<ModelToken>();
+        for (var wordIndex = 0; wordIndex < words.Count; wordIndex++)
+        {
+            var word = words[wordIndex];
+            for (var pieceIndex = 0; pieceIndex < word.PieceIds.Length; pieceIndex++)
+            {
+                pieces.Add(new ModelToken(word.PieceIds[pieceIndex], wordIndex, pieceIndex == 0));
+            }
+        }
+
+        var predictions = Enumerable.Repeat(-1, words.Count).ToArray();
+        var contextScores = Enumerable.Repeat(-1, words.Count).ToArray();
+        var start = 0;
+
+        while (start < pieces.Count)
+        {
+            var end = Math.Min(start + MaximumModelTokens - 2, pieces.Count);
+            while (end < pieces.Count && end > start
+                   && pieces[end].WordIndex == pieces[end - 1].WordIndex)
+            {
+                end--;
+            }
+
+            if (end == start)
+            {
+                throw new InvalidDataException("A word exceeds the NER model's maximum sequence length.");
+            }
+
+            var inputIds = new long[end - start + 2];
+            inputIds[0] = _tokenizer.ClassificationTokenId;
+            for (var tokenIndex = start; tokenIndex < end; tokenIndex++)
+            {
+                inputIds[tokenIndex - start + 1] = pieces[tokenIndex].TokenId;
+            }
+
+            inputIds[^1] = _tokenizer.SeparatorTokenId;
+            var logits = _model.Predict(inputIds);
+            var sequenceLength = inputIds.Length;
+            if (logits.Length != sequenceLength * _labels.Count)
+            {
+                throw new InvalidDataException(
+                    $"NER model returned {logits.Length} scores; expected {sequenceLength * _labels.Count}.");
+            }
+
+            for (var tokenIndex = start; tokenIndex < end; tokenIndex++)
+            {
+                var token = pieces[tokenIndex];
+                if (!token.IsFirstPiece)
+                {
+                    continue;
+                }
+
+                var position = tokenIndex - start + 1;
+                var labelId = GetBestLabelId(logits, position);
+                var contextScore = Math.Min(tokenIndex - start, end - 1 - tokenIndex);
+                if (contextScore > contextScores[token.WordIndex])
+                {
+                    contextScores[token.WordIndex] = contextScore;
+                    predictions[token.WordIndex] = labelId;
+                }
+            }
+
+            if (end == pieces.Count)
+            {
+                break;
+            }
+
+            var nextStart = Math.Max(start + 1, end - ChunkOverlapTokens);
+            while (nextStart > start
+                   && pieces[nextStart].WordIndex == pieces[nextStart - 1].WordIndex)
+            {
+                nextStart--;
+            }
+
+            start = nextStart > start ? nextStart : end;
+        }
+
+        if (predictions.Any(labelId => labelId < 0))
+        {
+            throw new InvalidDataException("The NER model did not produce a label for every input word.");
+        }
+
+        return predictions;
+    }
+
+    private int GetBestLabelId(float[] logits, int sequencePosition)
+    {
+        var scoreOffset = sequencePosition * _labels.Count;
+        var bestLabelId = 0;
+        if (!float.IsFinite(logits[scoreOffset]))
+        {
+            throw new InvalidDataException("The NER model returned a non-finite label score.");
+        }
+
+        for (var labelId = 1; labelId < _labels.Count; labelId++)
+        {
+            if (!float.IsFinite(logits[scoreOffset + labelId]))
+            {
+                throw new InvalidDataException("The NER model returned a non-finite label score.");
+            }
+
+            if (logits[scoreOffset + labelId] > logits[scoreOffset + bestLabelId])
+            {
+                bestLabelId = labelId;
+            }
+        }
+
+        return bestLabelId;
+    }
+
+    private List<NamedEntity> GetNamedEntities(
+        string corpus,
+        IReadOnlyList<TokenizedWord> words,
+        IReadOnlyList<int> predictions)
+    {
+        var entities = new List<NamedEntity>();
+        var seen = new HashSet<(string Name, string Type)>();
+        string? currentType = null;
+        var entityStart = 0;
+        var entityEnd = 0;
+
+        void CompleteEntity()
+        {
+            if (currentType is null)
+            {
+                return;
+            }
+
+            var name = corpus[entityStart..entityEnd];
+            if (seen.Add((name, currentType)))
+            {
+                entities.Add(new NamedEntity { Name = name, Type = currentType });
+            }
+
+            currentType = null;
+        }
+
+        for (var wordIndex = 0; wordIndex < words.Count; wordIndex++)
+        {
+            var label = _labels[predictions[wordIndex]];
+            if (label == "O")
+            {
+                CompleteEntity();
+                continue;
+            }
+
+            if (label.Length < 3 || label[1] != '-'
+                || (label[0] != 'B' && label[0] != 'I'))
+            {
+                throw new InvalidDataException($"The NER model returned an unsupported label '{label}'.");
+            }
+
+            var entityType = label[2..];
+            if (!SupportedEntityTypes.Contains(entityType))
+            {
+                throw new InvalidDataException($"The NER model returned an unsupported entity type '{entityType}'.");
+            }
+
+            var word = words[wordIndex];
+            if (label[0] == 'B' || !string.Equals(currentType, entityType, StringComparison.Ordinal))
+            {
+                CompleteEntity();
+                currentType = entityType;
+                entityStart = word.Start;
+                entityEnd = word.End;
+            }
+            else
+            {
+                entityEnd = word.End;
+            }
+        }
+
+        CompleteEntity();
+        return entities;
+    }
+
+    private static IReadOnlyList<string> LoadLabels(string path)
+    {
+        using var document = JsonDocument.Parse(File.ReadAllText(path));
+        var labelMap = document.RootElement.GetProperty("id2label");
+        var labels = labelMap.EnumerateObject()
+            .Select(property => (Id: int.Parse(property.Name, System.Globalization.CultureInfo.InvariantCulture),
+                Label: property.Value.GetString()
+                    ?? throw new InvalidDataException("The NER model has an empty label.")))
+            .OrderBy(pair => pair.Id)
+            .ToArray();
+
+        if (labels.Length == 0 || labels.Where((pair, index) => pair.Id != index).Any())
+        {
+            throw new InvalidDataException("The NER model label IDs must be contiguous and start at zero.");
+        }
+
+        return labels.Select(pair => pair.Label).ToArray();
+    }
+
+    private sealed record ModelToken(int TokenId, int WordIndex, bool IsFirstPiece);
 }

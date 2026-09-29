@@ -17,10 +17,8 @@ Agitprop.AppHost/Agitprop.AppHost.csproj`.
     (external), with OTLP exporter.
   - **PostgreSQL** (`postgres`): data volume, pgAdmin on `5050`, persistent
     lifetime, OTLP exporter; attaches database `newsfeed`.
-  - **NLP Service** (`nlpservice`): `uvicorn app:app` from
-    `../Agitprop.Scraper.NLPService`, with `/health` check; OTLP.
 - Adds all .NET projects to the application model:
-  - `consumer` — waits for `newsfeedDb`, `messaging`, `nlpService`; references all.
+  - `consumer` — waits for and references `newsfeedDb` and `messaging`; runs Hungarian NER in-process.
   - `rssreader` — waits for `messaging`, `consumer`.
   - `backend` (Web.Api) — waits for `newsfeedDb`, `messaging`.
   - `frontend` (Web.Client) — waits for `backend`, external HTTP endpoints.

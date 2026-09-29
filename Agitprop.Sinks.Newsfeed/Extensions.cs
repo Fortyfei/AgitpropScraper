@@ -25,25 +25,7 @@ public static class Extensions
     /// <returns>The updated host application builder.</returns>
     public static IHostApplicationBuilder AddNewsfeedSink(this IHostApplicationBuilder builder)
     {
-        builder.Services.AddHttpClient<INamedEntityRecognizer, NamedEntityRecognizer>(client =>
-        {
-            var baseUrl = builder.Configuration.GetValue<string>("NLPSERVICE_HTTP", "http+https://nlpservice").TrimEnd('/');
-            client.BaseAddress = new Uri(baseUrl);
-            client.Timeout = TimeSpan.FromMinutes(10);
-
-        })
-        .RemoveAllResilienceHandlers()
-        .AddStandardResilienceHandler(conf =>
-        {
-            conf.AttemptTimeout.Timeout = TimeSpan.FromMinutes(7);
-            conf.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(20);
-
-            conf.CircuitBreaker.SamplingDuration = TimeSpan.FromMinutes(20);
-            conf.Retry.MaxRetryAttempts = 3;
-            conf.Retry.UseJitter = true;
-            conf.Retry.BackoffType = Polly.DelayBackoffType.Exponential;
-            conf.Retry.Delay = TimeSpan.FromSeconds(15);
-        });
+        builder.Services.AddSingleton<INamedEntityRecognizer, NamedEntityRecognizer>();
 
         builder.AddNewsfeedDB();
 

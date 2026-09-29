@@ -7,10 +7,18 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Logging" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Agitprop.Infrastructure\Agitprop.Infrastructure.csproj" />
+    <ProjectReference Include="..\Agitprop.Core\Agitprop.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Agitprop.UnitTests</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 </Project>

@@ -30,21 +30,11 @@ internal class Program
 
         var newsfeedDb = postgres.AddDatabase("newsfeed");
 
-        var nlpService = builder.AddUvicornApp("nlpservice", "../Agitprop.Scraper.NLPService", "app:app")
-                                .WithHttpHealthCheck("/health")
-                                .WithEnvironment("Reload", "True")
-                                .WithEnvironment("LOG_LEVEL", "debug")
-                                .WithOtlpExporter()
-                                .WithContainerRegistry(registry)
-                                .WithEnvironmentAwareImagePush();
-
         var consumer = builder.AddProject<Agitprop_Scraper_Consumer>("consumer")
                               .WaitFor(newsfeedDb)
                               .WithReference(newsfeedDb)
                               .WaitFor(messaging)
                               .WithReference(messaging)
-                              .WaitFor(nlpService)
-                              .WithReference(nlpService)
                               .WithOtlpExporter()
                               .WithContainerRegistry(registry)
                               .WithEnvironmentAwareImagePush();

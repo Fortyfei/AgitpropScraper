@@ -95,28 +95,20 @@ sequenceDiagram
     end
 ```
 
-## 5. NLP Service Pipeline
+## 5. In-Process NLP Pipeline
 
 ```mermaid
 sequenceDiagram
-    participant CLIENT as NamedEntityRecognizer
-    participant SVC as NLP Service (FastAPI)
-    participant NLP as spaCy (hu_core_news_lg)
+    participant SINK as NewsfeedSink
+    participant NER as INamedEntityRecognizer
+    participant ONNX as ONNX Runtime / Hungarian huBERT
+    participant DB as PostgreSQL
 
-    CLIENT->>SVC: POST /analyzeSingle { text }
-    SVC->>NLP: nlp(text)
-    NLP-->>SVC: NamedEntityCollection
-    SVC-->>CLIENT: List<NamedEntity>
-
-    Note over CLIENT,SVC: Batch variant
-    CLIENT->>SVC: POST /analyzeBatch { texts[] }
-    SVC->>NLP: nlp.pipe(texts)
-    NLP-->>SVC: NamedEntityCollection[]
-    SVC-->>CLIENT: NamedEntityCollection[]
-
-    Note over CLIENT,SVC: Health check
-    CLIENT->>SVC: GET /health
-    SVC-->>CLIENT: { status: "ok" }
+    SINK->>NER: AnalyzeSingleAsync(article text)
+    NER->>ONNX: tokenize and infer (overlapping windows)
+    ONNX-->>NER: BIO label logits
+    NER-->>SINK: NamedEntityCollection (surface forms)
+    SINK->>DB: Persist entities and mentions
 ```
 
 ## 6. Web API → Blazor Client Pipeline
@@ -227,7 +219,6 @@ aspire start --apphost Agitprop.AppHost/Agitprop.AppHost.csproj
    - **RabbitMQ** (`messaging`) — mgmt `:15672`, AMQP `:5672`, OTLP
    - **PostgreSQL** (`postgres`) — data volume, pgAdmin `:5050`, persistent lifetime, OTLP
    - **Database** `newsfeed` attached to PostgreSQL
-   - **NLP service** (`nlpservice`) — `uvicorn app:app`, health check `:8111/health`
    - **Consumer**, **RSS Feed Reader**, **Web API**, **Web Client** projects
 4. Each service waits for its dependencies (see component table in architecture.md).
 
@@ -235,11 +226,10 @@ aspire start --apphost Agitprop.AppHost/Agitprop.AppHost.csproj
 
 1. **RabbitMQ** starts first (infrastructure).
 2. **PostgreSQL** + **Database** start next.
-3. **NLP Service** (`nlpservice`) starts and loads `hu_core_news_lg` model.
-4. **Consumer** waits for `newsfeedDb`, `messaging`, `nlpService`. Registers MassTransit endpoints and uses the shared database.
-5. **RSS Feed Reader** waits for `messaging`, `Consumer`. Registers as `IHostedService`.
-6. **Web API** waits for `newsfeedDb`, `messaging`. Applies migrations at startup when configured, then maps controllers.
-7. **Web Client** waits for backend (Web API) + external HTTP. Blazor InteractiveServer rendering.
+3. **Consumer** waits for `newsfeedDb` and `messaging`, loads the provisioned Hungarian ONNX model, and registers MassTransit endpoints.
+4. **RSS Feed Reader** waits for `messaging`, `Consumer`. Registers as `IHostedService`.
+5. **Web API** waits for `newsfeedDb`, `messaging`. Applies migrations at startup when configured, then maps controllers.
+6. **Web Client** waits for backend (Web API) + external HTTP. Blazor InteractiveServer rendering.
 
 ### Step 3: Runtime Operation
 
@@ -247,7 +237,7 @@ aspire start --apphost Agitprop.AppHost/Agitprop.AppHost.csproj
 2. **Consumer** consumes from queue → `ScrapingJobFactory.GetArticleScrapingJob` → `ISpider.CrawlAsync`.
 3. **Spider** uses `IPageTransport.LoadAsync` → `HttpStaticPageLoader` (or `PuppeteerPageLoader` if browser mode).
 4. **BaseArticleContentParser** extracts date/title/lead/article via XPath fallback lists.
-5. **NamedEntityRecognizer** POSTs to NLP service `/analyzeSingle` → returns `NamedEntityCollection`.
+5. **NamedEntityRecognizer** runs the local ONNX NER model in-process and returns a `NamedEntityCollection`.
 6. **NewsfeedSink** persists to PostgreSQL via `AppDbContext.CreateMentionsAsync`.
 7. **Web API** serves entity browse/analytics from PostgreSQL (cached 15 min / 1 hour).
 8. **CLI** can re-queue failed messages via `retry` command.
