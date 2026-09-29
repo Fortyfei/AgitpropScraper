@@ -1,167 +1,139 @@
-using System.Net;
-using System.Text.Json;
 using Agitprop.Scraper.NLPService;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Agitprop.UnitTests;
 
 public class NamedEntityRecognizerTests
 {
+    private static readonly string[] Labels =
+    [
+        "B-LOC", "B-MISC", "B-ORG", "B-PER",
+        "I-LOC", "I-MISC", "I-ORG", "I-PER", "O"
+    ];
+
     [Test]
-    public async Task PingAsync_RequestsHealthEndpoint()
+    public async Task AnalyzeSingleAsync_CombinesSubwordsAndKeepsOriginalSurfaceForms()
     {
-        var handler = new RecordingHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        var model = new RecordingNerModel(new Dictionary<int, int>
         {
-            Content = new StringContent("alive")
+            [12] = 3,
+            [10] = 0,
+            [11] = 4,
+            [15] = 0
+        });
+        using var recognizer = CreateRecognizer(model);
+
+        var result = await recognizer.AnalyzeSingleAsync("Kovács Szeged vármegye, Szentendre");
+
+        Assert.That(result.All.Select(entity => (entity.Name, entity.Type)), Is.EqualTo(new[]
+        {
+            ("Kovács", "PER"),
+            ("Szeged vármegye", "LOC"),
+            ("Szentendre", "LOC")
         }));
-        using var client = CreateClient(handler);
-        var recognizer = CreateRecognizer(client);
+    }
 
-        var result = await recognizer.PingAsync();
+    [Test]
+    public async Task AnalyzeSingleAsync_DeduplicatesBySurfaceNameAndTypeInFirstSeenOrder()
+    {
+        var model = new RecordingNerModel(new Dictionary<int, int>
+        {
+            [10] = 0,
+            [13] = 0
+        });
+        using var recognizer = CreateRecognizer(model);
+
+        var result = await recognizer.AnalyzeSingleAsync("Szeged, Budapest, Szeged");
+
+        Assert.That(result.All.Select(entity => entity.Name), Is.EqualTo(new[] { "Szeged", "Budapest" }));
+        Assert.That(result.All.Select(entity => entity.Type), Is.All.EqualTo("LOC"));
+    }
+
+    [Test]
+    public async Task AnalyzeBatchAsync_PreservesInputOrderAndEmptyResults()
+    {
+        var model = new RecordingNerModel(new Dictionary<int, int>
+        {
+            [12] = 3
+        });
+        using var recognizer = CreateRecognizer(model);
+
+        var results = await recognizer.AnalyzeBatchAsync(["no entity", "Kovács", ""]);
 
         Assert.Multiple(() =>
         {
-            Assert.That(handler.LastMethod, Is.EqualTo(HttpMethod.Get));
-            Assert.That(handler.LastUri!.AbsolutePath, Is.EqualTo("/health"));
-            Assert.That(result, Is.EqualTo("alive"));
+            Assert.That(results, Has.Length.EqualTo(3));
+            Assert.That(results[0].All, Is.Empty);
+            Assert.That(results[1].All.Single().Name, Is.EqualTo("Kovács"));
+            Assert.That(results[1].All.Single().Type, Is.EqualTo("PER"));
+            Assert.That(results[2].All, Is.Empty);
         });
     }
 
     [Test]
-    public async Task AnalyzeSingleAsync_SendsTextAndDeserializesEntities()
+    public async Task AnalyzeSingleAsync_WithEmptyTextDoesNotRunInference()
     {
-        var handler = new RecordingHandler((_, _) => Task.FromResult(JsonResponse(
-            "[{\"Item1\":\"Budapest\",\"Item2\":\"LOC\"}]")));
-        using var client = CreateClient(handler);
-        var recognizer = CreateRecognizer(client);
+        var model = new RecordingNerModel(new Dictionary<int, int>());
+        using var recognizer = CreateRecognizer(model);
 
-        var result = await recognizer.AnalyzeSingleAsync("News from Budapest");
+        var result = await recognizer.AnalyzeSingleAsync("");
 
-        using var requestJson = JsonDocument.Parse(handler.LastBody!);
         Assert.Multiple(() =>
         {
-            Assert.That(handler.LastMethod, Is.EqualTo(HttpMethod.Post));
-            Assert.That(handler.LastUri!.AbsolutePath, Is.EqualTo("/analyzeSingle"));
-            Assert.That(requestJson.RootElement.GetProperty("text").GetString(), Is.EqualTo("News from Budapest"));
-            Assert.That(result.All, Has.Count.EqualTo(1));
-            Assert.That(result.All[0].Name, Is.EqualTo("Budapest"));
-            Assert.That(result.All[0].Type, Is.EqualTo("LOC"));
+            Assert.That(result.All, Is.Empty);
+            Assert.That(model.CallCount, Is.Zero);
         });
     }
 
-    [Test]
-    public async Task AnalyzeBatchAsync_SendsTextsAndPreservesBatchShape()
+    private static NamedEntityRecognizer CreateRecognizer(RecordingNerModel model)
     {
-        var handler = new RecordingHandler((_, _) => Task.FromResult(JsonResponse(
-            "[[],[{\"Item1\":\"Szeged\",\"Item2\":\"LOC\"}]]")));
-        using var client = CreateClient(handler);
-        var recognizer = CreateRecognizer(client);
-
-        var result = await recognizer.AnalyzeBatchAsync(["No entities", "Szeged"]);
-
-        using var requestJson = JsonDocument.Parse(handler.LastBody!);
-        var texts = requestJson.RootElement.GetProperty("texts");
-        Assert.Multiple(() =>
-        {
-            Assert.That(handler.LastUri!.AbsolutePath, Is.EqualTo("/analyzeBatch"));
-            Assert.That(texts.GetArrayLength(), Is.EqualTo(2));
-            Assert.That(texts[0].GetString(), Is.EqualTo("No entities"));
-            Assert.That(texts[1].GetString(), Is.EqualTo("Szeged"));
-            Assert.That(result, Has.Length.EqualTo(2));
-            Assert.That(result[0].All, Is.Empty);
-            Assert.That(result[1].All[0].Name, Is.EqualTo("Szeged"));
-        });
-    }
-
-    [Test]
-    public async Task AnalyzeSingleAsync_WhenResponseIsUnsuccessful_ThrowsWithStatus()
-    {
-        var handler = new RecordingHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.BadGateway)
-        {
-            ReasonPhrase = "upstream unavailable",
-            Content = new StringContent("unavailable")
-        }));
-        using var client = CreateClient(handler);
-        var recognizer = CreateRecognizer(client);
-
-        var exception = Assert.ThrowsAsync<InvalidOperationException>(
-            () => recognizer.AnalyzeSingleAsync("text"));
-
-        Assert.That(exception!.Message, Does.Contain("502"));
-        Assert.That(handler.CallCount, Is.EqualTo(1));
-    }
-
-    [Test]
-    public async Task AnalyzeSingleAsync_WhenResponseIsInvalidJson_ThrowsParseError()
-    {
-        var handler = new RecordingHandler((_, _) => Task.FromResult(JsonResponse("not json")));
-        using var client = CreateClient(handler);
-        var recognizer = CreateRecognizer(client);
-
-        var exception = Assert.ThrowsAsync<InvalidOperationException>(
-            () => recognizer.AnalyzeSingleAsync("text"));
-
-        Assert.That(exception!.Message, Is.EqualTo("Failed to parse NLP service response"));
-        Assert.That(exception.InnerException, Is.TypeOf<JsonException>());
-    }
-
-    [Test]
-    public async Task AnalyzeSingleAsync_WhenFirstAttemptFails_RetriesAndReturnsSuccess()
-    {
-        var handler = new RecordingHandler((_, callCount) => Task.FromResult(
-            callCount == 1
-                ? new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
-                : JsonResponse("[]")));
-        using var client = CreateClient(handler);
-        var recognizer = CreateRecognizer(client, retryCount: 1);
-
-        var result = await recognizer.AnalyzeSingleAsync("text");
-
-        Assert.That(result.All, Is.Empty);
-        Assert.That(handler.CallCount, Is.EqualTo(2));
-    }
-
-    private static HttpClient CreateClient(RecordingHandler handler) => new(handler)
-    {
-        BaseAddress = new Uri("https://nlp.test/")
-    };
-
-    private static NamedEntityRecognizer CreateRecognizer(HttpClient client, int retryCount = 0)
-    {
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
+        var tokenizer = new NerTokenizer(
+            new Dictionary<string, int>(StringComparer.Ordinal)
             {
-                ["Retry:NLPService"] = retryCount.ToString()
-            })
-            .Build();
-        return new NamedEntityRecognizer(client, NullLogger<NamedEntityRecognizer>.Instance, configuration);
+                ["[UNK]"] = 1,
+                ["[CLS]"] = 2,
+                ["[SEP]"] = 3,
+                ["Kovács"] = 12,
+                ["Szeged"] = 10,
+                ["vármegye"] = 11,
+                ["Budapest"] = 13,
+                ["no"] = 14,
+                ["entity"] = 17,
+                [","] = 18,
+                ["Szent"] = 15,
+                ["##endre"] = 16
+            },
+            "[UNK]",
+            "##",
+            100);
+        return new NamedEntityRecognizer(
+            tokenizer,
+            model,
+            Labels,
+            NullLogger<NamedEntityRecognizer>.Instance);
     }
 
-    private static HttpResponseMessage JsonResponse(string json) => new(HttpStatusCode.OK)
-    {
-        Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json")
-    };
-
-    private sealed class RecordingHandler(
-        Func<HttpRequestMessage, int, Task<HttpResponseMessage>> respond) : HttpMessageHandler
+    private sealed class RecordingNerModel(IReadOnlyDictionary<int, int> labelByTokenId) : INerModel
     {
         public int CallCount { get; private set; }
-        public HttpMethod? LastMethod { get; private set; }
-        public Uri? LastUri { get; private set; }
-        public string? LastBody { get; private set; }
 
-        protected override async Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request,
-            CancellationToken cancellationToken)
+        public float[] Predict(long[] inputIds)
         {
             CallCount++;
-            LastMethod = request.Method;
-            LastUri = request.RequestUri;
-            LastBody = request.Content is null
-                ? null
-                : await request.Content.ReadAsStringAsync(cancellationToken);
-            return await respond(request, CallCount);
+            var scores = new float[inputIds.Length * Labels.Length];
+            for (var tokenIndex = 0; tokenIndex < inputIds.Length; tokenIndex++)
+            {
+                var labelIndex = labelByTokenId.TryGetValue((int)inputIds[tokenIndex], out var predictedLabel)
+                    ? predictedLabel
+                    : 8;
+                scores[tokenIndex * Labels.Length + labelIndex] = 1;
+            }
+
+            return scores;
+        }
+
+        public void Dispose()
+        {
         }
     }
 }

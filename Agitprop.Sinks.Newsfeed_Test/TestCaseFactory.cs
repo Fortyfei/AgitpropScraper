@@ -64,6 +64,20 @@ public static class TestCaseFactory
         }
     }
 
+    public static IEnumerable<string> GetNamedEntityCorpus()
+    {
+        foreach (var site in SupportedSites)
+        {
+            foreach (var testCase in GetContentParserTestCases(site))
+            {
+                if (!string.IsNullOrWhiteSpace(testCase.ExpectedContent.Text))
+                {
+                    yield return testCase.ExpectedContent.Text;
+                }
+            }
+        }
+    }
+
     public static IEnumerable<TestCaseData> GetContentParserOnlineCases()
     {
         foreach (var site in SupportedSites)

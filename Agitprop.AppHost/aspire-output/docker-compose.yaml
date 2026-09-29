@@ -43,29 +43,6 @@ services:
         read_only: false
     networks:
       - "aspire"
-  nlpservice:
-    image: "${NLPSERVICE_IMAGE}"
-    command:
-      - "app:app"
-      - "--host"
-      - "0.0.0.0"
-      - "--port"
-      - "8000"
-    environment:
-      OTEL_TRACES_EXPORTER: "otlp"
-      OTEL_LOGS_EXPORTER: "otlp"
-      OTEL_METRICS_EXPORTER: "otlp"
-      OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED: "true"
-      PORT: "8000"
-      Reload: "True"
-      LOG_LEVEL: "debug"
-      OTEL_EXPORTER_OTLP_ENDPOINT: "http://agitprop-dashboard:18889"
-      OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
-      OTEL_SERVICE_NAME: "nlpservice"
-    expose:
-      - "8000"
-    networks:
-      - "aspire"
   consumer:
     image: "${CONSUMER_IMAGE}"
     environment:
@@ -84,8 +61,6 @@ services:
       MESSAGING_USERNAME: "guest"
       MESSAGING_PASSWORD: "${MESSAGING_PASSWORD}"
       MESSAGING_URI: "amqp://guest:${MESSAGING_PASSWORD}@messaging:5672"
-      NLPSERVICE_HTTP: "http://nlpservice:8000"
-      services__nlpservice__http__0: "http://nlpservice:8000"
       OTEL_EXPORTER_OTLP_ENDPOINT: "http://agitprop-dashboard:18889"
       OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
       OTEL_SERVICE_NAME: "consumer"
@@ -93,8 +68,6 @@ services:
       postgres:
         condition: "service_started"
       messaging:
-        condition: "service_started"
-      nlpservice:
         condition: "service_started"
     networks:
       - "aspire"

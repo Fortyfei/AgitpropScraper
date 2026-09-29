@@ -2,8 +2,8 @@
 
 Internal developer documentation for the **AgitpropScraper** project: a distributed
 news-article scraping and named-entity analytics platform built on .NET 10, Aspire 13,
-MassTransit/RabbitMQ, PuppeteerSharp, PostgreSQL, and a Python NLP microservice
-(spaCy).
+MassTransit/RabbitMQ, PuppeteerSharp, PostgreSQL, and an in-process .NET Hungarian
+NLP model using ONNX Runtime.
 
 ## Table of Contents
 
@@ -25,7 +25,7 @@ MassTransit/RabbitMQ, PuppeteerSharp, PostgreSQL, and a Python NLP microservice
 - [Sinks.Newsfeed](components/05-sinks-newsfeed.md) — site-specific parsers, paginators, EF Core sink.
 - [Scraper.Consumer](components/06-scraper-consumer.md) — MassTransit consumer that runs the spider.
 - [Scraper.RssFeedReader](components/07-scraper-rssfeedreader.md) — RSS-to-queue producer.
-- [Scraper.NLPService](components/08-scraper-nlpservice.md) — Python FastAPI / spaCy NER service.
+- [Scraper.NLPService](components/08-scraper-nlpservice.md) — in-process .NET / ONNX Hungarian NER library.
 - [Web.Api](components/09-web-api.md) — read-only analytics REST API.
 - [Web.Client](components/10-web-client.md) — Blazor WebAssembly dashboard.
 - [CLI](components/11-cli.md) — `dotnet` operator tool.

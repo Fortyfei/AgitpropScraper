@@ -29,8 +29,7 @@ flowchart TB
 
     %% Services
     subgraph "Services"
-        NH[Newsfeed NLP Service: "uvicorn app:app on PORT 8111"]
-        CON[Consumer: waits for newsfeedDb, messaging, nlpService]
+        CON[Consumer: in-process Hungarian NER, waits for newsfeedDb and messaging]
         RSS[RSS Feed Reader: waits for messaging, Consumer]
         WEB_API[Web API: waits for newsfeedDb, messaging]
         WEB_CL[Web Client: waits for backend, external HTTP]
@@ -40,7 +39,6 @@ flowchart TB
     REG -->|push| REG1
     REG1 -->|pull| RABBIT
     REG1 -->|pull| PG
-    REG1 -->|pull| NH
     REG1 -->|pull| CON
     REG1 -->|pull| RSS
     REG1 -->|pull| WEB_API
@@ -50,17 +48,14 @@ flowchart TB
     RABBIT -->|publish/subscribe| RSS
     RABBIT -->|publish/subscribe| WEB_API
 
-    PG -->|EF Core| NH
     PG -->|EF Core| CON
     PG -->|EF Core| WEB_API
 
-    NH -.->|OTLP gRPC| DIAG
     CON -.->|OTLP gRPC| DIAG
     RSS -.->|OTLP gRPC| DIAG
     WEB_API -.->|OTLP gRPC| DIAG
     WEB_CL -.->|HTTP| DIAG
 
-    style NH fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
     style CON fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
     style RSS fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
     style WEB_API fill:#fff3e0,stroke:#f57c00,stroke-width:2px
@@ -80,9 +75,9 @@ flowchart TB
 | 2 | **Agitprop.Core** | Class library (interfaces/models) | — |
 | 3 | **Agitprop.Infrastructure** | Class library (spiders, loaders, proxy pool) | — |
 | 4 | **Agitprop.Infrastructure.Puppeteer** | Class library (Puppeteer loaders) | — |
-| 5 | **Agitprop.Scraper.Consumer** | ASP.NET Core hosted service | newsfeedDb, messaging, nlpService; references all |
+| 5 | **Agitprop.Scraper.Consumer** | ASP.NET Core hosted service with in-process Hungarian NER | newsfeedDb, messaging |
 | 6 | **Agitprop.Scraper.RssFeedReader** | ASP.NET Core hosted service | messaging, Consumer |
-| 7 | **Agitprop.Scraper.NLPService** | Python FastAPI (uvicorn) | — |
+| 7 | **Agitprop.Scraper.NLPService** | .NET class library (ONNX Runtime, huBERT NER) | — |
 | 8 | **Agitprop.Web.Api** | ASP.NET Core Web API | newsfeedDb, messaging |
 | 9 | **Agitprop.Web.Client** | Blazor WebAssembly | backend (Web.Api), external HTTP |
 | 10 | **Agitprop.CLI** | System.CommandLine console | — |
@@ -107,9 +102,10 @@ The request flow follows these steps (see pipelines.md for sequence diagrams):
 4. **Sink** (`Agitprop.Sinks.Newsfeed.NewsfeedSink`) receives the parsed `ContentParserResult`s
    and persists them to PostgreSQL via Entity Framework Core (`AppDbContext`).
 
-5. **NLP Service** (`Agitprop.Scraper.NLPService`) is called (via `NamedEntityRecognizer`) to
-   extract entities from the article text. Results are stored back to the same PostgreSQL
-   database.
+5. The sink calls the in-process `NamedEntityRecognizer` in
+   `Agitprop.Scraper.NLPService` to extract Hungarian entities from article text.
+   The ONNX model is provisioned with the consumer deployment; no NLP HTTP
+   service or runtime model download is used. Results are stored in PostgreSQL.
 
 6. **Web API** (`Agitprop.Web.Api`) serves entity browse and analytics endpoints (cached, 15‑min
    cache for browse, 1‑hour for entity details). Blazor client consumes these endpoints.

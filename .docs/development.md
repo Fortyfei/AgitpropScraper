@@ -5,7 +5,6 @@
 | Tool | Version |
 |------|---------|
 | .NET SDK | 10.0.0+ |
-| Python | 3.12+ |
 | Docker Desktop | Latest |
 | Git | Latest |
 | VS Code / Rider | Latest |
@@ -22,6 +21,10 @@ dotnet restore
 
 ### 2.1 Start Full Infrastructure (Aspire)
 
+The consumer self-provisions the checksum-pinned Hungarian NER model on first
+start (downloads to `ner-model` beside its binaries and verifies SHA-256
+hashes) — no separate provisioning step is required:
+
 ```bash
 # Starts all services through Aspire; inspect the dashboard URL printed by Aspire
 aspire start --apphost Agitprop.AppHost/Agitprop.AppHost.csproj
@@ -30,7 +33,6 @@ aspire start --apphost Agitprop.AppHost/Agitprop.AppHost.csproj
 **What starts:**
 - RabbitMQ (mgmt 15672, AMQP 5672)
 - PostgreSQL (pgAdmin 5050)
-- NLP Service (FastAPI on :8111)
 - Consumer (runs spider + MassTransit)
 - RSS Feed Reader
 - Web API (Swagger on :5000)
@@ -45,7 +47,6 @@ aspire start --apphost Agitprop.AppHost/Agitprop.AppHost.csproj
 | Consumer only | `dotnet run --project Agitprop.Scraper.Consumer/Agitprop.Scraper.Consumer.csproj` |
 | RSS Feed Reader | `dotnet run --project Agitprop.Scraper.RssFeedReader/Agitprop.Scraper.RssFeedReader.csproj` |
 | CLI | `dotnet run --project Agitprop.CLI/Agitprop.CLI.csproj -- --help` |
-| NLP Service | `cd Agitprop.Scraper.NLPService && pip install -r requirements.txt && uvicorn app:app --port 8111` |
 
 ### 2.3 Environment Variables / Connection Strings
 
@@ -81,7 +82,7 @@ dotnet build Agitprop.slnx
 # Deterministic parser fixture tests
 dotnet test Agitprop.Sinks.Newsfeed_Test/Agitprop.Sinks.Newsfeed_Test.csproj --configuration Release
 
-# Spider and NLP client unit tests
+# Spider and in-process NLP unit tests
 dotnet test Agitprop.UnitTests/Agitprop.UnitTests.csproj --configuration Release
 
 # Aspire API + PostgreSQL integration test (requires Docker)
@@ -100,9 +101,10 @@ dotnet test Agitprop.Sinks.Newsfeed_Test/Agitprop.Sinks.Newsfeed_Test.csproj \
   --filter "FullyQualifiedName~ContentParserOnlineTests"
 ```
 
-The default fixture/unit test projects exclude the `[Explicit]` live-site parser checks and do
-not require Aspire, PostgreSQL, RabbitMQ, a browser, or the spaCy model. The Aspire integration
-project starts an isolated PostgreSQL container and API process, so it requires Docker.
+The default fixture/unit test projects exclude the `[Explicit]` live-site parser checks and
+the model-backed corpus smoke test. Unit tests do not require Aspire, PostgreSQL, RabbitMQ,
+a browser, or the ONNX model. The Aspire integration project starts an isolated PostgreSQL
+container and API process, so it requires Docker.
 
 ### 3.3 Run Content Parser Maintenance
 
@@ -161,7 +163,6 @@ dotnet run --project Agitprop.CLI/Agitprop.CLI.csproj -- retry --failedQueue <qu
 | RabbitMQ AMQP | 5672 |
 | pgAdmin | 5050 |
 | PostgreSQL | 5432 |
-| NLP Service | 8111 |
 | Web API | 5000 (Swagger on /swagger) |
 | Web Client | 5001 |
 | Web API (Aspire) | Dynamic (check dashboard) |
@@ -173,6 +174,6 @@ dotnet run --project Agitprop.CLI/Agitprop.CLI.csproj -- retry --failedQueue <qu
 | `InvalidOperationException: Connection string 'newsfeed' not found` | Add connection string to `appsettings.Development.json` or user-secrets. |
 | `MSB3491` / `CS2012` file lock on build | Run `aspire stop` then `aspire start`; or delete `bin/obj` folders. |
 | Port already in use | Aspire uses randomized ports in isolated mode; check dashboard for actual ports. |
-| NLP service fails to load spaCy model | `cd Agitprop.Scraper.NLPService && python -m spacy download hu_core_news_lg` |
+| Consumer fails to load Hungarian NER model | Check network access to `huggingface.co` (the model is downloaded automatically on first start) and inspect logs for a SHA-256 mismatch; delete `ner-model` beside the consumer binaries to force a clean re-download. |
 | Proxy initialization timeout | Set `Proxy.StartupTimeoutMinutes` higher, or disable proxies (`UseProxies: false`). |
 | Blazor client not loading | Ensure `Microsoft.AspNetCore.Components.WebAssembly.Server` package is referenced. |

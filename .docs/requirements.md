@@ -5,7 +5,7 @@
 | ID | Requirement |
 |----|-------------|
 | FR-001 | Scrape article content from multiple news sites using site-specific XPath parsers. |
-| FR-002 | Extract named entities (PER, LOC, ORG, MISC) from article text using a spaCy-based NLP service. |
+| FR-002 | Extract Hungarian named entities (PER, LOC, ORG, MISC) in-process using the provisioned .NET ONNX model. |
 | FR-003 | Persist scraped articles, entities, and mention links to PostgreSQL (`newsfeed` database). |
 | FR-004 | Publish scraped jobs to RabbitMQ for downstream processing. |
 | FR-005 | Re-queue failed feed messages via the CLI (`dotnet agitprop retry …`). |
@@ -22,17 +22,18 @@
 | ID | Requirement |
 |----|-------------|
 | NFR-001 | Architecture: Modular monolith orchestrated by Aspire 13.5.4. |
-| NFR-002 | Language / runtime: C# 12 / .NET 10.0.0; Python 3.12 for NLP service. |
+| NFR-002 | Language / runtime: C# / .NET 10.0.0; no Python runtime in the scraper deployment. |
 | NFR-003 | Database: PostgreSQL 17 (pgAdmin UI on port 5050). |
 | NFR-004 | Message broker: RabbitMQ 3.1+ (mgmt UI on 15672, AMQP on 5672). |
 | NFR-005 | Proxy providers: ProxyScrape and RedScrape; configurable fallback to direct HTTP. |
 | NFR-006 | Browser automation: PuppeteerSharp with Chromium; PuppeteerExtraSharp + plugins optional. |
-| NFR-007 | Resiliency: Polly `WaitAndRetry` (NLP service: 3 retries) and `CircuitBreaker` on HTTP calls. |
+| NFR-007 | Resiliency: Polly `WaitAndRetry` for transient sink operations and `CircuitBreaker` on HTTP calls. |
 | NFR-008 | Observability: OpenTelemetry OTLP exporter (traces + metrics → collector). |
-| NFR-009 | Health checks: Aspire built-in health endpoints + custom `/health` on NLP service. |
+| NFR-009 | Health checks: Aspire built-in health endpoints; the consumer validates required ONNX model assets during startup. |
 | NFR-010 | Docker: Multi-stage builds; images published to GHCR (`fortyfei/agitprop`). |
 | NFR-011 | CI/CD: GitHub Actions (`aspire-publish.yml`) using Aspire image publishing on push to `main`. |
 | NFR-012 | Access control: Internal developers only (no public exposure). |
+| NFR-013 | NLP model files are pinned and checksum-verified during provisioning; application startup requires no internet access. |
 
 ## 3. Development Constraints
 

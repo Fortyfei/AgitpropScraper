@@ -25,14 +25,9 @@ var postgres = builder.AddPostgres("postgres")
 
 var newsfeedDb = postgres.AddDatabase("newsfeed");
 
-var nlpService = builder.AddUvicornApp("nlpservice", "../Agitprop.Scraper.NLPService", "app:app")
-    .WithHttpHealthCheck("/health")
-    .WithOtlpExporter();
-
 var consumer = builder.AddProject<Projects.Agitprop_Scraper_Consumer>("consumer")
     .WithReference(newsfeedDb).WaitFor(newsfeedDb)
-    .WithReference(messaging).WaitFor(messaging)
-    .WithReference(nlpService).WaitFor(nlpService);
+    .WithReference(messaging).WaitFor(messaging);
 
 var rssReader = builder.AddProject<Projects.Agitprop_Scraper_RssFeedReader>("rssreader")
     .WithReference(messaging).WaitFor(messaging)
@@ -53,7 +48,7 @@ The project provides one canonical AppHost for the full distributed application:
 
 | Project | Use Case | What's included |
 |---------|----------|-----------------|
-| `Agitprop.AppHost` | Full distributed app | postgres + newsfeedDb + nlpService + consumer + rss-reader + backend + frontend + rabbitmq + dashboard |
+| `Agitprop.AppHost` | Full distributed app | postgres + newsfeedDb + consumer (in-process NER) + rss-reader + backend + frontend + rabbitmq + dashboard |
 
 ### Run the application:
 
@@ -65,6 +60,13 @@ aspire start --apphost Agitprop.AppHost/Agitprop.AppHost.csproj
 ## 3. Docker & Image Publishing
 
 Images are published to **GHCR** (`ghcr.io/fortyfei/agitprop`) via the Aspire AppHost and GitHub Actions.
+No model provisioning step is required at build or publish time: the consumer
+container downloads and SHA-256-verifies the pinned Hungarian ONNX model from
+Hugging Face automatically the first time it starts, then reuses the local
+copy on subsequent restarts. The deployed consumer requires outbound network
+access to `huggingface.co` on first start, and can override the model
+directory with `NLP__ModelDirectory` (for example, to point at a pre-seeded,
+read-only volume in an offline/air-gapped environment).
 
 ### Build & Push manually:
 
@@ -181,6 +183,5 @@ az containerapp up \
 | Consumer | Aspire built-in | `/health` |
 | Web API | Aspire built-in | `/health` |
 | Web Client | Aspire built-in | `/health` |
-| NLP Service | Custom FastAPI | `GET /health` |
 | RabbitMQ | Management plugin | `http://localhost:15672` |
 | PostgreSQL | pgAdmin | `http://localhost:5050` |

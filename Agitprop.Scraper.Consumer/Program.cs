@@ -1,9 +1,11 @@
 ﻿using System;
 
+using Agitprop.Core.Interfaces;
 using Agitprop.Infrastructure.Puppeteer;
 using Agitprop.Sinks.Newsfeed;
 
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 namespace Agitprop.Scraper.Consumer;
@@ -54,6 +56,7 @@ public class Program
         }
 
         var app = builder.Build();
+        app.Services.GetRequiredService<INamedEntityRecognizer>();
         
         app.Run();
     }
