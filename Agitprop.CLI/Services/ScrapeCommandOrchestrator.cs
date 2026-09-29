@@ -89,8 +89,6 @@ public sealed class ScrapeCommandOrchestrator : IScrapeCommandOrchestrator
             NewsSites.Mandiner => $"https://mandiner.hu/{date:yyyyMM}_sitemap.xml",
             NewsSites.Metropol => $"https://metropol.hu/{date:yyyyMM}_sitemap.xml",
             NewsSites.MagyarNemzet => $"https://magyarnemzet.hu/{date:yyyyMM}_sitemap.xml",
-            NewsSites.PestiSracok => $"https://www.pestisracok.hu/{date.Year:D4}/{date.Month:D2}/{date.Day:D2}",
-            NewsSites.MagyarJelen => $"https://www.magyarjelen.hu/{date.Year:D4}/{date.Month:D2}/{date.Day:D2}",
             NewsSites.HuszonnegyHu => $"https://www.24.hu/{date.Year:D4}/{date.Month:D2}/{date.Day:D2}",
             NewsSites.NegyNegyNegy => $"https://www.444.hu/{date.Year:D4}/{date.Month:D2}/{date.Day:D2}",
             NewsSites.HVG => $"https://www.hvg.hu/frisshirek/{date.Year:D4}.{date.Month:D2}.{date.Day:D2}",

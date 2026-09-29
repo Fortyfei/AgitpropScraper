@@ -2,7 +2,7 @@
 
 ## 1. Aspire Orchestration
 
-The project uses **Aspire 13.4.2** for orchestration. The main `Agitprop.AppHost/AppHost.cs` configures:
+The project uses **Aspire 13.5.4** for orchestration. The main `Agitprop.AppHost/AppHost.cs` configures:
 
 ```csharp
 var builder = DistributedApplication.CreateBuilder(args);
@@ -47,32 +47,24 @@ var frontend = builder.AddProject<Projects.Agitprop_Web_Client>("frontend")
     .WithExternalHttpEndpoints();
 ```
 
-## 2. AppHost Variants
+## 2. AppHost
 
-The project provides **three AppHost variants** for different deployment scenarios:
+The project provides one canonical AppHost for the full distributed application:
 
 | Project | Use Case | What's included |
 |---------|----------|-----------------|
 | `Agitprop.AppHost` | Full distributed app | postgres + newsfeedDb + nlpService + consumer + rss-reader + backend + frontend + rabbitmq + dashboard |
-| `Agitprop.AppHost.App` | App-only deployment | postgres + newsfeedDb + backend + frontend + dashboard |
-| `Agitprop.AppHost.Worker` | Worker-only deployment | nlpService + consumer + dashboard |
 
-### Run a specific variant:
+### Run the application:
 
 ```bash
 # Full app
-dotnet run --project Agitprop.AppHost/Agitprop.AppHost.csproj
-
-# App variant
-dotnet run --project Agitprop.AppHost.App/Agitprop.AppHost.App.csproj
-
-# Worker variant
-dotnet run --project Agitprop.AppHost.Worker/Agitprop.AppHost.Worker.csproj
+aspire start --apphost Agitprop.AppHost/Agitprop.AppHost.csproj
 ```
 
 ## 3. Docker & Image Publishing
 
-Images are published to **GHCR** (`ghcr.io/fortyfei/agitprop`) via `docker-bake.hcl` and GitHub Actions.
+Images are published to **GHCR** (`ghcr.io/fortyfei/agitprop`) via the Aspire AppHost and GitHub Actions.
 
 ### Build & Push manually:
 
@@ -80,11 +72,8 @@ Images are published to **GHCR** (`ghcr.io/fortyfei/agitprop`) via `docker-bake.
 # Login to GHCR
 echo $GITHUB_TOKEN | docker login ghcr.io -u fortyfei --password-stdin
 
-# Build all images
-docker buildx bake -f docker-bake.hcl
-
-# Publish
-docker buildx bake -f docker-bake.hcl --push
+# Publish images using the AppHost's configured registry and push workflow
+aspire do push
 ```
 
 ### Build a single service image:
@@ -100,8 +89,8 @@ docker build -t agitprop/consumer:latest -f Agitprop.Scraper.Consumer/Dockerfile
 The workflow (`.github/workflows/aspire-publish.yml`) runs on push to `main` and:
 
 1. Restores .NET solution.
-2. Builds Aspire artifacts (`dotnet build` + `dotnet publish`).
-3. Bakes Docker images via `docker buildx bake -f docker-bake.hcl --push`.
+2. Builds the Aspire application model and image artifacts.
+3. Pushes images through `aspire do push`.
 4. Pushes images to `ghcr.io/fortyfei/agitprop/*`.
 
 ### Environment Variables for CI:

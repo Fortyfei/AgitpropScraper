@@ -20,7 +20,7 @@ internal class MetropolArchiveLinkParser : SitemapLinkParser, ILinkParser
 
     public Task<List<ScrapingJobDescription>> GetLinksAsync(string baseUrl, HtmlDocument doc)
     {
-        var result = GetLinks(doc.ToString()).Select(link => new NewsfeedJobDescrpition
+        var result = GetLinks(doc.DocumentNode.OuterHtml).Select(link => new NewsfeedJobDescrpition
         {
             Url = new Uri(link).ToString(),
             Type = PageContentType.Article,

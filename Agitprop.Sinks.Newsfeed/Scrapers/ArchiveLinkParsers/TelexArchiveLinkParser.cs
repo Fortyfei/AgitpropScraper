@@ -20,6 +20,6 @@ internal class TelexArchiveLinkParser : SitemapLinkParser, ILinkParser
 
     public Task<List<ScrapingJobDescription>> GetLinksAsync(string baseUrl, HtmlDocument doc)
     {
-        return GetLinksAsync(baseUrl, doc.ToString());
+        return GetLinksAsync(baseUrl, doc.DocumentNode.OuterHtml);
     }
 }

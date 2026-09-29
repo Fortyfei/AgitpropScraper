@@ -15,11 +15,13 @@ internal class Program
 
         var messaging = builder.AddRabbitMQ("messaging")
                                .WithManagementPlugin(15672)
-                               .WithEndpoint(scheme: "amqp", port: 5672, targetPort: 5672, isExternal: true)
                                .WithExternalHttpEndpoints()
+                               .WithDataVolume()
+                               .WithLifetime(ContainerLifetime.Persistent)
                                .WithOtlpExporter();
 
         var postgres = builder.AddPostgres("postgres")
+                              .WithImageTag("17")
                               .WithDataVolume(isReadOnly: false)
                               .WithPgAdmin(pgAdmin => { pgAdmin.WithHostPort(5050); pgAdmin.WithImageTag("latest"); })
                               .WithEndpoint(scheme: "tcp", port: 5432, targetPort: 5432, isExternal: true)

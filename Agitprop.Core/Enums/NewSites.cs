@@ -7,8 +7,6 @@ public enum NewsSites
     Mandiner,
     Metropol,
     MagyarNemzet,
-    PestiSracok,
-    MagyarJelen,
     Alfahir,
     HuszonnegyHu,
     NegyNegyNegy,

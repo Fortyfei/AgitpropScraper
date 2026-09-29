@@ -17,8 +17,8 @@ Spider, parsers, NLP service, and the Newsfeed sink.
    `NamedEntityRecognizer` to extract named entities (PER/LOC/ORG/MISC) from
    article text.
 5. **Persistence** — saves entities + mention links to PostgreSQL via EF Core.
-6. **Migration** — applies EF Core migrations at startup when
-   `ASPNETCORE_ENVIRONMENT=Development` or `ApplyMigrationsAtStartup=true`.
+6. **Database ownership** — uses the shared PostgreSQL database; migrations are
+   applied by the Web API startup path rather than by this worker.
 
 ## Startup Validation
 

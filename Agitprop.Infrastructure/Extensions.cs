@@ -34,10 +34,10 @@ public static class Extensions
 
         if (useProxies)
         {
-            services.AddHttpClient<IProxyProvider, ProxyScrapeProxyProvider>();
+            services.AddHttpClient<ProxyScrapeProxyProvider>();
             services.AddSingleton<IProxyProvider, ProxyScrapeProxyProvider>();
 
-            services.AddHttpClient<IProxyProvider, RedScrapeProxyProvider>();
+            services.AddHttpClient<RedScrapeProxyProvider>();
             services.AddSingleton<IProxyProvider, RedScrapeProxyProvider>();
 
             services.AddSingleton<IProxyPool, ProxyPool>();

@@ -6,18 +6,6 @@
       "request": "launch",
       "name": "Launch Full AppHost",
       "program": "${workspaceFolder}/Agitprop.AppHost/Agitprop.AppHost.csproj"
-    },
-    {
-      "type": "aspire",
-      "request": "launch",
-      "name": "Launch Worker AppHost",
-      "program": "${workspaceFolder}/Agitprop.AppHost.Worker/Agitprop.AppHost.Worker.csproj"
-    },
-    {
-      "type": "aspire",
-      "request": "launch",
-      "name": "Launch App AppHost",
-      "program": "${workspaceFolder}/Agitprop.AppHost.App/Agitprop.AppHost.App.csproj"
     }
   ]
 }

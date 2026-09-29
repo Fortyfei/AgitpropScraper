@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-AgitpropScraper is a **modular monolith** orchestrated by **Aspire 13.4.2**. The diagram below shows the
+AgitpropScraper is a **modular monolith** orchestrated by **Aspire 13.5.4**. The diagram below shows the
 runtime topology (container registry, services, and infrastructure). Every service
 exposes OpenTelemetry OTLP (traces + metrics) and uses the shared
 `Agitprop.ServiceDefaults` package for health checks and resilience.
@@ -77,20 +77,18 @@ flowchart TB
 | # | Project | Kind | Waits for |
 |---|---------|------|-----------|
 | 1 | **Agitprop.AppHost** | Orchestrator (AppHost.cs) | — |
-| 2 | **Agitprop.AppHost.App** | Full app (AppHost.cs) | postgres, newsfeedDb |
-| 3 | **Agitprop.AppHost.Worker** | Worker variant | nlpService |
-| 4 | **Agitprop.CORE** | Class library (interfaces/models) | — |
-| 5 | **Agitprop.Infrastructure** | Class library (spiders, loaders, proxy pool) | — |
-| 6 | **Agitprop.Infrastructure.Puppeteer** | Class library (Puppeteer loaders) | — |
-| 7 | **Agitprop.Scraper.Consumer** | ASP.NET Core hosted service | newsfeedDb, messaging, nlpService; references all |
-| 8 | **Agitprop.Scraper.RssFeedReader** | ASP.NET Core hosted service | messaging, Consumer |
-| 9 | **Agitprop.Scraper.NLPService** | Python FastAPI (uvicorn) | — |
-| 10 | **Agitprop.Web.Api** | ASP.NET Core Web API | newsfeedDb, messaging |
-| 11 | **Agitprop.Web.Client** | Blazor WebAssembly | backend (Web.Api), external HTTP |
-| 12 | **Agitprop.CLI** | System.CommandLine console | — |
-| 13 | **Agitprop.ServiceDefaults** | Shared library (OTel, health checks, resilience) | — |
-| 14 | **Agitprop.Sinks.Newsfeed** | EF Core + parsers | — |
-| 15 | **Agitprop.Sinks.Newsfeed_Test** | xUnit test project | — |
+| 2 | **Agitprop.Core** | Class library (interfaces/models) | — |
+| 3 | **Agitprop.Infrastructure** | Class library (spiders, loaders, proxy pool) | — |
+| 4 | **Agitprop.Infrastructure.Puppeteer** | Class library (Puppeteer loaders) | — |
+| 5 | **Agitprop.Scraper.Consumer** | ASP.NET Core hosted service | newsfeedDb, messaging, nlpService; references all |
+| 6 | **Agitprop.Scraper.RssFeedReader** | ASP.NET Core hosted service | messaging, Consumer |
+| 7 | **Agitprop.Scraper.NLPService** | Python FastAPI (uvicorn) | — |
+| 8 | **Agitprop.Web.Api** | ASP.NET Core Web API | newsfeedDb, messaging |
+| 9 | **Agitprop.Web.Client** | Blazor WebAssembly | backend (Web.Api), external HTTP |
+| 10 | **Agitprop.CLI** | System.CommandLine console | — |
+| 11 | **Agitprop.ServiceDefaults** | Shared library (OTel, health checks, resilience) | — |
+| 12 | **Agitprop.Sinks.Newsfeed** | EF Core + parsers | — |
+| 13 | **Agitprop.Sinks.Newsfeed_Test** | NUnit test project | — |
 
 ## 2. Runtime Topology Walkthrough
 

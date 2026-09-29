@@ -35,8 +35,8 @@ MassTransit/RabbitMQ, PuppeteerSharp, PostgreSQL, and a Python NLP microservice
 ## Quick Start
 
 ```bash
-# Start the entire distributed app (Aspire dashboard on http://localhost:18888)
-dotnet run --project Agitprop.AppHost/Agitprop.AppHost.csproj
+# Start the entire distributed app through Aspire
+aspire start --apphost Agitprop.AppHost/Agitprop.AppHost.csproj
 ```
 
 For full instructions see [development.md](development.md).

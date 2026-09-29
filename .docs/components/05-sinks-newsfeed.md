@@ -18,7 +18,6 @@ All extend the abstract `BaseArticleContentParser : IContentParser`.
 | Parser | Source Site |
 |--------|-------------|
 | `BaseArticleContentParser.cs` | Base class — XPath fallback extraction |
-| `MagyarJelenArticleContentParser.cs` | Magyar Jelen |
 | `IndexArticleContentParser.cs` | Index |
 | `HvgArticleContentParser.cs` | HVG |
 | `HuszonnegyArticleContentParser.cs` | 24.hu |
@@ -31,7 +30,6 @@ All extend the abstract `BaseArticleContentParser : IContentParser`.
 | `TelexArticleContentParser.cs` | Telex |
 | `RtlArticleContentParser.cs` | RTL |
 | `RipostArticleContentParser.cs` | Ripost |
-| `PestisracokArticleContentParser.cs` | PestiSracok |
 | `OrigoArticleContentParser.cs` | Origó |
 
 #### BaseArticleContentParser
@@ -74,17 +72,24 @@ All extend the abstract `BaseArticleContentParser : IContentParser`.
 
 ## Test Project (`Agitprop.Sinks.Newsfeed_Test`)
 
-- `ContentParserOfflineTests/` — tests parsers against fixture HTML snapshots.
-- `ContentParserOnlineTests/` — tests parsers against live sites.
+- `ContentParserOfflineTests.cs` and `ArchiveParserTests.cs` — deterministic checks against HTML fixtures under `TestData/`.
+- `ContentParserOnlineTests.cs` — explicit, opt-in checks against live sites whose content can change.
+
+`Agitprop.UnitTests` contains service-free tests for crawl orchestration, sink behavior, job
+creation, and the NLP HTTP client. `Agitprop.IntegrationTests` uses a dedicated Aspire AppHost
+to test the Web API against an isolated PostgreSQL instance; it requires Docker.
 
 ### Running tests:
 
 ```bash
-# Offline (fixture-based)
-dotnet test Agitprop.Sinks.Newsfeed_Test/Agitprop.Sinks.Newsfeed_Test.csproj \
-  --filter "FullyQualifiedName~ContentParserOfflineTests"
+# Deterministic tests used by CI
+dotnet test Agitprop.Sinks.Newsfeed_Test/Agitprop.Sinks.Newsfeed_Test.csproj --configuration Release
+dotnet test Agitprop.UnitTests/Agitprop.UnitTests.csproj --configuration Release
 
-# Online (live sites)
+# Aspire API + PostgreSQL (requires Docker)
+dotnet test Agitprop.IntegrationTests/Agitprop.IntegrationTests.csproj --configuration Release
+
+# Online (explicit; accesses live sites)
 dotnet test Agitprop.Sinks.Newsfeed_Test/Agitprop.Sinks.Newsfeed_Test.csproj \
   --filter "FullyQualifiedName~ContentParserOnlineTests"
 ```

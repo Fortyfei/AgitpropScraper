@@ -21,9 +21,9 @@
 
 | ID | Requirement |
 |----|-------------|
-| NFR-001 | Architecture: Modular monolith orchestrated by Aspire 13.4.2. |
+| NFR-001 | Architecture: Modular monolith orchestrated by Aspire 13.5.4. |
 | NFR-002 | Language / runtime: C# 12 / .NET 10.0.0; Python 3.12 for NLP service. |
-| NFR-003 | Database: PostgreSQL 16 (pgAdmin UI on port 5050). |
+| NFR-003 | Database: PostgreSQL 17 (pgAdmin UI on port 5050). |
 | NFR-004 | Message broker: RabbitMQ 3.1+ (mgmt UI on 15672, AMQP on 5672). |
 | NFR-005 | Proxy providers: ProxyScrape and RedScrape; configurable fallback to direct HTTP. |
 | NFR-006 | Browser automation: PuppeteerSharp with Chromium; PuppeteerExtraSharp + plugins optional. |
@@ -31,7 +31,7 @@
 | NFR-008 | Observability: OpenTelemetry OTLP exporter (traces + metrics → collector). |
 | NFR-009 | Health checks: Aspire built-in health endpoints + custom `/health` on NLP service. |
 | NFR-010 | Docker: Multi-stage builds; images published to GHCR (`fortyfei/agitprop`). |
-| NFR-011 | CI/CD: GitHub Actions (`aspire-publish.yml` / `docker-bake.hcl`) on push to `main`. |
+| NFR-011 | CI/CD: GitHub Actions (`aspire-publish.yml`) using Aspire image publishing on push to `main`. |
 | NFR-012 | Access control: Internal developers only (no public exposure). |
 
 ## 3. Development Constraints
@@ -39,6 +39,6 @@
 - Documentation lives under `.docs/` only; all other `.md` files at repo root are moved or deleted.
 - Mermaid diagrams for every pipeline and component interaction.
 - All connection strings (`newsfeed`, `messaging`) required at runtime; startup throws if missing.
-- EF Core migrations applied at startup when `ASPNETCORE_ENVIRONMENT=Development` or
-  `ApplyMigrationsAtStartup=true`.
+- EF Core migrations are applied by the Web API startup path when
+  `ASPNETCORE_ENVIRONMENT=Development` or `ApplyMigrationsAtStartup=true`.
 - The CLI uses System.CommandLine with three commands: `scrape-article`, `scrape-archive`, `retry`.

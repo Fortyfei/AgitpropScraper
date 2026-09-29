@@ -19,7 +19,7 @@ dependencies beyond the .NET runtime.
 - `PageCategory` — e.g. `TargetPage`, `Archive`, etc.
 - `PageType` — page classification enum.
 - `PageContentType` — content type enum.
-- `NewsSites` — supported news sites (MagyarJelen, Index, Hvg, ...).
+- `NewsSites` — supported news sites (Index, Hvg, ...).
 - `PageActionType` — browser action types.
 
 ### Key Records

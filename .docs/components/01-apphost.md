@@ -34,3 +34,7 @@ Agitprop.AppHost/Agitprop.AppHost.csproj`.
 ## Configuration
 
 - `appsettings.Development.json` — development configuration overrides.
+
+The repository-level Aspire configuration points to this AppHost. The former
+web-only and worker-only AppHost projects are retained outside the default
+solution build while their remaining callers are reviewed.
