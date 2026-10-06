@@ -86,22 +86,33 @@ public sealed class NamedEntityRecognizer : INamedEntityRecognizer, IDisposable
         using var activity = ActivitySource.StartActivity("AnalyzeCorpus", ActivityKind.Internal);
         activity?.SetTag("corpus.length", corpus.Length);
 
-        var words = _tokenizer.Tokenize(corpus);
-        if (words.Count == 0)
+        try
         {
-            return new NamedEntityCollection();
+            var words = _tokenizer.Tokenize(corpus);
+            if (words.Count == 0)
+            {
+                activity?.SetTag("entities.count", 0);
+                activity?.SetStatus(ActivityStatusCode.Ok);
+                return new NamedEntityCollection();
+            }
+
+            var predictions = PredictWordLabels(words);
+            var entities = GetNamedEntities(corpus, words, predictions);
+
+            _logger.LogDebug(
+                "Analyzed text (characters={CharacterCount}, entities={EntityCount})",
+                corpus.Length,
+                entities.Count);
+            activity?.SetTag("entities.count", entities.Count);
+            activity?.SetStatus(ActivityStatusCode.Ok);
+
+            return new NamedEntityCollection { Entities = entities };
         }
-
-        var predictions = PredictWordLabels(words);
-        var entities = GetNamedEntities(corpus, words, predictions);
-
-        _logger.LogInformation(
-            "Analyzed text (characters={CharacterCount}, entities={EntityCount})",
-            corpus.Length,
-            entities.Count);
-        activity?.SetTag("entities.count", entities.Count);
-
-        return new NamedEntityCollection { Entities = entities };
+        catch (Exception ex)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.GetType().Name);
+            throw;
+        }
     }
 
     private int[] PredictWordLabels(IReadOnlyList<TokenizedWord> words)

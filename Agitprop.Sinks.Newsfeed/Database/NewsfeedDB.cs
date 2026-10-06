@@ -22,7 +22,7 @@ public async Task<int> CreateMentionsAsync(
     NamedEntityCollection entities)
 {
     using var activity = _activitySource.StartActivity("CreateMentionsAsync");
-    activity?.SetBaggage("article.url", url);
+    activity?.SetBaggage("article.url", TelemetryUrl.RedactQueryAndFragment(url));
     activity?.SetBaggage("article.source", article.SourceSite.ToString());
     activity?.SetBaggage("article.publishDate", article.PublishDate.ToString("o"));
 
@@ -30,7 +30,7 @@ public async Task<int> CreateMentionsAsync(
     {
         _logger.LogInformation(
             "Creating mentions for article {@Url} from {@Source} at {@PublishDate}",
-            url, article.SourceSite, article.PublishDate);
+            TelemetryUrl.RedactQueryAndFragment(url), article.SourceSite, article.PublishDate);
 
         var strategy = _db.Database.CreateExecutionStrategy();
 
@@ -38,7 +38,7 @@ public async Task<int> CreateMentionsAsync(
         {
             // 1️⃣ Article lekérdezése vagy létrehozása
             using var articleActivity = _activitySource.StartActivity("ArticleLookup");
-            articleActivity?.SetTag("article.url", url);
+            articleActivity?.SetTag("article.url", TelemetryUrl.RedactQueryAndFragment(url));
 
             var articleToUse = await _db.Articles.FirstOrDefaultAsync(a => a.Url == url);
             if (articleToUse == null)
@@ -51,11 +51,13 @@ public async Task<int> CreateMentionsAsync(
                     PublishedTime = DateTime.SpecifyKind(article.PublishDate, DateTimeKind.Utc)
                 };
                 _db.Articles.Add(articleToUse);
-                _logger.LogInformation("Created new article {ArticleId} for URL {Url}", articleToUse.Id, url);
+                _logger.LogInformation("Created new article {ArticleId} for URL {Url}",
+                    articleToUse.Id, TelemetryUrl.RedactQueryAndFragment(url));
             }
             else
             {
-                _logger.LogDebug("Using existing article {ArticleId} for URL {Url}", articleToUse.Id, url);
+                _logger.LogDebug("Using existing article {ArticleId} for URL {Url}",
+                    articleToUse.Id, TelemetryUrl.RedactQueryAndFragment(url));
             }
 
             articleActivity?.SetTag("article.id", articleToUse.Id);
@@ -112,7 +114,8 @@ public async Task<int> CreateMentionsAsync(
                         EntityId = dbEntity.Id
                     });
                     entityActivity?.SetTag("mention.prepared", true);
-                    _logger.LogDebug("Prepared mention for entity {@EntityName} in article {@ArticleUrl}", entity, url);
+                    _logger.LogDebug("Prepared mention for entity {@EntityName} in article {@ArticleUrl}",
+                        entity, TelemetryUrl.RedactQueryAndFragment(url));
                 }
 
                 entityActivity?.SetStatus(ActivityStatusCode.Ok);
@@ -144,7 +147,7 @@ public async Task<int> CreateMentionsAsync(
     {
         _logger.LogError(ex,
             "Error creating mentions for article {@Url} from {@Source} at {@PublishDate}",
-            url, article.SourceSite, article.PublishDate);
+            TelemetryUrl.RedactQueryAndFragment(url), article.SourceSite, article.PublishDate);
         activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
         throw;
     }
@@ -153,18 +156,20 @@ public async Task<int> CreateMentionsAsync(
     public async Task<bool> IsUrlAlreadyExists(string url)
     {
         using var activity = _activitySource.StartActivity("IsUrlAlreadyExists");
-        activity?.SetTag("article.url", url);
+        activity?.SetTag("article.url", TelemetryUrl.RedactQueryAndFragment(url));
 
         try
         {
             bool exists = await _db.Articles.AnyAsync(a => a.Url == url);
-            _logger.LogDebug("Checked existence of article {@Url}: {Exists}", url, exists);
+            _logger.LogDebug("Checked existence of article {@Url}: {Exists}",
+                TelemetryUrl.RedactQueryAndFragment(url), exists);
             activity?.SetStatus(ActivityStatusCode.Ok);
             return exists;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error checking if article exists: {@Url}", url);
+            _logger.LogError(ex, "Error checking if article exists: {@Url}",
+                TelemetryUrl.RedactQueryAndFragment(url));
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             throw;
         }

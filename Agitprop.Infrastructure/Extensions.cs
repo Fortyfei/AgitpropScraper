@@ -1,9 +1,9 @@
-﻿using Microsoft.Extensions.Logging;
 using Agitprop.Core.Interfaces;
 using Agitprop.Infrastructure.PageLoader;
 using Agitprop.Infrastructure.PageRequester;
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Agitprop.Infrastructure.ProxyProviders;
 
 namespace Agitprop.Infrastructure;
@@ -26,12 +26,6 @@ public static class Extensions
         services.AddTransient<ICookiesStorage, CookieStorage>();
         services.AddTransient<IStaticPageLoader, HttpStaticPageLoader>();
 
-        services.AddOpenTelemetry()
-            .WithTracing(tracing => tracing
-                .AddSource("Agitprop.Spider")
-                .AddSource("Agitprop.PageLoader.HttpStaticPageLoader")
-            );
-
         if (useProxies)
         {
             services.AddHttpClient<ProxyScrapeProxyProvider>();
@@ -44,21 +38,10 @@ public static class Extensions
             services.AddSingleton<RotatingHttpClientPool>();
             services.AddTransient<IPageRequester, RotatingProxyPageRequester>();
 
-            services.AddOpenTelemetry()
-                .WithTracing(tracing => tracing
-                    .AddSource("Agitprop.ProxyProviders.ProxyScrapeProxyProvider")
-                    .AddSource("Agitprop.ProxyProviders.RedScrapeProxyProvider")
-                    .AddSource("Agitprop.ProxyPool")
-                    .AddSource("Agitprop.RotatingHttpClientPool")
-                );
         }
         else
         {
             services.AddTransient<IPageRequester, RespectfulPageRequester>();
-            services.AddOpenTelemetry()
-                .WithTracing(tracing => tracing
-                    .AddSource("Agitprop.PageRequester.RespectfulPageRequester")
-                );
         }
 
         services.AddSingleton<IPageTransport>(sp =>

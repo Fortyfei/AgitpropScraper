@@ -1,5 +1,7 @@
 using System.CommandLine;
+using Agitprop.Core;
 using Agitprop.CLI.Services;
+using Microsoft.Extensions.Logging;
 
 namespace Agitprop.CLI.Commands;
 
@@ -11,7 +13,7 @@ public static class ScrapeArchiveCommand
     private static readonly IArchiveCommandInputResolver _inputResolver = new ArchiveCommandInputResolver();
 
 
-    internal static Command AddScrapeArchiveCommand(this RootCommand rootCommand)
+    internal static Command AddScrapeArchiveCommand(this RootCommand rootCommand, ILoggerFactory loggerFactory)
     {
         var dateOption = new Option<string>(
             ["--date", "-d"],
@@ -61,8 +63,10 @@ public static class ScrapeArchiveCommand
             verbosityOption
         };
 
+        var logger = loggerFactory.CreateLogger("Agitprop.CLI.scrape-archive");
         scrapeArchiveCommand.SetHandler(async (string date, string? from, string? to, string[] newsites, string feedConfigPath, string connection, bool verbose, string verbosity) =>
                 {
+                    logger.LogInformation("CLI command started: {Command}", CommandName);
                     try
                     {
                         var inputResolution = _inputResolver.Resolve(new ArchiveCommandRawInput(
@@ -76,6 +80,8 @@ public static class ScrapeArchiveCommand
 
                         if (!inputResolution.Success)
                         {
+                            logger.LogWarning("CLI command rejected input: {Command}; field: {Field}",
+                                CommandName, "archive_options");
                             Console.WriteLine($"Error: {inputResolution.ErrorMessage}");
                             Environment.ExitCode = 1;
                             return;
@@ -97,6 +103,12 @@ public static class ScrapeArchiveCommand
                         bool publishFailure = false;
                         bool publishingEnabled = false;
                         var attemptedRuns = dates.Count * sites.Count;
+                        using var scope = logger.BeginScope(new Dictionary<string, object?>
+                        {
+                            ["DateCount"] = dates.Count,
+                            ["SiteCount"] = sites.Count,
+                            ["PublishingEnabled"] = !string.IsNullOrWhiteSpace(connection)
+                        });
 
                         LogMessage(CliOutputVerbosity.Normal, resolvedVerbosity, "=== RUN CONFIG ===");
                         LogMessage(CliOutputVerbosity.Normal, resolvedVerbosity, $"Date mode: {(input.IsRangeMode ? "range" : "single")}");
@@ -118,6 +130,9 @@ public static class ScrapeArchiveCommand
                                     LogMessage(CliOutputVerbosity.Normal, resolvedVerbosity, $"--- Scraping {site} ---");
                                     var siteResult = await _orchestrator.ExecuteArchiveSiteAsync(new ArchiveSiteScrapeRequest(site, scrapeDate));
                                     var jobResults = siteResult.Jobs;
+                                    logger.LogInformation("Archive scrape completed for {Site} on {Date}; articles: {ArticleCount}; source: {SourceUrl}",
+                                        site, scrapeDate, jobResults.Count,
+                                        TelemetryUrl.RedactQueryAndFragment(siteResult.SourceUrl));
 
                                     LogMessage(CliOutputVerbosity.Normal, resolvedVerbosity, $"Crawling finished for {siteResult.SourceUrl}. Articles found: {jobResults.Count}");
                                     if (jobResults.Any())
@@ -157,6 +172,8 @@ public static class ScrapeArchiveCommand
                                 {
                                     var conciseReason = GetConciseFailureReason(ex.Message);
                                     failedRuns.Add(($"{scrapeDate:yyyy-MM-dd} {site}", conciseReason, ex.Message));
+                                    logger.LogWarning("Archive scrape failed for {Site} on {Date}; exception type: {ExceptionType}",
+                                        site, scrapeDate, ex.GetType().Name);
 
                                     if (resolvedVerbosity == CliOutputVerbosity.Detailed)
                                     {
@@ -226,12 +243,17 @@ public static class ScrapeArchiveCommand
 
                         if (publishFailure)
                         {
+                            logger.LogWarning("Archive command had one or more publish failures");
                             LogMessage(CliOutputVerbosity.Quiet, resolvedVerbosity, "Command failed because one or more publish operations failed.");
                             Environment.ExitCode = 1;
                         }
+                        logger.LogInformation("CLI command completed: {Command}; attempted: {AttemptedRuns}; succeeded: {SucceededRuns}; failed: {FailedRuns}; published: {PublishedCount}",
+                            CommandName, attemptedRuns, successfulRuns.Count, failedRuns.Count, publishedCount);
                     }
                     catch (Exception ex)
                     {
+                        logger.LogError("CLI command failed: {Command}; exception type: {ExceptionType}",
+                            CommandName, ex.GetType().Name);
                         Console.WriteLine($"Error during archive scraping: {ex.Message}");
                         Environment.ExitCode = 1;
                     }

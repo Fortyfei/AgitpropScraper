@@ -27,11 +27,6 @@ public static class Extensions
 
         builder.Services.AddTransient<ICookiesStorage, CookieStorage>();
         builder.Services.AddTransient<IStaticPageLoader, HttpStaticPageLoader>();
-        builder.Services.AddOpenTelemetry()
-            .WithTracing(tracing => tracing
-                .AddSource("Agitprop.Spider")
-                .AddSource("Agitprop.PageLoader.HttpStaticPageLoader")
-            );
         if (useProxies)
         {
             builder.Services.AddHttpClient<ProxyScrapeProxyProvider>();
@@ -45,24 +40,11 @@ public static class Extensions
             builder.Services.AddTransient<IPageRequester, RotatingProxyPageRequester>();
 
             builder.Services.AddTransient<IBrowserPageLoader, PuppeteerPageLoaderWithProxies>();
-            builder.Services.AddOpenTelemetry()
-                .WithTracing(tracing => tracing
-                    .AddSource("Agitprop.ProxyProviders.ProxyScrapeProxyProvider")
-                    .AddSource("Agitprop.ProxyProviders.RedScrapeProxyProvider")
-                    .AddSource("Agitprop.ProxyPool")
-                    .AddSource("Agitprop.RotatingHttpClientPool")
-                    .AddSource("Agitprop.PageLoader.PuppeteerPageLoaderWithProxies")
-                );
         }
         else
         {
             builder.Services.AddTransient<IPageRequester, RespectfulPageRequester>();
             builder.Services.AddTransient<IBrowserPageLoader, PuppeteerPageLoader>();
-            builder.Services.AddOpenTelemetry()
-                .WithTracing(tracing => tracing
-                    .AddSource("Agitprop.PageRequester.RespectfulPageRequester")
-                    .AddSource("Agitprop.PageLoader.PuppeteerPageLoader")
-                );
         }
 
         builder.Services.AddSingleton<IPageTransport>(sp =>

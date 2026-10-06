@@ -45,28 +45,4 @@ public static class Extensions
         return builder;
     }
 
-    /// <summary>
-    /// Configures OpenTelemetry tracing for the consumer service.
-    /// </summary>
-    /// <param name="builder">The host application builder.</param>
-    /// <returns>The updated host application builder.</returns>
-    public static IHostApplicationBuilder ConfigureTracing(this IHostApplicationBuilder builder)
-    {
-        builder.Services.AddOpenTelemetry()
-            .WithTracing(tracing => tracing
-                .AddSource("Agitprop.NewsfeedJobConsumer")
-            );
-
-        return builder;
-    }
-
-    public static IHostApplicationBuilder ConfigureMetrics(this IHostApplicationBuilder builder)
-    {
-        builder.Services.AddOpenTelemetry()
-            .WithMetrics(metrics => metrics
-                .AddMeter("Agitprop.NewsfeedJobConsumer")
-            );
-
-        return builder;
-    }
 }

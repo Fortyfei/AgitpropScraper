@@ -41,7 +41,8 @@ public class EntitiesController : ControllerBase
         [FromQuery] int pageSize = 25,
         [FromQuery] string? search = null)
     {
-        using var activity = _activitySource.StartActivity("GetEntities", ActivityKind.Server);
+        using var activity = _activitySource.StartActivity("GetEntities", ActivityKind.Internal);
+        activity?.SetTag("api.operation", "entities.list");
 
         if (from == default || to == default)
             return BadRequest(new { error = "Both 'from' and 'to' query parameters are required." });
@@ -55,7 +56,11 @@ public class EntitiesController : ControllerBase
         var safeSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
         var cacheKey = $"entities-browse:{from:yyyy-MM-dd}:{to:yyyy-MM-dd}:p{page}:ps{pageSize}:s{safeSearch}";
         if (_cache.TryGetValue(cacheKey, out EntityBrowseResponse? cached) && cached is not null)
+        {
+            ApiMetrics.RecordCacheResult(activity, "entities.list", "hit");
             return Ok(cached);
+        }
+        ApiMetrics.RecordCacheResult(activity, "entities.list", "miss");
 
         try
         {
@@ -76,11 +81,14 @@ public class EntitiesController : ControllerBase
             };
 
             _cache.Set(cacheKey, response, CacheDuration);
+            activity?.SetTag("api.result_count", totalCount);
+            activity?.SetStatus(ActivityStatusCode.Ok);
             return Ok(response);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error browsing entities");
+            activity?.SetStatus(ActivityStatusCode.Error, ex.GetType().Name);
             return StatusCode(500, new { error = "Failed to retrieve entities." });
         }
     }
@@ -91,7 +99,8 @@ public class EntitiesController : ControllerBase
         [FromQuery] DateOnly from,
         [FromQuery] DateOnly to)
     {
-        using var activity = _activitySource.StartActivity("GetEntityDomainStats", ActivityKind.Server);
+        using var activity = _activitySource.StartActivity("GetEntityDomainStats", ActivityKind.Internal);
+        activity?.SetTag("api.operation", "entities.domain_stats");
 
         if (from == default || to == default)
             return BadRequest(new { error = "Both from and to query parameters are required." });
@@ -101,7 +110,11 @@ public class EntitiesController : ControllerBase
 
         var cacheKey = $"domain-stats:{id}:{from:yyyy-MM-dd}:{to:yyyy-MM-dd}";
         if (_cache.TryGetValue(cacheKey, out EntityDomainStatsResponse? cached) && cached is not null)
+        {
+            ApiMetrics.RecordCacheResult(activity, "entities.domain_stats", "hit");
             return Ok(cached);
+        }
+        ApiMetrics.RecordCacheResult(activity, "entities.domain_stats", "miss");
 
         try
         {
@@ -120,11 +133,14 @@ public class EntitiesController : ControllerBase
             };
 
             _cache.Set(cacheKey, response, CacheDuration);
+            activity?.SetTag("api.result_count", response.Domains.Count);
+            activity?.SetStatus(ActivityStatusCode.Ok);
             return Ok(response);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving domain stats for entity {Id}", id);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.GetType().Name);
             return StatusCode(500, new { error = "Failed to retrieve domain statistics." });
         }
     }
@@ -132,11 +148,16 @@ public class EntitiesController : ControllerBase
     [HttpGet("{id}")]
     public ActionResult<EntityResponse> GetEntityById(string id)
     {
-        using var activity = _activitySource.StartActivity("GetEntityById", ActivityKind.Server);
+        using var activity = _activitySource.StartActivity("GetEntityById", ActivityKind.Internal);
+        activity?.SetTag("api.operation", "entities.get");
 
         var cacheKey = $"entity:{id}";
         if (_cache.TryGetValue(cacheKey, out EntityResponse? cached) && cached is not null)
+        {
+            ApiMetrics.RecordCacheResult(activity, "entities.get", "hit");
             return Ok(cached);
+        }
+        ApiMetrics.RecordCacheResult(activity, "entities.get", "miss");
 
         try
         {
@@ -146,11 +167,13 @@ public class EntitiesController : ControllerBase
 
             var response = new EntityResponse { Id = entity.Id ?? id, Name = entity.Name, Type = entity.Type ?? string.Empty };
             _cache.Set(cacheKey, response, TimeSpan.FromHours(1));
+            activity?.SetStatus(ActivityStatusCode.Ok);
             return Ok(response);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving entity {Id}", id);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.GetType().Name);
             return StatusCode(500, new { error = "Failed to retrieve entity." });
         }
     }
@@ -163,7 +186,8 @@ public class EntitiesController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20)
     {
-        using var activity = _activitySource.StartActivity("GetEntityArticles", ActivityKind.Server);
+        using var activity = _activitySource.StartActivity("GetEntityArticles", ActivityKind.Internal);
+        activity?.SetTag("api.operation", "entities.articles");
 
         if (from == default || to == default)
             return BadRequest(new { error = "Both 'from' and 'to' query parameters are required." });
@@ -176,7 +200,11 @@ public class EntitiesController : ControllerBase
 
         var cacheKey = $"articles:{id}:{from:yyyy-MM-dd}:{to:yyyy-MM-dd}:p{page}:ps{pageSize}";
         if (_cache.TryGetValue(cacheKey, out EntityArticlesResponse? cached) && cached is not null)
+        {
+            ApiMetrics.RecordCacheResult(activity, "entities.articles", "hit");
             return Ok(cached);
+        }
+        ApiMetrics.RecordCacheResult(activity, "entities.articles", "miss");
 
         try
         {
@@ -197,11 +225,14 @@ public class EntitiesController : ControllerBase
             };
 
             _cache.Set(cacheKey, response, CacheDuration);
+            activity?.SetTag("api.result_count", totalCount);
+            activity?.SetStatus(ActivityStatusCode.Ok);
             return Ok(response);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving articles for entity {Id}", id);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.GetType().Name);
             return StatusCode(500, new { error = "Failed to retrieve entity articles." });
         }
     }
@@ -212,7 +243,8 @@ public class EntitiesController : ControllerBase
         [FromQuery] DateOnly to,
         [FromQuery] List<string>? entities)
     {
-        using var activity = _activitySource.StartActivity("GetEntitiesTimeline", ActivityKind.Server);
+        using var activity = _activitySource.StartActivity("GetEntitiesTimeline", ActivityKind.Internal);
+        activity?.SetTag("api.operation", "entities.timeline");
 
         if (from == default || to == default)
             return BadRequest(new { error = "Both 'from' and 'to' query parameters are required." });
@@ -234,7 +266,11 @@ public class EntitiesController : ControllerBase
 
         var cacheKey = $"timeline:{from:yyyy-MM-dd}:{to:yyyy-MM-dd}:{string.Join(",", entityIds)}";
         if (_cache.TryGetValue(cacheKey, out EntitiesTimelineResponse? cached) && cached is not null)
+        {
+            ApiMetrics.RecordCacheResult(activity, "entities.timeline", "hit");
             return Ok(cached);
+        }
+        ApiMetrics.RecordCacheResult(activity, "entities.timeline", "miss");
 
         try
         {
@@ -255,11 +291,14 @@ public class EntitiesController : ControllerBase
 
             var response = new EntitiesTimelineResponse { Timeline = timeline };
             _cache.Set(cacheKey, response, CacheDuration);
+            activity?.SetTag("api.result_count", timeline.Count);
+            activity?.SetStatus(ActivityStatusCode.Ok);
             return Ok(response);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error computing entities timeline");
+            activity?.SetStatus(ActivityStatusCode.Error, ex.GetType().Name);
             return StatusCode(500, new { error = "Failed to compute entities timeline." });
         }
     }

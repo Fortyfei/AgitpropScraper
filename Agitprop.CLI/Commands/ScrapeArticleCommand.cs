@@ -1,5 +1,7 @@
 using System.CommandLine;
+using Agitprop.Core;
 using Agitprop.CLI.Services;
+using Microsoft.Extensions.Logging;
 
 namespace Agitprop.CLI.Commands;
 
@@ -8,7 +10,7 @@ public static class ScrapeArticleCommand
     private static readonly string CommandName = "scrape-article";
     private static readonly IScrapeCommandOrchestrator _orchestrator = new ScrapeCommandOrchestrator();
 
-    internal static Command AddScrapeArticleCommand(this RootCommand rootCommand)
+    internal static Command AddScrapeArticleCommand(this RootCommand rootCommand, ILoggerFactory loggerFactory)
     {
         var urlOption = new Option<string>(
             ["--url", "-u"],
@@ -25,14 +27,20 @@ public static class ScrapeArticleCommand
             shortenOption
         };
 
+        var logger = loggerFactory.CreateLogger("Agitprop.CLI.scrape-article");
         scrapeArticleCommand.SetHandler(async (url, shorten) =>
         {
+            var safeUrl = TelemetryUrl.RedactQueryAndFragment(url);
+            logger.LogInformation("CLI command started: {Command} for {Url}", CommandName, safeUrl);
             try
             {
                 await ScrapeSingleArticle(url, shorten);
+                logger.LogInformation("CLI command completed: {Command}", CommandName);
             }
             catch (Exception ex)
             {
+                logger.LogError("CLI command failed: {Command}; exception type: {ExceptionType}",
+                    CommandName, ex.GetType().Name);
                 Console.WriteLine($"Error during scraping: {ex.Message}");
             }
         }, 

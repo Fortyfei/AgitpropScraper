@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Net;
 using System.Net.Security;
+using Agitprop.Core;
 using Agitprop.Core.Interfaces;
 using Microsoft.Extensions.Logging;
 
@@ -41,7 +42,7 @@ public class RespectfulPageRequester : IPageRequester
         await EnforceDomainRateLimitAsync(uri);
 
         using var activity = _activitySource.StartActivity("Request", ActivityKind.Internal);
-        activity?.SetTag("url", url);
+        activity?.SetTag("url", TelemetryUrl.RedactQueryAndFragment(url));
         activity?.SetTag("domain", uri.Host);
 
         var stopwatch = Stopwatch.StartNew();

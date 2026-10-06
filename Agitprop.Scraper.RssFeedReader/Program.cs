@@ -31,11 +31,6 @@ public class Program
         });
 
 
-        builder.Services.AddOpenTelemetry()
-            .WithTracing(tracing => tracing
-                .AddSource("Agitprop.RssFeedReader")
-            );
-
         var app = builder.Build();
         app.Run();
     }

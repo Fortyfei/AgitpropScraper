@@ -1,6 +1,7 @@
 using System.ServiceModel.Syndication;
 using System.Text;
 using System.Xml;
+using System.Diagnostics.Metrics;
 using Agitprop.Core.Enums;
 using MassTransit;
 using System.Diagnostics;
@@ -18,6 +19,23 @@ public class RssFeedReader : IHostedService, IDisposable
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly TimeSpan _interval;
     private static readonly ActivitySource _activitySource = new("Agitprop.RssFeedReader");
+    private static readonly Meter _meter = new("Agitprop.RssFeedReader");
+    private static readonly Counter<long> _itemsFetched = _meter.CreateCounter<long>(
+        "rss.items.fetched",
+        description: "Total items fetched from RSS feeds");
+    private static readonly Counter<long> _jobsPublished = _meter.CreateCounter<long>(
+        "rss.jobs.published",
+        description: "Total scraping jobs published from RSS feeds");
+    private static readonly Counter<long> _feedFailures = _meter.CreateCounter<long>(
+        "rss.feed.failures",
+        description: "Total failed RSS feed processing operations");
+    private static readonly Counter<long> _publishFailures = _meter.CreateCounter<long>(
+        "rss.publish.failures",
+        description: "Total failures publishing scraping jobs");
+    private static readonly Histogram<double> _cycleDuration = _meter.CreateHistogram<double>(
+        "rss.cycle.duration",
+        "ms",
+        "Time spent fetching and publishing RSS scraping jobs");
 
     public RssFeedReader(IConfiguration configuration, ILogger<RssFeedReader> logger, IServiceScopeFactory scopeFactory)
     {
@@ -40,13 +58,15 @@ public class RssFeedReader : IHostedService, IDisposable
     private async Task ExecuteTask(object? state)
     {
         using var activity = _activitySource.StartActivity("ExecuteTask", ActivityKind.Producer);
-        _logger.LogInformation("Running RSS feed scraping task");
+        var stopwatch = Stopwatch.StartNew();
+        var outcome = "success";
 
-        using var scope = _scopeFactory.CreateScope();
-        var publishEndpoint = scope.ServiceProvider.GetRequiredService<IPublishEndpoint>();
+        var publishAttempted = false;
 
         try
         {
+            using var scope = _scopeFactory.CreateScope();
+            var publishEndpoint = scope.ServiceProvider.GetRequiredService<IPublishEndpoint>();
             var jobs = FetchScrapingJobs();
             if (jobs.Count == 0)
             {
@@ -54,16 +74,31 @@ public class RssFeedReader : IHostedService, IDisposable
             }
             else
             {
-                _logger.LogInformation("Publishing {JobCount} scraping jobs", jobs.Count);
+                _logger.LogDebug("Publishing {JobCount} scraping jobs", jobs.Count);
+                publishAttempted = true;
                 await publishEndpoint.PublishBatch(jobs);
+                _jobsPublished.Add(jobs.Count);
             }
 
-            activity?.SetStatus(ActivityStatusCode.Ok, "RSS feed task completed successfully");
+            _logger.LogInformation("RSS feed cycle completed; feeds: {FeedCount}, jobs published: {JobCount}",
+                _feeds.Length, jobs.Count);
+            activity?.SetTag("rss.jobs.count", jobs.Count);
+            activity?.SetStatus(ActivityStatusCode.Ok);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error while publishing scraping jobs");
+            outcome = "failure";
+            if (publishAttempted)
+            {
+                _publishFailures.Add(1);
+            }
+            _logger.LogError(ex, "RSS feed cycle failed");
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+        }
+        finally
+        {
+            _cycleDuration.Record(stopwatch.Elapsed.TotalMilliseconds,
+                new KeyValuePair<string, object?>("outcome", outcome));
         }
     }
 
@@ -87,8 +122,11 @@ public class RssFeedReader : IHostedService, IDisposable
         foreach (var feedUrl in _feeds)
         {
             using var feedActivity = _activitySource.StartActivity("ProcessFeed", ActivityKind.Consumer);
-            feedActivity?.SetTag("feed.url", feedUrl);
-            _logger.LogDebug("Reading RSS feed: {FeedUrl}", feedUrl);
+            var safeFeedUrl = Core.TelemetryUrl.RedactQueryAndFragment(feedUrl);
+            var feedHost = GetFeedHost(feedUrl);
+            feedActivity?.SetTag("feed.url", safeFeedUrl);
+            feedActivity?.SetTag("feed.host", feedHost);
+            _logger.LogDebug("Reading RSS feed: {FeedUrl}", safeFeedUrl);
 
             try
             {
@@ -103,7 +141,7 @@ public class RssFeedReader : IHostedService, IDisposable
                         feedActivity?.AddEvent(new ActivityEvent("FeedItemRead", default, new ActivityTagsCollection
                         {
                             { "item.title", item.Title.Text },
-                            { "item.link", link ?? "null" }
+                            { "item.link", link is null ? "null" : Core.TelemetryUrl.RedactQueryAndFragment(link) }
                         }));
 
                         return new NewsfeedJobDescrpition
@@ -113,25 +151,30 @@ public class RssFeedReader : IHostedService, IDisposable
                         };
                     }).ToList();
 
-                    _logger.LogInformation("Fetched {ItemCount} items from feed {FeedUrl}", news.Count, feedUrl);
+                    _itemsFetched.Add(news.Count, new KeyValuePair<string, object?>("feed.host", feedHost));
+                    _logger.LogDebug("Fetched {ItemCount} items from feed {FeedUrl}", news.Count, safeFeedUrl);
                     scrapingJobs.AddRange(news);
                 }
                 else
                 {
-                    _logger.LogWarning("RSS feed {FeedUrl} returned no items", feedUrl);
+                    _logger.LogWarning("RSS feed {FeedUrl} returned no items", safeFeedUrl);
                 }
 
                 feedActivity?.SetStatus(ActivityStatusCode.Ok);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error processing feed {FeedUrl}", feedUrl);
+                _feedFailures.Add(1, new KeyValuePair<string, object?>("feed.host", feedHost));
+                _logger.LogError(ex, "Error processing feed {FeedUrl}", safeFeedUrl);
                 feedActivity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             }
         }
 
-        _logger.LogInformation("Total scraping jobs fetched: {JobCount}", scrapingJobs.Count);
+        _logger.LogDebug("Total scraping jobs fetched: {JobCount}", scrapingJobs.Count);
         activity?.SetStatus(ActivityStatusCode.Ok, "FetchScrapingJobs completed");
         return scrapingJobs;
     }
+
+    private static string GetFeedHost(string feedUrl) =>
+        Uri.TryCreate(feedUrl, UriKind.Absolute, out var uri) ? uri.Host : "unknown";
 }

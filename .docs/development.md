@@ -19,6 +19,21 @@ dotnet restore
 
 ## 2. Local Development
 
+### 2.0 Observability
+
+AppHost-managed services export traces, metrics, and structured logs through
+OTLP to the Aspire dashboard. Open the dashboard URL printed by `aspire start`
+(or the configured host port) and inspect a consumer trace from message
+consumption through scraping, NLP, and persistence. The shared service defaults
+enable HTTP/AspNetCore, process/runtime, MassTransit, and EF Core tracing.
+Application-owned URL telemetry removes query strings and fragments; metric
+dimensions do not include URLs. EF Core tracing does not capture SQL text or
+parameter values. Automatic HttpClient span URL attributes retain the default
+instrumentation behavior.
+
+The standalone CLI does not export telemetry. Its structured command lifecycle
+logs are written to stderr; existing command output remains on stdout.
+
 ### 2.1 Start Full Infrastructure (Aspire)
 
 The consumer self-provisions the checksum-pinned Hungarian NER model on first

@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using System.Diagnostics;
 using System.Threading;
 
+using Agitprop.Core;
 using Agitprop.Core.Interfaces;
 
 using Microsoft.Extensions.Logging;
@@ -46,14 +47,16 @@ public class RotatingHttpClientPool
         try
         {
             activity?.SetTag("http.method", request.Method.Method);
-            activity?.SetTag("http.url", request.RequestUri?.ToString() ?? string.Empty);
+            var safeUrl = TelemetryUrl.RedactQueryAndFragment(request.RequestUri?.ToString() ?? string.Empty);
+            activity?.SetTag("http.url", safeUrl);
 
             // Randomize headers: user-agent, accept-language
             if (!requestClone.Headers.UserAgent.Any())
             {
                 var ua = _defaultUserAgents[new Random().Next(_defaultUserAgents.Count)];
                 requestClone.Headers.UserAgent.ParseAdd(ua);
-                _logger?.LogTrace("Assigned User-Agent '{UA}' to request {Method} {Url}", ua, requestClone.Method, requestClone.RequestUri);
+                _logger?.LogTrace("Assigned User-Agent '{UA}' to request {Method} {Url}", ua,
+                    requestClone.Method, TelemetryUrl.RedactQueryAndFragment(requestClone.RequestUri?.ToString() ?? string.Empty));
                 activity?.SetTag("http.user_agent", ua);
             }
 
@@ -67,7 +70,8 @@ public class RotatingHttpClientPool
             if (string.IsNullOrEmpty(proxyAddress))
             {
                 var exception = new InvalidOperationException("No proxy address available");
-                _logger?.LogError(exception, "No proxy address available when sending {Method} {Url}", requestClone.Method, requestClone.RequestUri);
+                _logger?.LogError(exception, "No proxy address available when sending {Method} {Url}",
+                    requestClone.Method, TelemetryUrl.RedactQueryAndFragment(requestClone.RequestUri?.ToString() ?? string.Empty));
                 activity?.SetStatus(ActivityStatusCode.Error, "No proxy address available");
                 throw exception;
             }
@@ -75,7 +79,8 @@ public class RotatingHttpClientPool
             activity?.SetTag("proxy.address", proxyAddress);
             
             _logger?.LogDebug("Selected proxy {Proxy} for request {Method} {Url}", 
-                proxyAddress, requestClone.Method, requestClone.RequestUri);
+                proxyAddress, requestClone.Method,
+                TelemetryUrl.RedactQueryAndFragment(requestClone.RequestUri?.ToString() ?? string.Empty));
 
             // Create HTTP client with proxy for this request
             using var invoker = CreateInvokerForProxy(proxyAddress);
@@ -87,7 +92,8 @@ public class RotatingHttpClientPool
                 activity?.SetTag("http.status_code", (int)resp.StatusCode);
                 activity?.SetStatus(ActivityStatusCode.Ok);
                 _logger?.LogDebug("Request {Method} {Url} via proxy {Proxy} returned {StatusCode}", 
-                    requestClone.Method, requestClone.RequestUri, proxyAddress, resp.StatusCode);
+                    requestClone.Method, TelemetryUrl.RedactQueryAndFragment(requestClone.RequestUri?.ToString() ?? string.Empty),
+                    proxyAddress, resp.StatusCode);
                 
                 // Mark proxy as successful
                 await _pool.MarkSuccessAsync(proxyAddress);
@@ -97,7 +103,8 @@ public class RotatingHttpClientPool
             catch (Exception ex)
             {
                 _logger?.LogWarning(ex, "Request {Method} {Url} via proxy {Proxy} failed", 
-                    requestClone.Method, requestClone.RequestUri, proxyAddress);
+                    requestClone.Method, TelemetryUrl.RedactQueryAndFragment(requestClone.RequestUri?.ToString() ?? string.Empty),
+                    proxyAddress);
                 activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
 
                 // Mark proxy as dead
@@ -109,7 +116,8 @@ public class RotatingHttpClientPool
         catch (Exception ex)
         {
             // Log and rethrow
-            _logger?.LogError(ex, "Failed to send request {Method} {Url}", requestClone.Method, requestClone.RequestUri);
+            _logger?.LogError(ex, "Failed to send request {Method} {Url}", requestClone.Method,
+                TelemetryUrl.RedactQueryAndFragment(requestClone.RequestUri?.ToString() ?? string.Empty));
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             throw;
         }
