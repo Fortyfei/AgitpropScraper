@@ -36,8 +36,8 @@ public class PuppeteerPageLoader : BrowserPageLoader, IBrowserPageLoader
     public async Task<string> Load(string url, List<PageAction>? pageActions = null, bool headless = true)
     {
         using var trace = ActivitySource.StartActivity("LoadPageWithBrowser", ActivityKind.Producer);
-        trace?.SetTag("url", url);
-        Logger?.LogInformation("Starting page load: {url}", url);
+        trace?.SetTag("url", TelemetryUrl.RedactQueryAndFragment(url));
+        Logger?.LogDebug("Starting page load: {Url}", TelemetryUrl.RedactQueryAndFragment(url));
 
         var browserFetcher = new BrowserFetcher(new BrowserFetcherOptions
         {
@@ -87,7 +87,7 @@ public class PuppeteerPageLoader : BrowserPageLoader, IBrowserPageLoader
             await page.SetCookieAsync(cookieParams);
         }
 
-        Logger?.LogInformation("Navigating to page: {url}", url);
+        Logger?.LogDebug("Navigating to page: {Url}", TelemetryUrl.RedactQueryAndFragment(url));
         await Policy
             .Handle<Exception>()
             .WaitAndRetryAsync(
@@ -95,7 +95,8 @@ public class PuppeteerPageLoader : BrowserPageLoader, IBrowserPageLoader
                 attempt => TimeSpan.FromSeconds(0.5 * attempt),
                 (ex, ts, attempt, ctx) =>
                 {
-                    Logger?.LogWarning(ex, "[RETRY] Exception navigating to page {url} on attempt {attempt}", url, attempt);
+                    Logger?.LogWarning(ex, "[RETRY] Exception navigating to page {Url} on attempt {Attempt}",
+                        TelemetryUrl.RedactQueryAndFragment(url), attempt);
                 })
             .ExecuteAsync(() => page.GoToAsync(url, WaitUntilNavigation.Networkidle2));
 
@@ -105,7 +106,7 @@ public class PuppeteerPageLoader : BrowserPageLoader, IBrowserPageLoader
             for (int i = 0; i < pageActions.Count; i++)
             {
                 var pageAction = pageActions[i];
-                Logger?.LogInformation("Executing page action {current}/{total} of type {type}",
+                Logger?.LogDebug("Executing page action {Current}/{Total} of type {Type}",
                     i + 1,
                     pageActions.Count,
                     pageAction.Type);
@@ -115,7 +116,7 @@ public class PuppeteerPageLoader : BrowserPageLoader, IBrowserPageLoader
         }
 
         var html = await page.GetContentAsync();
-        Logger?.LogInformation("Page load completed: {url}", url);
+        Logger?.LogInformation("Page load completed: {Url}", TelemetryUrl.RedactQueryAndFragment(url));
         return html;
     }
 

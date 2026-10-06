@@ -39,8 +39,8 @@ internal class PuppeteerPageLoaderWithProxies : BrowserPageLoader, IBrowserPageL
     public async Task<string> Load(string url, List<PageAction>? pageActions = null, bool headless = true)
     {
         using var trace = ActivitySource.StartActivity("LoadPageWithProxyBrowser", ActivityKind.Internal);
-        trace?.SetTag("url", url);
-        Logger?.LogInformation("Starting page load: {url}", url);
+        trace?.SetTag("url", TelemetryUrl.RedactQueryAndFragment(url));
+        Logger?.LogDebug("Starting page load: {Url}", TelemetryUrl.RedactQueryAndFragment(url));
 
         if (_executablePath == null)
         {
@@ -121,21 +121,22 @@ internal class PuppeteerPageLoaderWithProxies : BrowserPageLoader, IBrowserPageL
 
         try
         {
-            Logger?.LogInformation("Navigating to page: {url}", url);
+            Logger?.LogDebug("Navigating to page: {Url}", TelemetryUrl.RedactQueryAndFragment(url));
             await Policy
                 .Handle<Exception>()
                 .WaitAndRetryAsync(_retryCount,
                     attempt => TimeSpan.FromSeconds(0.5 * attempt),
                     (ex, ts, attempt, ctx) =>
                     {
-                        Logger?.LogWarning(ex, "[RETRY] Exception navigating to page {url} on attempt {attempt}", url, attempt);
+                        Logger?.LogWarning(ex, "[RETRY] Exception navigating to page {Url} on attempt {Attempt}",
+                            TelemetryUrl.RedactQueryAndFragment(url), attempt);
                     })
                 .ExecuteAsync(() => page.GoToAsync(url, WaitUntilNavigation.Networkidle2));
-            Logger?.LogInformation("Page navigation successful: {url}", url);
+            Logger?.LogDebug("Page navigation successful: {Url}", TelemetryUrl.RedactQueryAndFragment(url));
         }
         catch (Exception ex)
         {
-            Logger?.LogError(ex, "Failed to navigate to page: {url}", url);
+            Logger?.LogError(ex, "Failed to navigate to page: {Url}", TelemetryUrl.RedactQueryAndFragment(url));
             trace?.SetStatus(ActivityStatusCode.Error, ex.Message);
             throw;
         }
@@ -146,14 +147,14 @@ internal class PuppeteerPageLoaderWithProxies : BrowserPageLoader, IBrowserPageL
             for (int i = 0; i < pageActions.Count; i++)
             {
                 var pageAction = pageActions[i];
-                Logger?.LogInformation("Executing page action {current}/{total} type {actionType}",
+                Logger?.LogDebug("Executing page action {Current}/{Total} type {ActionType}",
                     i + 1, pageActions.Count, pageAction.Type);
                 await PageActions[pageAction.Type](page, pageAction.Parameters);
             }
         }
 
         var html = await page.GetContentAsync();
-        Logger?.LogInformation("Page load completed: {url}", url);
+        Logger?.LogInformation("Page load completed: {Url}", TelemetryUrl.RedactQueryAndFragment(url));
         return html;
     }
 }

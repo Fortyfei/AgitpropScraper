@@ -55,6 +55,7 @@ public static class Extensions
         {
             logging.IncludeFormattedMessage = true;
             logging.IncludeScopes = true;
+            logging.ParseStateValues = true;
         });
 
         builder.Services.AddOpenTelemetry()
@@ -62,12 +63,42 @@ public static class Extensions
         {
             builder.AddHttpClientInstrumentation()
                    .AddAspNetCoreInstrumentation()
-                   .AddProcessInstrumentation();
+                   .AddProcessInstrumentation()
+                   .AddRuntimeInstrumentation()
+                   .AddMeter(
+                       "Agitprop.Spider",
+                       "Agitprop.NewsfeedJobConsumer",
+                       "Agitprop.RssFeedReader",
+                       "Agitprop.RespectfulPageRequester",
+                       "Agitprop.Web.Api",
+                       "MassTransit");
         })
         .WithTracing(builder =>
         {
             builder.AddHttpClientInstrumentation()
-                   .AddAspNetCoreInstrumentation();
+                   .AddAspNetCoreInstrumentation()
+                   .AddEntityFrameworkCoreInstrumentation()
+                   .AddSource(
+                       "Agitprop.Spider",
+                       "Agitprop.PageLoader.HttpStaticPageLoader",
+                       "Agitprop.PageLoader.PuppeteerPageLoader",
+                       "Agitprop.PageLoader.PuppeteerPageLoaderWithProxies",
+                       "Agitprop.PageRequester.RespectfulPageRequester",
+                       "Agitprop.ProxyProviders.ProxyScrapeProxyProvider",
+                       "Agitprop.ProxyProviders.RedScrapeProxyProvider",
+                       "Agitprop.ProxyPool",
+                       "Agitprop.RotatingHttpClientPool",
+                       "Agitprop.RssFeedReader",
+                       "Agitprop.NewsfeedJobConsumer",
+                       "Agitprop.NewsfeedSink",
+                       "Agitprop.NamedEntityRecognizer",
+                       "Agitprop.NewsfeedDB",
+                       "Agitprop.Repository.EntityRepository",
+                       "Agitprop.Repository.TrendingRepository",
+                       "Npgsql",
+                       "Agitprop.Web.Api.Controllers.EntitiesController",
+                       "Agitprop.Web.Api.Controllers.ActivitiesController",
+                       "MassTransit");
         });
 
         builder.AddOpenTelemetryExporters();

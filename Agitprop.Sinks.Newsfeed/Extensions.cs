@@ -36,12 +36,6 @@ public static class Extensions
                 sp.GetRequiredService<ILogger<NewsfeedSink>>(),
                 sp.GetRequiredService<IConfiguration>()));
 
-        builder.Services.AddOpenTelemetry()
-            .WithTracing(tracing => tracing
-                .AddSource("Agitprop.NewsfeedSink")
-                .AddSource("Agitprop.NamedEntityRecognizer")
-            );
-
         return builder;
     }
 
@@ -110,10 +104,6 @@ public static class Extensions
         builder.AddPostgresConnection();
         builder.Services.AddTransient<INewsfeedDB, NewsfeedDB>();
 
-        builder.Services.AddOpenTelemetry()
-            .WithTracing(tracing => tracing
-                .AddSource("Agitprop.NewsfeedDB")
-            );
         return builder;
     }
 
@@ -125,13 +115,6 @@ public static class Extensions
         builder.AddPostgresConnection();
         builder.Services.AddTransient<IEntityRepository, EntityRepository>();
         builder.Services.AddTransient<ITrendingRepository, TrendingRepository>();
-
-        builder.Services.AddOpenTelemetry()
-            .WithTracing(tracing => tracing
-                .AddSource("Npgsql")
-                .AddSource("Agitprop.Repository.EntityRepository")
-                .AddSource("Agitprop.Repository.TrendingRepository")
-            );
 
         return builder;
     }

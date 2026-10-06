@@ -2,6 +2,8 @@ using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
+using Agitprop.Core;
+
 using Microsoft.Extensions.Logging;
 
 namespace Agitprop.Infrastructure.ProxyProviders;
@@ -23,7 +25,7 @@ public class RedScrapeProxyProvider : IProxyProvider
     public async Task<IEnumerable<string>> FetchProxyAddressesAsync()
     {
         using var activity = _activitySource.StartActivity("FetchProxyAddressesAsync", ActivityKind.Internal);
-        activity?.SetTag("proxy.source_uri", _sourceUri.ToString());
+        activity?.SetTag("proxy.source_uri", TelemetryUrl.RedactQueryAndFragment(_sourceUri));
         try
         {
             var res = await _http.GetAsync(_sourceUri, HttpCompletionOption.ResponseHeadersRead);
@@ -31,13 +33,15 @@ public class RedScrapeProxyProvider : IProxyProvider
             var json = await res.Content.ReadAsStringAsync();
             var proxies = JsonSerializer.Deserialize<List<ProxyApiResponseItem>>(json);
             activity?.SetTag("proxy.fetched_count", proxies?.Count);
-            _logger.LogInformation("Fetched {Count} proxy addresses from {Url}", proxies?.Count, _sourceUri);
+            _logger.LogInformation("Fetched {Count} proxy addresses from {Url}", proxies?.Count,
+                TelemetryUrl.RedactQueryAndFragment(_sourceUri));
             var addresses = proxies?.Select(p => $"{p.Address}:{p.Port}") ?? [];
             return addresses;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to fetch proxy addresses from {Url}", _sourceUri);
+            _logger.LogError(ex, "Failed to fetch proxy addresses from {Url}",
+                TelemetryUrl.RedactQueryAndFragment(_sourceUri));
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             throw;
         }

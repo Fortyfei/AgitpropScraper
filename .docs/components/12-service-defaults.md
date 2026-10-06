@@ -9,9 +9,12 @@ configuration layer.
 
 ## Responsibilities
 
-- **OpenTelemetry**: configures tracing, metrics, and OTLP export for every
-  service (source/meter names like `"Agitprop.Spider"`, `"Agitprop.NewsfeedJobConsumer"`,
-  `"Agitprop.RssFeedReader"`, `"Agitprop.Web.Api.Controllers.*"`).
+- **OpenTelemetry**: configures structured log export, HTTP/AspNetCore,
+  process/runtime, MassTransit, and Entity Framework Core instrumentation.
+  Application-owned ActivitySources and Meters are registered centrally so
+  traces and metrics work consistently in every service using these defaults.
+- **OTLP export**: enabled when `OTEL_EXPORTER_OTLP_ENDPOINT` is configured;
+  Aspire supplies that endpoint for AppHost-managed services.
 - **Health checks**: registers built-in health checks for all services.
 - **Resilience**: configures retry policies, circuit breakers, and HTTP
   client resilience via Polly extensions.
@@ -29,3 +32,10 @@ builder.AddServiceDefaults();
 
 Called by: `Agitprop.Scraper.Consumer`, `Agitprop.Scraper.RssFeedReader`,
 `Agitprop.Web.Api`, and `Agitprop.Web.Client`.
+
+The scraping pipeline emits bounded metrics for consumed/completed/failed
+jobs, scrape duration and outcomes, processed pages, RSS items/jobs, feed and
+publish failures, and API cache hits/misses. URLs are not metric dimensions.
+Application-owned URL fields in logs and spans omit query strings and
+fragments. Automatic HttpClient instrumentation retains its own URL
+attributes. EF Core spans do not include SQL text or query parameter values.

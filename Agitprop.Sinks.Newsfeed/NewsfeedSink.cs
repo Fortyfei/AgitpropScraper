@@ -14,7 +14,7 @@ public class NewsfeedSink : ISink
     private readonly INamedEntityRecognizer _nerService;
     private readonly INewsfeedDB _db;
     private readonly ILogger<NewsfeedSink> _logger;
-    private readonly ActivitySource _activitySource = new("Agitprop.NewsfeedSink");
+    private static readonly ActivitySource _activitySource = new("Agitprop.NewsfeedSink");
     private readonly int _retryCount;
 
     public NewsfeedSink(INamedEntityRecognizer nerService, INewsfeedDB db, ILogger<NewsfeedSink> logger, IConfiguration? configuration = null)
@@ -28,24 +28,29 @@ public class NewsfeedSink : ISink
     public async Task<bool> CheckPageAlreadyVisited(string url)
     {
         using var trace = _activitySource.StartActivity("CheckPageAlreadyVisited", ActivityKind.Internal);
+        trace?.SetTag("article.url", TelemetryUrl.RedactQueryAndFragment(url));
         try
         {
-            _logger?.LogInformation("Checking if page already visited: {url}", url);
+            _logger?.LogDebug("Checking if page already visited: {Url}", TelemetryUrl.RedactQueryAndFragment(url));
 
             var exists = await Polly.Policy
                 .Handle<Exception>()
                 .WaitAndRetryAsync(_retryCount, attempt => TimeSpan.FromSeconds(0.5 * attempt), (ex, ts, attempt, ctx) =>
                 {
-                    _logger?.LogWarning(ex, "[RETRY] Exception checking page {url} on attempt {attempt}", url, attempt);
+                    _logger?.LogWarning(ex, "[RETRY] Exception checking page {Url} on attempt {Attempt}",
+                        TelemetryUrl.RedactQueryAndFragment(url), attempt);
                 })
                 .ExecuteAsync(() => _db.IsUrlAlreadyExists(url));
 
-            _logger?.LogInformation("CheckPageAlreadyVisited result for {url}: {exists}", url, exists);
+            _logger?.LogDebug("CheckPageAlreadyVisited result for {Url}: {Exists}",
+                TelemetryUrl.RedactQueryAndFragment(url), exists);
+            trace?.SetStatus(ActivityStatusCode.Ok);
             return exists;
         }
         catch (Exception ex)
         {
-            _logger?.LogError(ex, "Failed to check if page already visited: {url}", url);
+            _logger?.LogError(ex, "Failed to check if page already visited: {Url}",
+                TelemetryUrl.RedactQueryAndFragment(url));
             trace?.SetStatus(ActivityStatusCode.Error, ex.Message);
             throw;
         }
@@ -54,7 +59,10 @@ public class NewsfeedSink : ISink
     public async Task EmitAsync(string url, List<ContentParserResult> data, CancellationToken cancellationToken = default)
     {
         using var trace = _activitySource.StartActivity("EmitAsync", ActivityKind.Internal);
-        _logger?.LogInformation("Processing {articleCount} articles for {url}", data.Count, url);
+        trace?.SetTag("article.url", TelemetryUrl.RedactQueryAndFragment(url));
+        trace?.SetTag("article.count", data.Count);
+        _logger?.LogDebug("Processing {ArticleCount} articles for {Url}",
+            data.Count, TelemetryUrl.RedactQueryAndFragment(url));
 
         foreach (var article in data)
         {
@@ -66,30 +74,36 @@ public class NewsfeedSink : ISink
                     .Handle<Exception>()
                     .WaitAndRetryAsync(_retryCount, attempt => TimeSpan.FromSeconds(0.5 * attempt), (ex, ts, attempt, ctx) =>
                     {
-                        _logger?.LogWarning(ex, "[RETRY] Exception analyzing entities for {url} attempt {attempt}", url, attempt);
+                        _logger?.LogWarning(ex, "[RETRY] Exception analyzing entities for {Url} on attempt {Attempt}",
+                            TelemetryUrl.RedactQueryAndFragment(url), attempt);
                     })
                     .ExecuteAsync(() => _nerService.AnalyzeSingleAsync(article.Text));
 
-                _logger?.LogInformation("Received {entityCount} entities for article in {url}", entities.All.Count, url);
+                _logger?.LogDebug("Received {EntityCount} entities for article in {Url}",
+                    entities.All.Count, TelemetryUrl.RedactQueryAndFragment(url));
 
                 var count = await Polly.Policy
                     .Handle<Exception>()
                     .WaitAndRetryAsync(_retryCount, attempt => TimeSpan.FromSeconds(0.5 * attempt), (ex, ts, attempt, ctx) =>
                     {
-                        _logger?.LogWarning(ex, "[RETRY] Exception inserting mentions for {url} attempt {attempt}", url, attempt);
+                        _logger?.LogWarning(ex, "[RETRY] Exception inserting mentions for {Url} on attempt {Attempt}",
+                            TelemetryUrl.RedactQueryAndFragment(url), attempt);
                     })
                     .ExecuteAsync(() => _db.CreateMentionsAsync(url, article, entities));
 
-                _logger?.LogInformation("Inserted {count} mentions for article in {url}", count, url);
+                _logger?.LogDebug("Inserted {MentionCount} mentions for article in {Url}",
+                    count, TelemetryUrl.RedactQueryAndFragment(url));
             }
             catch (Exception ex)
             {
-                _logger?.LogError(ex, "Failed to process article for {url}", url);
+                _logger?.LogError(ex, "Failed to process article for {Url}", TelemetryUrl.RedactQueryAndFragment(url));
                 trace?.SetStatus(ActivityStatusCode.Error, ex.Message);
                 throw;
             }
         }
 
-        _logger?.LogInformation("Finished processing articles for {url}", url);
+        _logger?.LogInformation("Finished processing {ArticleCount} articles for {Url}",
+            data.Count, TelemetryUrl.RedactQueryAndFragment(url));
+        trace?.SetStatus(ActivityStatusCode.Ok);
     }
 }

@@ -1,5 +1,6 @@
 ﻿using System.Net;
 
+using Agitprop.Core;
 using Agitprop.Core.Interfaces;
 
 using Microsoft.Extensions.Configuration;
@@ -36,7 +37,8 @@ public class RotatingProxyPageRequester : IPageRequester
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning(ex, "Request via rotating proxy failed for {url}", url);
+            _logger?.LogWarning(ex, "Request via rotating proxy failed for {Url}",
+                TelemetryUrl.RedactQueryAndFragment(url));
             throw;
         }
     }

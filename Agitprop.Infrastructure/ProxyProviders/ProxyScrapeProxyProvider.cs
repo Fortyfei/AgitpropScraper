@@ -1,5 +1,7 @@
 using System.Diagnostics;
 
+using Agitprop.Core;
+
 using Microsoft.Extensions.Logging;
 
 namespace Agitprop.Infrastructure.ProxyProviders;
@@ -20,7 +22,7 @@ public class ProxyScrapeProxyProvider : IProxyProvider
     public async Task<IEnumerable<string>> FetchProxyAddressesAsync()
     {
         using var activity = _activitySource.StartActivity("FetchProxyAddressesAsync", ActivityKind.Internal);
-        activity?.SetTag("proxy.source_uri", _sourceUri.ToString());
+        activity?.SetTag("proxy.source_uri", TelemetryUrl.RedactQueryAndFragment(_sourceUri));
         try
         {
             var res = await _http.GetAsync(_sourceUri, HttpCompletionOption.ResponseHeadersRead);
@@ -30,12 +32,14 @@ public class ProxyScrapeProxyProvider : IProxyProvider
                                 .Select(addr => addr.Replace("http://", ""))
                                 .ToArray();
             activity?.SetTag("proxy.fetched_count", addresses.Length);
-            _logger.LogInformation("Fetched {Count} proxy addresses from {Url}", addresses.Length, _sourceUri);
+            _logger.LogInformation("Fetched {Count} proxy addresses from {Url}", addresses.Length,
+                TelemetryUrl.RedactQueryAndFragment(_sourceUri));
             return addresses;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to fetch proxy addresses from {Url}", _sourceUri);
+            _logger.LogError(ex, "Failed to fetch proxy addresses from {Url}",
+                TelemetryUrl.RedactQueryAndFragment(_sourceUri));
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             throw;
         }

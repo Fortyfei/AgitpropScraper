@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using Agitprop.Core;
 using Agitprop.Core.Enums;
 using Agitprop.Core.Interfaces;
@@ -100,6 +102,89 @@ public class SpiderTests
         Assert.That(linkParser.CallCount, Is.EqualTo(1));
     }
 
+    [Test]
+    public async Task CrawlAsync_RecordsDurationAndProcessedCountWithoutUrlMetricDimensions()
+    {
+        var measurements = new List<(string Name, KeyValuePair<string, object?>[] Tags)>();
+        using var meterListener = new MeterListener
+        {
+            InstrumentPublished = (instrument, listener) =>
+            {
+                if (instrument.Meter.Name == "Agitprop.Spider")
+                {
+                    listener.EnableMeasurementEvents(instrument);
+                }
+            }
+        };
+        meterListener.SetMeasurementEventCallback<long>((instrument, _, tags, _) =>
+            measurements.Add((instrument.Name, tags.ToArray())));
+        meterListener.SetMeasurementEventCallback<double>((instrument, _, tags, _) =>
+            measurements.Add((instrument.Name, tags.ToArray())));
+        meterListener.Start();
+
+        var activities = new List<Activity>();
+        using var activityListener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name == "Agitprop.Spider",
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
+            ActivityStopped = activities.Add
+        };
+        ActivitySource.AddActivityListener(activityListener);
+
+        var url = "https://example.test/article?token=secret#section";
+        await CreateSpider(new RecordingPageTransport()).CrawlAsync(
+            CreateJob(url: url), new RecordingSink());
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(measurements.Any(measurement => measurement.Name == "spider.pages.processed"), Is.True);
+            Assert.That(measurements.Any(measurement => measurement.Name == "spider.processing.duration"
+                && measurement.Tags.Any(tag => tag.Key == "outcome" && Equals(tag.Value, "success"))), Is.True);
+            Assert.That(measurements.SelectMany(measurement => measurement.Tags)
+                .Any(tag => tag.Key.Contains("url", StringComparison.OrdinalIgnoreCase)), Is.False);
+            Assert.That(activities.SelectMany(activity => activity.TagObjects)
+                .Where(tag => tag.Key == "url")
+                .All(tag => Equals(tag.Value, "https://example.test/article")), Is.True);
+        });
+    }
+
+    [Test]
+    public void CrawlAsync_WhenParserFails_RecordsFailureOutcome()
+    {
+        var measurements = new List<(string Name, KeyValuePair<string, object?>[] Tags)>();
+        using var meterListener = new MeterListener
+        {
+            InstrumentPublished = (instrument, listener) =>
+            {
+                if (instrument.Meter.Name == "Agitprop.Spider")
+                {
+                    listener.EnableMeasurementEvents(instrument);
+                }
+            }
+        };
+        meterListener.SetMeasurementEventCallback<long>((instrument, _, tags, _) =>
+            measurements.Add((instrument.Name, tags.ToArray())));
+        meterListener.SetMeasurementEventCallback<double>((instrument, _, tags, _) =>
+            measurements.Add((instrument.Name, tags.ToArray())));
+        meterListener.Start();
+
+        var parser = new RecordingContentParser(_ => throw new FormatException("invalid article"));
+        var job = CreateJob(PageCategory.TargetPage, contentParsers: [parser]);
+
+        Assert.ThrowsAsync<Agitprop.Core.Exceptions.ContentParserException>(
+            () => CreateSpider(new RecordingPageTransport()).CrawlAsync(job, new RecordingSink()));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(measurements.Any(measurement => measurement.Name == "spider.scrape.failures"
+                && measurement.Tags.Any(tag => tag.Key == "operation" && Equals(tag.Value, "crawl"))), Is.True);
+            Assert.That(measurements.Any(measurement => measurement.Name == "spider.processing.duration"
+                && measurement.Tags.Any(tag => tag.Key == "outcome" && Equals(tag.Value, "failure"))), Is.True);
+            Assert.That(measurements.SelectMany(measurement => measurement.Tags)
+                .Any(tag => tag.Key.Contains("url", StringComparison.OrdinalIgnoreCase)), Is.False);
+        });
+    }
+
     [TestCase(false, 0)]
     [TestCase(true, 1)]
     public async Task CrawlAsync_OnlyAddsNextPageWhenContinuousPaginationIsEnabled(
@@ -157,9 +242,10 @@ public class SpiderTests
         IEnumerable<IContentParser>? contentParsers = null,
         IEnumerable<ILinkParser>? linkParsers = null,
         IPaginator? paginator = null,
-        List<PageAction>? actions = null) => new()
+        List<PageAction>? actions = null,
+        string? url = null) => new()
         {
-            Url = PageUrl,
+            Url = url ?? PageUrl,
             PageCategory = category,
             PageType = pageType,
             Actions = actions,

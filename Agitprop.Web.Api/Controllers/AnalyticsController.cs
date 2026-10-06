@@ -37,7 +37,8 @@ namespace Agitprop.Web.Api.Controllers
         [FromQuery] DateOnly from,
         [FromQuery] DateOnly to)
     {
-        using var activity = _activitySource.StartActivity("GetTopMentionedEntities", ActivityKind.Server);
+        using var activity = _activitySource.StartActivity("GetTopMentionedEntities", ActivityKind.Internal);
+        activity?.SetTag("api.operation", "analytics.top_mentions");
 
         if (from == default || to == default)
         {
@@ -51,7 +52,11 @@ namespace Agitprop.Web.Api.Controllers
 
         var cacheKey = $"topmentions:{from:yyyy-MM-dd}:{to:yyyy-MM-dd}";
         if (_cache.TryGetValue(cacheKey, out TopMentionedEntitiesResponse? cached) && cached is not null)
+        {
+            ApiMetrics.RecordCacheResult(activity, "analytics.top_mentions", "hit");
             return Ok(cached);
+        }
+        ApiMetrics.RecordCacheResult(activity, "analytics.top_mentions", "miss");
 
         try
         {
@@ -81,11 +86,14 @@ namespace Agitprop.Web.Api.Controllers
 
             var response = new TopMentionedEntitiesResponse { Entities = topEntities };
             _cache.Set(cacheKey, response, CacheDuration);
+            activity?.SetTag("api.result_count", topEntities.Count);
+            activity?.SetStatus(ActivityStatusCode.Ok);
             return Ok(response);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error computing top mentioned entities");
+            activity?.SetStatus(ActivityStatusCode.Error, ex.GetType().Name);
             return StatusCode(500, new { error = "Failed to compute top mentioned entities." });
         }
     }

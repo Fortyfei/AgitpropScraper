@@ -4,6 +4,7 @@ using System.Net;
 using System.Text;
 using System.Diagnostics;
 
+using Agitprop.Core;
 using Agitprop.Core.Interfaces;
 
 using Microsoft.Extensions.Logging;
@@ -42,9 +43,9 @@ public class HttpStaticPageLoader : IStaticPageLoader
     public async Task<string> Load(string url)
     {
         using var trace = ActivitySource.StartActivity("Load", ActivityKind.Producer);
-        trace?.SetTag("url", url);
+        trace?.SetTag("url", TelemetryUrl.RedactQueryAndFragment(url));
 
-        Logger?.LogInformation("Starting to load page: {url}", url);
+        Logger?.LogDebug("Starting to load page: {Url}", TelemetryUrl.RedactQueryAndFragment(url));
 
         PageRequester.CookieContainer = await CookiesStorage.GetAsync();
 
@@ -60,28 +61,31 @@ public class HttpStaticPageLoader : IStaticPageLoader
                     (outcome, ts, attempt, ctx) =>
                     {
                         if (outcome.Exception != null)
-                            Logger?.LogWarning(outcome.Exception, "[RETRY] Exception loading page {url} on attempt {attempt}", url, attempt);
+                            Logger?.LogWarning(outcome.Exception, "[RETRY] Exception loading page {Url} on attempt {Attempt}",
+                                TelemetryUrl.RedactQueryAndFragment(url), attempt);
                         else if (outcome.Result != null)
-                            Logger?.LogWarning("[RETRY] Failed to load page {url} on attempt {attempt}. Status: {statusCode}", url, attempt, outcome.Result.StatusCode);
+                            Logger?.LogWarning("[RETRY] Failed to load page {Url} on attempt {Attempt}. Status: {StatusCode}",
+                                TelemetryUrl.RedactQueryAndFragment(url), attempt, outcome.Result.StatusCode);
                     })
                 .ExecuteAsync(() => PageRequester.GetAsync(url));
 
             if (response.IsSuccessStatusCode)
             {
-                Logger?.LogInformation("Successfully loaded page: {url}", url);
+                Logger?.LogDebug("Successfully loaded page: {Url}", TelemetryUrl.RedactQueryAndFragment(url));
                 return await response.Content.ReadAsStringAsync();
             }
 
-            Logger?.LogError("Failed to load page {url}. Status code: {statusCode}", url, response.StatusCode);
+            Logger?.LogError("Failed to load page {Url}. Status code: {StatusCode}",
+                TelemetryUrl.RedactQueryAndFragment(url), response.StatusCode);
             trace?.SetStatus(System.Diagnostics.ActivityStatusCode.Error, $"StatusCode={response.StatusCode}");
-            throw new InvalidOperationException($"Failed to load page {url}. Status code: {response.StatusCode}. Headers: {response.Headers}")
+            throw new InvalidOperationException($"Failed to load page {TelemetryUrl.RedactQueryAndFragment(url)}. Status code: {response.StatusCode}. Headers: {response.Headers}")
             {
                 Data = { ["url"] = url, ["statusCode"] = response.StatusCode, ["headers"] = response.Headers }
             };
         }
         catch (Exception ex)
         {
-            Logger?.LogError(ex, "Exception thrown while loading page {url}", url);
+            Logger?.LogError(ex, "Exception thrown while loading page {Url}", TelemetryUrl.RedactQueryAndFragment(url));
             trace?.SetStatus(System.Diagnostics.ActivityStatusCode.Error, ex.Message);
             throw;
         }

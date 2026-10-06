@@ -1,5 +1,4 @@
 using Agitprop.Sinks.Newsfeed;
-using OpenTelemetry.Trace;
 using Microsoft.EntityFrameworkCore;
 using Agitprop.Sinks.Newsfeed.Database;
 using Agitprop.Web.Api;
@@ -7,7 +6,6 @@ using Agitprop.Web.Api;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
-builder.ConfigureWebApiTracing();
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi

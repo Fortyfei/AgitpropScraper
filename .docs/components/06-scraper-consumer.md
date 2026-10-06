@@ -31,9 +31,8 @@ Requires two connection strings; throws `InvalidOperationException` if missing:
 
 | File | Purpose |
 |------|---------|
-| `Program.cs` | Host setup: AddServiceDefaults, ConfigureInfrastructureWithBrowser(false), ConfigureMassTransit, ConfigureTracing, ConfigureMetrics, AddNewsfeedSink |
-| `Extensions.cs` | `ConfigureMassTransit`, `ConfigureTracing`, `ConfigureMetrics` |
-| `InternalExtensions.cs` | `GetExceptionMessage` (truncates to 256 chars), `GetDomainFromUrl` |
+| `Program.cs` | Host setup: AddServiceDefaults, ConfigureInfrastructureWithBrowser(false), ConfigureMassTransit, AddNewsfeedSink |
+| `Extensions.cs` | `ConfigureMassTransit` |
 | `Consumers/NewsfeedJobConsumer.cs` | The MassTransit consumer implementation |
 | `Consumers/NewsfeedJobConsumerDefinition.cs` | Queue/concurrency configuration |
 
@@ -47,9 +46,24 @@ Requires two connection strings; throws `InvalidOperationException` if missing:
 - RabbitMQ host from connection string.
 - Clear serialization + AddRawJsonSerializer; ConfigureEndpoints.
 
-### ConfigureTracing / ConfigureMetrics
+### Telemetry collection
 
-- OpenTelemetry source/meter: `"Agitprop.NewsfeedJobConsumer"`.
+- The shared service defaults collect the consumer and MassTransit ActivitySource
+  and Meter, correlating broker spans with the scraper work and exporting them
+  through OTLP when configured.
+- Consumer metrics report job counts, outcome, and duration with bounded
+  job-type/handling tags, including a dedicated discovered-job publish failure
+  counter. They do not include URLs, exception messages, or other per-job
+  values as metric dimensions.
+
+## Observability
+
+The consumer's trace follows message consumption through Spider processing,
+entity recognition, and database persistence. Custom URL fields in consumer
+logs/spans omit query strings and fragments. EF Core spans provide query
+timings without SQL text or parameter values. Handled invalid jobs and
+propagated failures are both measured while preserving the existing
+acknowledgement and retry behavior.
 
 ## Configuration
 
