@@ -7,17 +7,20 @@
 <PageTitle>Entities</PageTitle>
 
 <div class="page-block entity-browser-page">
-    <section class="panel-card browser-header">
+    <section class="browser-header">
         <div class="browser-title-row">
             <div>
+                <p class="page-kicker">Directory</p>
                 <h1 class="browser-title">Entities</h1>
-                <span class="browser-subtitle">Browse all monitored entities ranked by mention count</span>
+                <span class="browser-subtitle">Find monitored people and organizations by coverage volume.</span>
             </div>
         </div>
 
         <div class="browser-controls">
             <div class="browser-search-wrap">
+                <label class="visually-hidden" for="entity-search">Search entities</label>
                 <input class="browser-search-input"
+                       id="entity-search"
                        type="search"
                        placeholder="Search by name…"
                        value="@SearchQuery"
@@ -45,7 +48,7 @@
         <div class="alert alert-warning" role="alert">@ErrorMessage</div>
     }
 
-    <section class="panel-card entity-list-panel">
+    <section class="entity-list-panel">
         @if (IsLoading && Items.Count == 0)
         {
             <div class="browser-loading">Loading…</div>

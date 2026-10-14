@@ -7,113 +7,104 @@
 <PageTitle>Landing</PageTitle>
 
 <div class="page-block landing-page">
-    <section class="landing-panel">
-        <div class="timeframe-selected">
-            Showing results for the last <strong>@SelectedTimeframe.Label</strong>
+    <section class="dashboard-intro">
+        <div>
+            <p class="page-kicker">Coverage monitor</p>
+            <h1>What is drawing attention?</h1>
+            <p>Track the people and organizations receiving the most coverage across monitored sources.</p>
         </div>
-
-        @if (!string.IsNullOrWhiteSpace(ErrorMessage))
-        {
-            <div class="alert alert-warning" role="alert">@ErrorMessage</div>
-        }
-
-        <div class="landing-panel-content">
-            <section class="landing-podium">
-                <div class="panel-card podium-panel">
-                    <div class="panel-header">
-                        <h2>Top entities</h2>
-                        <span>Most mentioned entities from the last @SelectedTimeframe.Label</span>
-                    </div>
-
-                    <div class="podium-grid">
-                        @{
-                            var podiumEntities = TopEntities.Take(3).ToArray();
-                            var podiumOrder = new[] { 2, 0, 1 };
-                        }
-
-                        @foreach (var position in podiumOrder)
-                        {
-                            if (position < podiumEntities.Length)
-                            {
-                                var entity = podiumEntities[position];
-                                <a href="/entity/@entity.Id" class="podium-card podium-place-@(position + 1)">
-                                    <div class="podium-rank">@((position + 1).ToString())</div>
-                                    <div class="podium-name">@entity.Name</div>
-                                    <div class="podium-count">@entity.Mentions.ToString("N0") mentions</div>
-                                </a>
-                            }
-                        }
-                    </div>
-
-                    <div class="timeframe-box">
-                        <div class="timeframe-selector">
-                            @for (var i = 0; i < TimeframeOptions.Count; i++)
-                            {
-                                var option = TimeframeOptions[i];
-                                var optionIndex = i;
-                                <button type="button"
-                                        class="timeframe-pill @(SelectedTimeframeIndex == optionIndex ? "active" : string.Empty)"
-                                        disabled="@IsLoading" @onclick="() => ChangeTimeframe(optionIndex)">
-                                    @option.Label
-                                </button>
-                            }
-                        </div>
-                    </div>
-
-                    <div class="entity-rank-list">
-                        @foreach (var item in TopEntities.Skip(3).Take(5).Select((entity, index) => (entity, index)))
-                        {
-                            <a href="/entity/@item.entity.Id" class="entity-rank-card">
-                                <div class="entity-rank-left">
-                                    <span class="entity-rank-place">@((item.index + 4).ToString())</span>
-                                    <span class="entity-rank-count">@item.entity.Mentions.ToString("N0")</span>
-                                </div>
-                                <div class="entity-rank-content">
-                                    <div class="entity-rank-name">@item.entity.Name</div>
-                                </div>
-                            </a>
-                        }
-                    </div>
-                </div>
-            </section>
-
-            <section class="panel-card chart-panel">
-                <div class="panel-header">
-                    <h2>Trend line</h2>
-                    <span>Mentions over time for the top entities</span>
-                </div>
-
-                <div>
-                    @if (IsLoading)
-                    {
-                        <span>Loading trend line...</span>
-                    }
-                    else if (TopEntities.Any() && SelectedTrendSeries.Any(series => series.Timeline.Count > 0))
-                    {
-                        <!-- KEY FIX: forces full re-render -->
-                        <ApexChart @key="SelectedTimeframeIndex" TItem="TimelinePoint" XAxisType="XAxisType.Datetime"
-                                   Height="360"
-                                   Options="ReadOnlyChartOptions">
-
-                            @foreach (var series in SelectedTrendSeries)
-                            {
-                                <ApexPointSeries TItem="TimelinePoint" Items="series.Timeline" Name="@series.Name"
-                                                 SeriesType="SeriesType.Line"
-                                                 Stroke="@(new SeriesStroke { Color = series.Color, Width = 2 })"
-                                                 XValue="@(point => DateTime.SpecifyKind(point.Date.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc))"
-                                                 YValue="@(point => (decimal?)point.Count)" />
-                            }
-
-                        </ApexChart>
-                    }
-                    else
-                    {
-                        <span>No trend data available for the selected timeframe.</span>
-                    }
-                </div>
-            </section>
+        <div class="timeframe-control">
+            <span>Coverage window</span>
+            <div class="timeframe-selector" aria-label="Coverage window">
+                @for (var i = 0; i < TimeframeOptions.Count; i++)
+                {
+                    var option = TimeframeOptions[i];
+                    var optionIndex = i;
+                    <button type="button"
+                            class="timeframe-pill @(SelectedTimeframeIndex == optionIndex ? "active" : string.Empty)"
+                            disabled="@IsLoading" @onclick="() => ChangeTimeframe(optionIndex)">
+                        @option.Label
+                    </button>
+            }
+            </div>
         </div>
     </section>
+
+    @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+    {
+        <div class="alert alert-warning" role="alert">@ErrorMessage</div>
+    }
+
+    <div class="home-dashboard-grid">
+        <section class="monitor-panel ranking-panel">
+            <div class="panel-header">
+                <div>
+                    <h2>Most mentioned</h2>
+                    <p>Ranked by coverage in the last @SelectedTimeframe.Label.</p>
+                </div>
+                <a class="text-link" href="/entities">View all entities</a>
+            </div>
+
+            @if (IsLoading)
+            {
+                <p class="data-state">Loading coverage…</p>
+            }
+            else if (TopEntities.Count == 0)
+            {
+                <p class="data-state">No entities were mentioned in this period.</p>
+            }
+            else
+            {
+                <ol class="entity-rank-list">
+                    @foreach (var item in TopEntities.Select((entity, index) => (entity, index)))
+                    {
+                        <li>
+                            <a href="/entity/@item.entity.Id" class="entity-rank-card">
+                                <span class="entity-rank-place">@((item.index + 1).ToString("D2"))</span>
+                                <span class="entity-rank-name">@item.entity.Name</span>
+                                <span class="entity-rank-count">@item.entity.Mentions.ToString("N0") <span>mentions</span></span>
+                            </a>
+                        </li>
+                    }
+                </ol>
+            }
+        </section>
+
+        <section class="monitor-panel chart-panel">
+            <div class="panel-header">
+                <div>
+                    <h2>Trend line</h2>
+                    <p>Daily mentions for the leading entities.</p>
+                </div>
+            </div>
+
+            <div class="chart-content">
+                @if (IsLoading)
+                {
+                    <p class="data-state">Loading trend line…</p>
+                }
+                else if (TopEntities.Any() && SelectedTrendSeries.Any(series => series.Timeline.Count > 0))
+                {
+                    <ApexChart @key="SelectedTimeframeIndex" TItem="TimelinePoint" XAxisType="XAxisType.Datetime"
+                               Height="360"
+                               Options="ReadOnlyChartOptions">
+                        @foreach (var series in SelectedTrendSeries)
+                        {
+                            <ApexPointSeries TItem="TimelinePoint" Items="series.Timeline" Name="@series.Name"
+                                             SeriesType="SeriesType.Line"
+                                             Stroke="@(new SeriesStroke { Color = series.Color, Width = 2 })"
+                                             XValue="@(point => DateTime.SpecifyKind(point.Date.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc))"
+                                             YValue="@(point => (decimal?)point.Count)" />
+                        }
+                    </ApexChart>
+                }
+                else
+                {
+                    <p class="data-state">No trend data is available for this period.</p>
+                }
+            </div>
+        </section>
+    </div>
 </div>
 
 @code {
@@ -152,7 +143,6 @@
 
     private TimeframeOption SelectedTimeframe => TimeframeOptions[SelectedTimeframeIndex];
 
-    // ✅ FIX: removed filtering that killed the chart
     private IEnumerable<EntityTrendSeries> SelectedTrendSeries =>
         TopEntities.Select((entity, index) => new EntityTrendSeries
         {
@@ -254,7 +244,7 @@
 
     private static string TrendColor(int index)
     {
-        var palette = new[] { "#2563eb", "#16a34a", "#c2410c", "#7c3aed", "#0891b2", "#be123c" };
+        var palette = new[] { "#135D91", "#407A5A", "#D99024", "#7053A6", "#257C82", "#A64D4D" };
         return palette[index % palette.Length];
     }
 
