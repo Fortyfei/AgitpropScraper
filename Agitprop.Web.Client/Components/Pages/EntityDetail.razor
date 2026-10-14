@@ -18,7 +18,8 @@
     }
     else
     {
-        <div class="entity-detail-header panel-card">
+        <div class="entity-detail-header">
+            <a class="back-link" href="/entities">All entities</a>
             <div class="entity-detail-title-row">
                 <h1 class="entity-detail-name">@Entity.Name</h1>
                 @if (!string.IsNullOrWhiteSpace(Entity.Type))
@@ -111,7 +112,7 @@
                                          Items="Timeline"
                                          Name="@Entity.Name"
                                          SeriesType="SeriesType.Line"
-                                         Stroke="@(new SeriesStroke { Color = "#2563eb", Width = 2 })"
+                                         Stroke="@(new SeriesStroke { Color = "#135D91", Width = 2 })"
                                          XValue="@(p => DateTime.SpecifyKind(p.Date.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc))"
                                          YValue="@(p => (decimal?)p.Count)" />
                     </ApexChart>
