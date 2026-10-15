@@ -41,6 +41,15 @@ entity analytics data to the Blazor client and external consumers.
 |----------|--------|--------------|---------|
 | `GetTopMentionedEntities` | GET `topmentions` | from, to | `TopMentionedEntitiesResponse` |
 
+### SourcesController
+
+- Route: `api/sources`
+- Cache duration: 15 min
+
+| Endpoint | Method | Query Params | Returns |
+|----------|--------|--------------|---------|
+| `GetSources` | GET | from, to | `SourcesResponse` |
+
 ## DI Registration (Program.cs)
 
 1. `AddServiceDefaults()` — shared OTel / health / resilience config.
@@ -61,6 +70,7 @@ entity analytics data to the Blazor client and external consumers.
 - `EntityResponse`
 - `EntityArticlesResponse`, `ArticleDto`
 - `TopMentionedEntitiesResponse`, `TopMentionedEntity`
+- `SourcesResponse`, `SourceStatDto`
 
 ## Startup Validation
 

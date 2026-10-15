@@ -1,0 +1,145 @@
+@page "/sources"
+@rendermode InteractiveServer
+@using Agitprop.Web.Client.Models
+@inject Agitprop.Web.Client.Services.AnalyticsService Analytics
+
+<PageTitle>Sources</PageTitle>
+
+<div class="page-block sources-page">
+    <section class="sources-intro">
+        <div>
+            <p class="page-kicker">Directory</p>
+            <h1>Sources</h1>
+            <p>See which publishers are shaping the monitored conversation.</p>
+        </div>
+
+        <div class="timeframe-control">
+            <span>Coverage window</span>
+            <div class="timeframe-selector" aria-label="Coverage window">
+                @for (var i = 0; i < TimeframeOptions.Count; i++)
+                {
+                    var option = TimeframeOptions[i];
+                    var optionIndex = i;
+                    <button type="button"
+                            class="timeframe-pill @(SelectedTimeframeIndex == optionIndex ? "active" : string.Empty)"
+                            disabled="@IsLoading"
+                            @onclick="() => ChangeTimeframe(optionIndex)">
+                        @option.Label
+                    </button>
+                }
+            </div>
+        </div>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+    {
+        <div class="alert alert-warning" role="alert">@ErrorMessage</div>
+    }
+
+    <section class="sources-panel">
+        <div class="panel-header">
+            <div>
+                <h2>Publisher coverage</h2>
+                <p>Articles grouped by normalized publisher domain.</p>
+            </div>
+            @if (!IsLoading && SourceItems.Count > 0)
+            {
+                <span>@TotalMentions.ToString("N0") articles</span>
+            }
+        </div>
+
+        @if (IsLoading)
+        {
+            <p class="data-state">Loading sources…</p>
+        }
+        else if (SourceItems.Count == 0)
+        {
+            <p class="data-state">No source coverage is available for this period.</p>
+        }
+        else
+        {
+            <ol class="source-list">
+                @foreach (var source in SourceItems)
+                {
+                    <li class="source-row">
+                        <span class="source-rank">@((SourceItems.IndexOf(source) + 1).ToString("D2"))</span>
+                        <div class="source-main">
+                            <div class="source-name-row">
+                                <span class="source-name">@source.Domain</span>
+                                <span class="source-count">@source.Count.ToString("N0")</span>
+                            </div>
+                            <div class="source-bar-track" aria-hidden="true">
+                                <div class="source-bar-fill" style="width: @(source.Percent.ToString("F1", System.Globalization.CultureInfo.InvariantCulture))%"></div>
+                            </div>
+                        </div>
+                        <span class="source-percent">@source.Percent.ToString("F1")%</span>
+                    </li>
+                }
+            </ol>
+        }
+    </section>
+</div>
+
+@code {
+    private static readonly List<TimeframeOption> TimeframeOptions =
+    [
+        new("3 days", 3),
+        new("7 days", 7),
+        new("3 weeks", 21)
+    ];
+
+    private List<SourceStat> SourceItems { get; set; } = [];
+    private int SelectedTimeframeIndex { get; set; } = 1;
+    private bool IsLoading { get; set; }
+    private string? ErrorMessage { get; set; }
+    private TimeframeOption SelectedTimeframe => TimeframeOptions[SelectedTimeframeIndex];
+    private int TotalMentions => SourceItems.Sum(source => source.Count);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        IsLoading = true;
+        ErrorMessage = null;
+
+        try
+        {
+            var range = GetSelectedRange();
+            var result = await Analytics.GetSourcesAsync(range.From, range.To);
+            if (result is null)
+            {
+                SourceItems = [];
+                ErrorMessage = "Unable to load source statistics.";
+            }
+            else
+            {
+                SourceItems = result;
+            }
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private async Task ChangeTimeframe(int index)
+    {
+        if (SelectedTimeframeIndex == index)
+            return;
+
+        SelectedTimeframeIndex = index;
+        await LoadAsync();
+    }
+
+    private (DateOnly From, DateOnly To) GetSelectedRange()
+    {
+        var to = DateOnly.FromDateTime(DateTime.UtcNow);
+        var from = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-SelectedTimeframe.Days));
+        return (from, to);
+    }
+
+    private sealed record TimeframeOption(string Label, int Days);
+}
