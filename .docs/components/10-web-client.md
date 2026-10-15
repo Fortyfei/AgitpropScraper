@@ -29,7 +29,7 @@ render modes, but the current page components explicitly use
 | Route | Component | Behavior |
 |-------|-----------|----------|
 | `/` and `/home` | `Components/Pages/Home.razor` | Coverage dashboard with a timeline chart and ranked entities. |
-| `/entities` | `Components/Pages/EntityBrowser.razor` | Searchable, paginated entity directory; a horizontal bar chart shows up to eight entities from the current results page. |
+| `/entities` | `Components/Pages/EntityBrowser.razor` | Searchable directory of 50 entities per page with Prev/Next controls above and below the list; a "Top entities by coverage" bar chart shows up to eight entities from the current page, and selecting a bar opens that entity. |
 | `/entity/{Id}` | `Components/Pages/EntityDetail.razor` | Entity details, source breakdown, article list, and timeline chart. |
 | `/sources` | `Components/Pages/Sources.razor` | Publisher coverage by normalized domain; a donut chart displays the top six sources and combines the remainder as “Other.” |
 

@@ -110,8 +110,30 @@
 }
 
 .browser-list-header {
+    align-items: center;
     border-bottom: 1px solid var(--line);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    justify-content: space-between;
     padding: 0.85rem 1rem;
+}
+
+.pager-controls {
+    align-items: center;
+    display: flex;
+    gap: 1rem;
+}
+
+.browser-pagination .pager-controls {
+    justify-content: space-between;
+    width: 100%;
+}
+
+.chart-hint {
+    color: var(--slate);
+    font-size: 0.88rem;
+    margin: 0 0 0.5rem;
 }
 
 .browser-result-count {
