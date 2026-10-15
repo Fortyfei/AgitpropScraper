@@ -1,6 +1,7 @@
 @page "/entities"
 @rendermode InteractiveServer
 @using Agitprop.Web.Client.Models
+@using ApexCharts
 @inject Agitprop.Web.Client.Services.AnalyticsService Analytics
 @implements IDisposable
 
@@ -46,6 +47,19 @@
     @if (!string.IsNullOrWhiteSpace(ErrorMessage))
     {
         <div class="alert alert-warning" role="alert">@ErrorMessage</div>
+    }
+
+    @if (Items.Count > 0)
+    {
+        <section class="entity-chart-panel">
+            <h2>Most mentioned on this page</h2>
+            <ApexChart @key="ChartKey" TItem="EntityBrowseItem" Height="320" Options="BarOptions">
+                <ApexPointSeries TItem="EntityBrowseItem" Items="Items.Take(8).ToList()" Name="Mentions"
+                                 SeriesType="SeriesType.Bar"
+                                 XValue="@(item => item.Name)"
+                                 YValue="@(item => (decimal?)item.MentionCount)" />
+            </ApexChart>
+        </section>
     }
 
     <section class="entity-list-panel">
@@ -123,6 +137,15 @@
     private string? ErrorMessage { get; set; }
 
     private System.Threading.Timer? _debounceTimer;
+
+    private string ChartKey => $"{SelectedTimeframeIndex}-{CurrentPage}-{SearchQuery}-{TotalCount}";
+
+    private static readonly ApexChartOptions<EntityBrowseItem> BarOptions = new()
+    {
+        Colors = ["#135D91"],
+        PlotOptions = new PlotOptions { Bar = new PlotOptionsBar { Horizontal = true, BorderRadius = 2 } },
+        Chart = new Chart { Toolbar = new Toolbar { Show = false } }
+    };
 
     protected override async Task OnInitializedAsync()
     {

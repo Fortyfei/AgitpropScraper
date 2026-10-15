@@ -90,6 +90,20 @@
     color: #fff;
 }
 
+.entity-chart-panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    margin-bottom: 1.5rem;
+    padding: clamp(1rem, 2vw, 1.5rem);
+}
+
+.entity-chart-panel h2 {
+    color: var(--ink);
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 1.3rem;
+    margin: 0 0 0.5rem;
+}
+
 .entity-list-panel {
     background: var(--surface);
     border: 1px solid var(--line);

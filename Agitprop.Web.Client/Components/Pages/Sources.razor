@@ -1,6 +1,7 @@
 @page "/sources"
 @rendermode InteractiveServer
 @using Agitprop.Web.Client.Models
+@using ApexCharts
 @inject Agitprop.Web.Client.Services.AnalyticsService Analytics
 
 <PageTitle>Sources</PageTitle>
@@ -34,6 +35,24 @@
     @if (!string.IsNullOrWhiteSpace(ErrorMessage))
     {
         <div class="alert alert-warning" role="alert">@ErrorMessage</div>
+    }
+
+    @if (!IsLoading && SourceItems.Count > 0)
+    {
+        <section class="sources-panel">
+            <div class="panel-header">
+                <div>
+                    <h2>Share of coverage</h2>
+                    <p>Top publishers; the rest are grouped as Other.</p>
+                </div>
+            </div>
+            <ApexChart @key="SelectedTimeframeIndex" TItem="PieSlice" Height="340" Options="PieOptions">
+                <ApexPointSeries TItem="PieSlice" Items="PieSlices" Name="Articles"
+                                 SeriesType="SeriesType.Donut"
+                                 XValue="@(slice => slice.Label)"
+                                 YValue="@(slice => (decimal?)slice.Count)" />
+            </ApexChart>
+        </section>
     }
 
     <section class="sources-panel">
@@ -94,6 +113,26 @@
     private string? ErrorMessage { get; set; }
     private TimeframeOption SelectedTimeframe => TimeframeOptions[SelectedTimeframeIndex];
     private int TotalMentions => SourceItems.Sum(source => source.Count);
+
+    private sealed record PieSlice(string Label, int Count);
+
+    private List<PieSlice> PieSlices
+    {
+        get
+        {
+            var slices = SourceItems.Take(6).Select(source => new PieSlice(source.Domain, source.Count)).ToList();
+            var other = SourceItems.Skip(6).Sum(source => source.Count);
+            if (other > 0)
+                slices.Add(new PieSlice("Other", other));
+            return slices;
+        }
+    }
+
+    private static readonly ApexChartOptions<PieSlice> PieOptions = new()
+    {
+        Colors = ["#135D91", "#D99024", "#407A5A", "#7053A6", "#257C82", "#A64D4D", "#9AA7B4"],
+        Legend = new Legend { Position = LegendPosition.Bottom }
+    };
 
     protected override async Task OnInitializedAsync()
     {
