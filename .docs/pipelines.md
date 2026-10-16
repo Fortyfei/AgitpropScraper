@@ -15,7 +15,7 @@ sequenceDiagram
 
     loop On interval (default 60 min)
         RSS->>RSS: Fetch RSS feeds (System.ServiceModel.Syndication)
-        RSS->>RSS: Parse feeds → List<NewsfeedJobDescription>
+        RSS->>RSS: Parse feeds → List<NewsfeedJobDescrpition>
         RSS->>MQ: IPublishEndpoint.PublishBatch(jobs)
         MQ-->>CON: Queue message delivered
     end
@@ -54,17 +54,17 @@ sequenceDiagram
 sequenceDiagram
     participant SPIDER as Spider (ISpider)
     participant PARSE as BaseArticleContentParser
-    participant NLP as NamedEntityRecognizer
     participant SINK as NewsfeedSink (ISink)
+    participant NLP as NamedEntityRecognizer
     participant DB as PostgreSQL (AppDbContext)
 
     SPIDER->>SPIDER: ProcessTargetPage(job, html, sink)
     loop For each IContentParser
         SPIDER->>PARSE: ParseContentAsync(html)
         PARSE-->>SPIDER: ContentParserResult(text, title, date)
-        SPIDER->>NLP: AnalyzeSingleAsync(corpus)
-        NLP-->>SPIDER: NamedEntityCollection (PER/LOC/ORG/MISC)
         SPIDER->>SINK: EmitAsync(url, results, ct)
+        SINK->>NLP: AnalyzeSingleAsync(article text)
+        NLP-->>SINK: NamedEntityCollection (PER/LOC/ORG/MISC)
         SINK->>DB: CreateMentionsAsync(url, result, entities)
         DB-->>SINK: rows inserted
     end
@@ -78,7 +78,7 @@ sequenceDiagram
     participant SPIDER as Spider (ISpider)
     participant LINK as ILinkParser
     participant PAGINATOR as IPaginator
-    participant SINK as NewsfeedSink (ISink)
+    participant CON as NewsfeedJobConsumer
     participant MQ as RabbitMQ
 
     SPIDER->>SPIDER: ProcessPage(job, html)
@@ -88,11 +88,8 @@ sequenceDiagram
     end
     SPIDER->>PAGINATOR: GetNextPageAsync(currentUrl, doc)
     PAGINATOR-->>SPIDER: next ScrapingJobDescription
-    SPIDER->>SINK: CheckPageAlreadyVisited(url)
-    SINK-->>SPIDER: bool exists
-    alt !exists
-        SPIDER->>MQ: PublishBatch(nextJobs)
-    end
+    SPIDER-->>CON: return discovered jobs
+    CON->>MQ: PublishBatch(new jobs)
 ```
 
 ## 5. In-Process NLP Pipeline
@@ -115,7 +112,7 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant CLIENT as Blazor WebAssembly
+    participant CLIENT as Blazor Web App
     participant API as Web Api (Controllers)
     participant REPO as EntityRepository (IEntityRepository)
     participant TREND as TrendingRepository (ITrendingRepository)
@@ -191,7 +188,7 @@ sequenceDiagram
     participant MQ as RabbitMQ (Error Queue)
     participant TARGET as Target Queue
 
-    CLI->>CLI: dotnet agitprop retry --failedQueue errQueue --targetQueue mainQueue --max 10
+    CLI->>CLI: dotnet agitprop retry --connection <RabbitMQ-URI> --failed-queue errQueue --target-queue mainQueue --max 10
     CLI->>ORCH: RetryFailedFeedsAsync(request, ct)
     ORCH->>PUBLISHER: RetryFailedFeedsAsync(request, ct)
     PUBLISHER->>MQ: Read failed messages (maxN)
@@ -220,16 +217,16 @@ aspire start --apphost Agitprop.AppHost/Agitprop.AppHost.csproj
    - **PostgreSQL** (`postgres`) — data volume, pgAdmin `:5050`, persistent lifetime, OTLP
    - **Database** `newsfeed` attached to PostgreSQL
    - **Consumer**, **RSS Feed Reader**, **Web API**, **Web Client** projects
-4. Each service waits for its dependencies (see component table in architecture.md).
+4. Each service waits only for its declared dependencies (see component table in architecture.md).
 
 ### Step 2: Service Startup Order
 
 1. **RabbitMQ** starts first (infrastructure).
 2. **PostgreSQL** + **Database** start next.
-3. **Consumer** waits for `newsfeedDb` and `messaging`, loads the provisioned Hungarian ONNX model, and registers MassTransit endpoints.
-4. **RSS Feed Reader** waits for `messaging`, `Consumer`. Registers as `IHostedService`.
-5. **Web API** waits for `newsfeedDb`, `messaging`. Applies migrations at startup when configured, then maps controllers.
-6. **Web Client** waits for backend (Web API) + external HTTP. Blazor InteractiveServer rendering.
+3. **Consumer** waits for `newsfeedDb` and `messaging`, provisions or loads the Hungarian ONNX model, and registers MassTransit endpoints.
+4. **RSS Feed Reader** waits for `messaging` and `Consumer`. Registers as `IHostedService`.
+5. **Web API** waits for `newsfeedDb`. Applies migrations at startup when configured, then maps controllers.
+6. **Web Client** waits for backend (Web API). The Blazor host supports Interactive Server and WebAssembly rendering.
 
 ### Step 3: Runtime Operation
 
@@ -237,7 +234,7 @@ aspire start --apphost Agitprop.AppHost/Agitprop.AppHost.csproj
 2. **Consumer** consumes from queue → `ScrapingJobFactory.GetArticleScrapingJob` → `ISpider.CrawlAsync`.
 3. **Spider** uses `IPageTransport.LoadAsync` → `HttpStaticPageLoader` (or `PuppeteerPageLoader` if browser mode).
 4. **BaseArticleContentParser** extracts date/title/lead/article via XPath fallback lists.
-5. **NamedEntityRecognizer** runs the local ONNX NER model in-process and returns a `NamedEntityCollection`.
-6. **NewsfeedSink** persists to PostgreSQL via `AppDbContext.CreateMentionsAsync`.
+5. **NewsfeedSink** calls the in-process `NamedEntityRecognizer`, then persists results to PostgreSQL via `AppDbContext.CreateMentionsAsync`.
+6. **NamedEntityRecognizer** runs the local ONNX NER model and returns a `NamedEntityCollection`.
 7. **Web API** serves entity browse/analytics from PostgreSQL (cached 15 min / 1 hour).
 8. **CLI** can re-queue failed messages via `retry` command.

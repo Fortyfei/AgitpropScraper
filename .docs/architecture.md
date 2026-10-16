@@ -2,10 +2,11 @@
 
 ## 1. Overview
 
-AgitpropScraper is a **modular monolith** orchestrated by **Aspire 13.5.4**. The diagram below shows the
-runtime topology (container registry, services, and infrastructure). Every service
-exposes OpenTelemetry OTLP (traces + metrics) and uses the shared
-`Agitprop.ServiceDefaults` package for health checks and resilience.
+AgitpropScraper is a distributed .NET application orchestrated by **Aspire 13.5.4**.
+Its service processes share class libraries for scraping, persistence, and NLP.
+AppHost-managed services use `Agitprop.ServiceDefaults` for health checks,
+instrumentation, and HTTP client resilience; the standalone CLI writes structured
+console logs and does not export OTLP telemetry.
 
 <details>
 <summary>Click to expand runtime topology diagram</summary>
@@ -31,7 +32,7 @@ flowchart TB
     subgraph "Services"
         CON[Consumer: in-process Hungarian NER, waits for newsfeedDb and messaging]
         RSS[RSS Feed Reader: waits for messaging, Consumer]
-        WEB_API[Web API: waits for newsfeedDb, messaging]
+        WEB_API[Web API: waits for newsfeedDb]
         WEB_CL[Web Client: waits for backend, external HTTP]
     end
 
@@ -46,8 +47,6 @@ flowchart TB
 
     RABBIT -->|publish/subscribe| CON
     RABBIT -->|publish/subscribe| RSS
-    RABBIT -->|publish/subscribe| WEB_API
-
     PG -->|EF Core| CON
     PG -->|EF Core| WEB_API
 
@@ -72,25 +71,28 @@ flowchart TB
 | # | Project | Kind | Waits for |
 |---|---------|------|-----------|
 | 1 | **Agitprop.AppHost** | Orchestrator (AppHost.cs) | — |
-| 2 | **Agitprop.Core** | Class library (interfaces/models) | — |
-| 3 | **Agitprop.Infrastructure** | Class library (spiders, loaders, proxy pool) | — |
-| 4 | **Agitprop.Infrastructure.Puppeteer** | Class library (Puppeteer loaders) | — |
-| 5 | **Agitprop.Scraper.Consumer** | ASP.NET Core hosted service with in-process Hungarian NER | newsfeedDb, messaging |
-| 6 | **Agitprop.Scraper.RssFeedReader** | ASP.NET Core hosted service | messaging, Consumer |
-| 7 | **Agitprop.Scraper.NLPService** | .NET class library (ONNX Runtime, huBERT NER) | — |
-| 8 | **Agitprop.Web.Api** | ASP.NET Core Web API | newsfeedDb, messaging |
-| 9 | **Agitprop.Web.Client** | Blazor WebAssembly | backend (Web.Api), external HTTP |
-| 10 | **Agitprop.CLI** | System.CommandLine console | — |
-| 11 | **Agitprop.ServiceDefaults** | Shared library (OTel, health checks, resilience) | — |
-| 12 | **Agitprop.Sinks.Newsfeed** | EF Core + parsers | — |
-| 13 | **Agitprop.Sinks.Newsfeed_Test** | NUnit test project | — |
+| 2 | **Agitprop.Testing.AppHost** | Integration-test AppHost | — |
+| 3 | **Agitprop.Core** | Class library (interfaces, models, message contract) | — |
+| 4 | **Agitprop.Infrastructure** | Class library (spider, HTTP loaders, proxy pool) | — |
+| 5 | **Agitprop.Infrastructure.Puppeteer** | Class library (browser loaders) | — |
+| 6 | **Agitprop.Scraper.Consumer** | Worker with in-process Hungarian NER | newsfeedDb, messaging |
+| 7 | **Agitprop.Scraper.RssFeedReader** | RSS-to-RabbitMQ worker | messaging, consumer |
+| 8 | **Agitprop.Scraper.NLPService** | .NET class library (ONNX Runtime, huBERT NER) | — |
+| 9 | **Agitprop.Web.Api** | Read-only analytics API | newsfeedDb |
+| 10 | **Agitprop.Web.Client** | Blazor Web App (Interactive Server and WebAssembly) | backend (Web.Api) |
+| 11 | **Agitprop.CLI** | System.CommandLine operator tool | — |
+| 12 | **Agitprop.ServiceDefaults** | Shared library (OTel, health checks, HTTP resilience) | — |
+| 13 | **Agitprop.Sinks.Newsfeed** | Parsers, EF Core sink and repositories | — |
+| 14 | **Agitprop.Sinks.Newsfeed_Test** | Parser fixture tests | — |
+| 15 | **Agitprop.UnitTests** | Unit tests | — |
+| 16 | **Agitprop.IntegrationTests** | API/PostgreSQL integration tests | Testing.AppHost |
 
 ## 2. Runtime Topology Walkthrough
 
 The request flow follows these steps (see pipelines.md for sequence diagrams):
 
 1. **RSS Feed Reader** (`Agitprop.Scraper.RssFeedReader`) pulls RSS feeds on a timer and publishes
-   `ScrapingJobDescription` messages to RabbitMQ (`IPublishEndpoint.PublishBatch`).
+   `NewsfeedJobDescrpition` messages to RabbitMQ (`IPublishEndpoint.PublishBatch`).
 
 2. **Consumer** (`Agitprop.Scraper.Consumer`) consumes jobs from the RabbitMQ queue. For each job
    it builds a `ScrapingJob` (via `ScrapingJobFactory`) and calls `ISpider.CrawlAsync()`.
@@ -104,8 +106,9 @@ The request flow follows these steps (see pipelines.md for sequence diagrams):
 
 5. The sink calls the in-process `NamedEntityRecognizer` in
    `Agitprop.Scraper.NLPService` to extract Hungarian entities from article text.
-   The ONNX model is provisioned with the consumer deployment; no NLP HTTP
-   service or runtime model download is used. Results are stored in PostgreSQL.
+   There is no NLP HTTP service. The model is downloaded and checksum-verified
+   on first use, or loaded from a pre-provisioned directory. Results are stored
+   in PostgreSQL.
 
 6. **Web API** (`Agitprop.Web.Api`) serves entity browse and analytics endpoints (cached, 15‑min
    cache for browse, 1‑hour for entity details). Blazor client consumes these endpoints.
@@ -120,10 +123,10 @@ Key registered services (via `ConfigureInfrastructureWithoutBrowser` / `Configur
 | Interface | Implementation | When registered |
 |-----------|---------------|-----------------|
 | `ISpider` | `Spider` | Always |
-| `ICookieStorage` | `CookieStorage` | Always |
+| `ICookiesStorage` | `CookieStorage` | Always |
 | `IStaticPageLoader` | `HttpStaticPageLoader` | Always |
 | `IProxyProvider` | `ProxyScrapeProxyProvider` / `RedScrapeProxyProvider` | When `useProxies=true` |
-| `IProxyPool` | `ProxyPoolService` | When `useProxies=true` |
+| `IProxyPool` | `ProxyPool` | When `useProxies=true` |
 | `RotatingHttpClientPool` | `RotatingHttpClientPool` | When `useProxies=true` |
 | `IPageRequester` | `RotatingProxyPageRequester` / `RespectfulPageRequester` | When `useProxies=true` / default |
 | `IBrowserPageLoader` | `PuppeteerPageLoader` / `PuppeteerPageLoaderWithProxies` | When browser mode + proxies |

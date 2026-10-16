@@ -21,25 +21,25 @@
 
 | ID | Requirement |
 |----|-------------|
-| NFR-001 | Architecture: Modular monolith orchestrated by Aspire 13.5.4. |
+| NFR-001 | Architecture: Distributed .NET application with shared libraries, orchestrated by Aspire 13.5.4. |
 | NFR-002 | Language / runtime: C# / .NET 10.0.0; no Python runtime in the scraper deployment. |
 | NFR-003 | Database: PostgreSQL 17 (pgAdmin UI on port 5050). |
 | NFR-004 | Message broker: RabbitMQ 3.1+ (mgmt UI on 15672, AMQP on 5672). |
 | NFR-005 | Proxy providers: ProxyScrape and RedScrape; configurable fallback to direct HTTP. |
 | NFR-006 | Browser automation: PuppeteerSharp with Chromium; PuppeteerExtraSharp + plugins optional. |
-| NFR-007 | Resiliency: Polly `WaitAndRetry` for transient sink operations and `CircuitBreaker` on HTTP calls. |
+| NFR-007 | Resiliency: Preserve the distinct retry scopes for HTTP clients, page loading, sink operations, and RabbitMQ message handling; manual error-queue requeue is provided by the CLI. |
 | NFR-008 | Observability: OpenTelemetry OTLP exporter (traces + metrics → collector). |
 | NFR-009 | Health checks: Aspire built-in health endpoints; the consumer validates required ONNX model assets during startup. |
 | NFR-010 | Docker: Multi-stage builds; images published to GHCR (`fortyfei/agitprop`). |
 | NFR-011 | CI/CD: GitHub Actions (`aspire-publish.yml`) using Aspire image publishing on push to `main`. |
 | NFR-012 | Access control: Internal developers only (no public exposure). |
-| NFR-013 | NLP model files are pinned and checksum-verified during provisioning; application startup requires no internet access. |
+| NFR-013 | NLP model files are pinned and checksum-verified; the consumer provisions them on first use or reuses pre-provisioned files for offline operation. |
 
 ## 3. Development Constraints
 
 - Documentation lives under `.docs/` only; all other `.md` files at repo root are moved or deleted.
 - Mermaid diagrams for every pipeline and component interaction.
-- All connection strings (`newsfeed`, `messaging`) required at runtime; startup throws if missing.
+- Each process requires only its own connection strings: the consumer uses `newsfeed` and `messaging`, the RSS reader uses `messaging`, and the Web API uses `newsfeed`.
 - EF Core migrations are applied by the Web API startup path when
   `ASPNETCORE_ENVIRONMENT=Development` or `ApplyMigrationsAtStartup=true`.
 - The CLI uses System.CommandLine with three commands: `scrape-article`, `scrape-archive`, `retry`.

@@ -1,5 +1,3 @@
-﻿using Polly;
-
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
@@ -153,7 +151,6 @@ public sealed class Spider(
         using var activity = _activitySource.StartActivity("ProcessTargetPage", ActivityKind.Internal);
         activity?.SetTag("url", TelemetryUrl.RedactQueryAndFragment(job.Url));
 
-        var retryCount = _configuration.GetValue<int>("Retry:Spider", 3);
         List<ContentParserResult> results = new();
 
         foreach (var parser in job.ContentParsers)

@@ -14,11 +14,11 @@ NLP model using ONNX Runtime.
 | [pipelines.md](pipelines.md) | End-to-end sequence diagrams for every pipeline. |
 | [development.md](development.md) | Build, test, and local development setup. |
 | [deployment.md](deployment.md) | Aspire orchestration, Docker, CI/CD, GHCR publishing. |
-| [components/](components/) | One page per project in the solution. |
+| [components/](components/) | Runtime and shared-library component pages. |
 
 ## Component Pages
 
-- [AppHost](components/01-apphost.md) — full distributed app (AppHost + App + Worker).
+- [AppHost](components/01-apphost.md) — full distributed application.
 - [Core](components/02-core.md) — shared models, enums, and interfaces.
 - [Infrastructure](components/03-infrastructure.md) — spiders, HTTP loaders, proxy pool.
 - [Infrastructure.Puppeteer](components/04-infrastructure-puppeteer.md) — PuppeteerSharp browser loaders.
@@ -27,10 +27,13 @@ NLP model using ONNX Runtime.
 - [Scraper.RssFeedReader](components/07-scraper-rssfeedreader.md) — RSS-to-queue producer.
 - [Scraper.NLPService](components/08-scraper-nlpservice.md) — in-process .NET / ONNX Hungarian NER library.
 - [Web.Api](components/09-web-api.md) — read-only analytics REST API.
-- [Web.Client](components/10-web-client.md) — Blazor WebAssembly dashboard.
+- [Web.Client](components/10-web-client.md) — Blazor dashboard (Interactive Server and WebAssembly).
 - [CLI](components/11-cli.md) — `dotnet` operator tool.
 - [ServiceDefaults](components/12-service-defaults.md) — shared OpenTelemetry/health/resilience config.
-- [Infrastructure.Postgres](components/13-infrastructure-postgres.md) — shared PostgreSQL data layer.
+
+The four test projects (`Agitprop.Testing.AppHost`, `Agitprop.Sinks.Newsfeed_Test`,
+`Agitprop.UnitTests`, and `Agitprop.IntegrationTests`) are listed in
+[architecture.md](architecture.md).
 
 ## Quick Start
 

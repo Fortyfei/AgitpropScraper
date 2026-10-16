@@ -1,10 +1,10 @@
 ﻿
-using Polly;
 using Microsoft.Extensions.Configuration;
 using System.Reflection;
 using System.Diagnostics;
 using Agitprop.Core;
 using Agitprop.Core.Interfaces;
+using Agitprop.Infrastructure;
 using Agitprop.Infrastructure.PageLoader;
 using Microsoft.Extensions.Logging;
 using PuppeteerExtraSharp;
@@ -53,11 +53,9 @@ internal class PuppeteerPageLoaderWithProxies : BrowserPageLoader, IBrowserPageL
             try
             {
                 Logger?.LogInformation("Downloading browser...");
-                await Policy
-                    .Handle<Exception>()
-                    .WaitAndRetryAsync(_retryCount,
-                        attempt => TimeSpan.FromSeconds(0.5 * attempt),
-                        (ex, ts, attempt, ctx) =>
+                await RetryPolicyFactory.CreateExceptionPolicy(
+                        _retryCount,
+                        (ex, attempt) =>
                         {
                             Logger?.LogWarning(ex, "[RETRY] Exception downloading browser on attempt {attempt}", attempt);
                         })
@@ -122,11 +120,9 @@ internal class PuppeteerPageLoaderWithProxies : BrowserPageLoader, IBrowserPageL
         try
         {
             Logger?.LogDebug("Navigating to page: {Url}", TelemetryUrl.RedactQueryAndFragment(url));
-            await Policy
-                .Handle<Exception>()
-                .WaitAndRetryAsync(_retryCount,
-                    attempt => TimeSpan.FromSeconds(0.5 * attempt),
-                    (ex, ts, attempt, ctx) =>
+            await RetryPolicyFactory.CreateExceptionPolicy(
+                    _retryCount,
+                    (ex, attempt) =>
                     {
                         Logger?.LogWarning(ex, "[RETRY] Exception navigating to page {Url} on attempt {Attempt}",
                             TelemetryUrl.RedactQueryAndFragment(url), attempt);

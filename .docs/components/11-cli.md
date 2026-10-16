@@ -13,15 +13,8 @@ manual scraping, archive crawling, and retry of failed messages.
 | `scrape-archive` | Scrape archive pages and list article URLs. |
 | `retry` | Re-queue failed feed messages from RabbitMQ error queue. |
 
-## Root Command
-
-```csharp
-var rootCommand = new RootCommand("Agitprop CLI Tool");
-rootCommand.AddScrapeArticleCommand();
-rootCommand.AddScrapeArchiveCommand();
-rootCommand.AddRetryCommand();
-await rootCommand.InvokeAsync(args);
-```
+The root command initializes structured JSON console logging and registers the
+three commands with a shared logger factory.
 
 ## Key Files
 
@@ -30,8 +23,8 @@ await rootCommand.InvokeAsync(args);
 | File | Purpose |
 |------|---------|
 | `ScrapeArticleCommand.cs` | Defines `scrape-article` command with `--url` and `--shorten` options. Handler calls `ScrapeCommandOrchestrator`. |
-| `ScrapeArchiveCommand.cs` | Defines `scrape-archive` command with `--date`, `--from`, `--to`, `--newsites`, `--feedConfigPath`, `--connection`, `--verbose` options. Handler resolves date range and sites, then publishes jobs. |
-| `RetryCommand.cs` | Defines `retry` command with `--connection`, `--failedQueue`, `--targetQueue`, `--max` options. Re-publishes failed messages. |
+| `ScrapeArchiveCommand.cs` | Defines `scrape-archive` with `--date`, `--from`, `--to`, `--newsite`, `--feed-config`, `--connection`, `--verbosity`, and `--verbose` options. Handler resolves date range and sites, then publishes jobs. |
+| `RetryCommand.cs` | Defines `retry` with `--connection`, `--failed-queue`, `--target-queue`, and `--max`. Re-publishes failed messages. |
 
 ### Services/
 
@@ -41,7 +34,6 @@ await rootCommand.InvokeAsync(args);
 | `IArticleJobPublisher.cs` | Interface + implementations: `RabbitMqPublisher` and `NoOpPublisher`. Methods: `PublishAsync`, `RetryFailedFeedsAsync`. |
 | `ArchiveCommandInputResolver.cs` | Resolves raw CLI input (dates, sites, verbosity) into `ArchiveCommandResolvedInput`. |
 | `IScrapeCommandOrchestrator.cs` | Interface definition |
-| `IArticleJobPublisher.cs` | Interface for publishing jobs to RabbitMQ |
 
 ## Usage
 
@@ -49,5 +41,5 @@ await rootCommand.InvokeAsync(args);
 dotnet run --project Agitprop.CLI/Agitprop.CLI.csproj -- --help
 dotnet run --project Agitprop.CLI/Agitprop.CLI.csproj -- scrape-article --url <URL> --shorten
 dotnet run --project Agitprop.CLI/Agitprop.CLI.csproj -- scrape-archive --date 2024-01-01
-dotnet run --project Agitprop.CLI/Agitprop.CLI.csproj -- retry --failedQueue <queue> --targetQueue <queue> --max 10
+dotnet run --project Agitprop.CLI/Agitprop.CLI.csproj -- retry --connection <RabbitMQ-connection-string> --failed-queue <queue> --target-queue <queue> --max 10
 ```
