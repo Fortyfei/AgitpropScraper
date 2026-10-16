@@ -288,6 +288,7 @@ h1:focus {
     font-weight: 700;
     min-height: 2.4rem;
     padding: 0.4rem 0.8rem;
+    white-space: nowrap;
 }
 
 .timeframe-pill:first-child {
