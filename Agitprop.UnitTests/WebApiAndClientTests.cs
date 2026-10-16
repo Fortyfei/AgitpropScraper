@@ -104,6 +104,32 @@ public sealed class WebApiAndClientTests
     }
 
     [Test]
+    public void EntitiesController_Timeline_ZeroFillsEveryDayInRange()
+    {
+        var repository = new FakeEntityRepository
+        {
+            MentioningArticlesByEntity =
+            {
+                ["a"] =
+                [
+                    new Article { Id = "1", Title = "A1", Url = "https://a.test/1", PublishedTime = new DateTime(2026, 1, 2, 10, 0, 0, DateTimeKind.Utc) },
+                    new Article { Id = "2", Title = "A2", Url = "https://a.test/2", PublishedTime = new DateTime(2026, 1, 2, 18, 0, 0, DateTimeKind.Utc) },
+                    new Article { Id = "3", Title = "A3", Url = "https://a.test/3", PublishedTime = new DateTime(2026, 1, 4, 9, 0, 0, DateTimeKind.Utc) }
+                ]
+            }
+        };
+
+        var result = CreateEntitiesController(repository).GetEntitiesTimeline(
+            new DateOnly(2026, 1, 1),
+            new DateOnly(2026, 1, 4),
+            ["a"]);
+
+        var points = GetOkValue<EntitiesTimelineResponse>(result).Timeline["a"];
+        Assert.That(points.Select(point => (point.Date.Day, point.Count)),
+            Is.EqualTo(new[] { (1, 0), (2, 2), (3, 0), (4, 1) }));
+    }
+
+    [Test]
     public void SourcesController_MapsPercentagesAndRejectsReversedDateRange()
     {
         var repository = new FakeEntityRepository

@@ -162,7 +162,7 @@
 @code {
     [Parameter] public string Id { get; set; } = string.Empty;
 
-    private static readonly ApexChartOptions<TimelinePoint> ChartOptions = new()
+    private readonly ApexChartOptions<TimelinePoint> ChartOptions = new()
     {
         Chart = new Chart
         {
@@ -235,6 +235,11 @@
 
             var timelineData = await timelineTask;
             Timeline = timelineData.TryGetValue(Id, out var pts) ? pts : [];
+            ChartOptions.Xaxis = new XAxis
+            {
+                TickAmount = Math.Max(SelectedTimeframe.Days, 1),
+                Labels = new XAxisLabels { DatetimeUTC = true, Format = "dd MMM" }
+            };
 
             var articlePage = await articlesTask;
             if (articlePage is not null)

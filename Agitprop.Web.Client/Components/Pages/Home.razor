@@ -202,6 +202,7 @@
                 return;
             }
 
+            ReadOnlyChartOptions.Xaxis = DailyAxis(SelectedTimeframe.Days + 1);
             TopEntities = topEntities;
             EntityTimelines = timelines;
         }
@@ -241,6 +242,12 @@
         var from = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-SelectedTimeframe.Days));
         return (from, to);
     }
+
+    private static XAxis DailyAxis(int days) => new()
+    {
+        TickAmount = Math.Max(days - 1, 1),
+        Labels = new XAxisLabels { DatetimeUTC = true, Format = "dd MMM", HideOverlappingLabels = false }
+    };
 
     private static string TrendColor(int index)
     {
