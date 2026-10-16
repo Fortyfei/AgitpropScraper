@@ -9,13 +9,12 @@ entity analytics data to the Blazor client and external consumers.
 
 - Swagger/OpenAPI documentation on `/swagger`.
 - In-memory caching (`IMemoryCache`) with configurable durations.
-- OpenTelemetry tracing (`ConfigureWebApiTracing`).
-- Service discovery integration.
+- OpenTelemetry tracing and service discovery through shared service defaults.
 - CORS allows all origins (internal network only).
 
 ## Controllers
 
-### EntitiesController
+### EntityController
 
 - Route: `api/[controller]` (resolves to `api/entities`)
 - ActivitySource: `"Agitprop.Web.Api.Controllers.EntitiesController"`
@@ -52,16 +51,16 @@ entity analytics data to the Blazor client and external consumers.
 
 ## DI Registration (Program.cs)
 
-1. `AddServiceDefaults()` — shared OTel / health / resilience config.
-2. `ConfigureWebApiTracing()` — Web API specific tracing.
-3. `AddServiceDiscovery()` — service discovery client.
-4. `AddOpenApi()` + `AddSwaggerGen()` — OpenAPI generation.
-5. `AddNewsfeedRepositories()` — registers `IEntityRepository`,
+1. `AddServiceDefaults()` — shared OTel, health, service discovery, and HTTP resilience config.
+2. `AddOpenApi()` + `AddSwaggerGen()` — OpenAPI generation.
+3. `AddNewsfeedRepositories()` — registers `IEntityRepository`,
    `ITrendingRepository`, `INewsfeedDB`.
-6. `AddControllers()` — MVC controllers.
-7. `AddMemoryCache()` — in-memory response cache.
-8. `AddCors()` — allows any origin/method/header.
-9. Applies EF migrations at startup.
+4. `AddControllers()` — MVC controllers.
+5. `AddMemoryCache()` — in-memory response cache.
+6. `AddCors()` — allows any origin/method/header.
+7. Applies EF migrations at startup.
+
+The API reads PostgreSQL only; RabbitMQ is not required for API startup.
 
 ## DTOs (`DTOs/` folder)
 

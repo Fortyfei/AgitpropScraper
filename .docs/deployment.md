@@ -2,45 +2,15 @@
 
 ## 1. Aspire Orchestration
 
-The project uses **Aspire 13.5.4** for orchestration. The main `Agitprop.AppHost/AppHost.cs` configures:
+The canonical resource graph is defined in
+[`Agitprop.AppHost/AppHost.cs`](../Agitprop.AppHost/AppHost.cs):
 
-```csharp
-var builder = DistributedApplication.CreateBuilder(args);
-
-var registry = builder.AddContainerRegistry("ghcr");
-
-var env = builder.AddDockerComposeEnvironment("agitprop");
-env.WithDashboard(port: 18888);
-
-var messaging = builder.AddRabbitMQ("messaging")
-    .WithManagementPlugin(port: 15672)
-    .WithEndpoint("amqp", port: 5672, isExternal: true)
-    .WithOtlpExporter();
-
-var postgres = builder.AddPostgres("postgres")
-    .WithDataVolume()
-    .WithPgAdmin(port: 5050)
-    .WithLifetime(ContainerLifetime.Persistent)
-    .WithOtlpExporter();
-
-var newsfeedDb = postgres.AddDatabase("newsfeed");
-
-var consumer = builder.AddProject<Projects.Agitprop_Scraper_Consumer>("consumer")
-    .WithReference(newsfeedDb).WaitFor(newsfeedDb)
-    .WithReference(messaging).WaitFor(messaging);
-
-var rssReader = builder.AddProject<Projects.Agitprop_Scraper_RssFeedReader>("rssreader")
-    .WithReference(messaging).WaitFor(messaging)
-    .WaitFor(consumer);
-
-var backend = builder.AddProject<Projects.Agitprop_Web_Api>("backend")
-    .WithReference(newsfeedDb).WaitFor(newsfeedDb)
-    .WithReference(messaging).WaitFor(messaging);
-
-var frontend = builder.AddProject<Projects.Agitprop_Web_Client>("frontend")
-    .WithReference(backend).WaitFor(backend)
-    .WithExternalHttpEndpoints();
-```
+- RabbitMQ and PostgreSQL are the shared infrastructure resources.
+- The consumer waits for and references both the `newsfeed` database and RabbitMQ.
+- The RSS Feed Reader references RabbitMQ and waits for the consumer.
+- The Web API waits for and references PostgreSQL only; it does not use RabbitMQ.
+- The Web Client waits for and references the Web API.
+- AppHost-managed services export OTLP telemetry to the Aspire dashboard.
 
 ## 2. AppHost
 

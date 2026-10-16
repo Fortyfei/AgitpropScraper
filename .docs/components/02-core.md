@@ -28,6 +28,8 @@ dependencies beyond the .NET runtime.
   (list of `PageAction`), `ContentParsers` (list of `IContentParser`),
   `LinkParsers` (list of `ILinkParser`), `Pagination` (`IPaginator`).
 - `ScrapingJobDescription` — `required string Url`.
+- `NewsfeedJobDescrpition` — RabbitMQ job payload (`Url`, `PageContentType`).
+  Its existing namespace and type name are retained for message compatibility.
 - `ContentParserResult` — record class: `NewsSites SourceSite`,
   `DateTime PublishDate` (normalized to UTC), `string Text`, `string Title = ""`.
 - `PageAction` — record with `PageActionType` + `object[] Parameters`.

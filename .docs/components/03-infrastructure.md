@@ -21,7 +21,7 @@ non-browser scraping.
 
 ### CookieStorage.cs
 
-- Implements `ICookieStorage` using an in-memory `CookieContainer`.
+- Implements `ICookiesStorage` using an in-memory `CookieContainer`.
 - `AddAsync(CookieContainer)` replaces the stored container.
 - `GetAsync()` returns the current `CookieContainer`.
 
@@ -29,9 +29,9 @@ non-browser scraping.
 
 - **ProxyDto.cs** — DTO model for proxy API responses (`ProxyDto`, `Proxy`,
   `IpData`).
-- **ProxyPoolService.cs** — implements `IProxyPool` with config:
-  `TargetAliveProxies=25`, `MinAliveProxies=10`, `StartupTimeoutMinutes=5`,
-  `WaitTimeoutSeconds=30`.
+- **ProxyPoolService.cs** (`ProxyPool`) — implements `IProxyPool`, returning
+  proxies from its working set or fetching more from the configured providers
+  when needed; callers report proxy success or failure.
 - **RotatingHttpClientPool.cs** — manages a pool of `HttpClient` instances
   each bound to a different proxy. ActivitySource: `"Agitprop.RotatingHttpClientPool"`.
 
@@ -64,14 +64,17 @@ non-browser scraping.
 `ConfigureInfrastructureWithoutBrowser(services, useProxies)`:
 
 - `ISpider` → `Spider`
-- `ICookieStorage` → `CookieStorage`
+- `ICookiesStorage` → `CookieStorage`
 - `IStaticPageLoader` → `HttpStaticPageLoader`
 - If `useProxies`:
   - `IProxyProvider` → `ProxyScrapeProxyProvider` + `RedScrapeProxyProvider`
-  - `IProxyPool` → `ProxyPoolService`
+  - `IProxyPool` → `ProxyPool`
   - `RotatingHttpClientPool`
   - `IPageRequester` → `RotatingProxyPageRequester`
 - Else:
   - `IPageRequester` → `RespectfulPageRequester`
 - `IPageTransport` (singleton factory) — combines `IStaticPageLoader` +
   `IBrowserPageLoader` + `ILogger`.
+
+`ConfigureInfrastructureWithBrowser(builder, useProxies)` reuses this shared
+registration and adds the browser loader selected for direct or proxy mode.

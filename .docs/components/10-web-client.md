@@ -2,9 +2,9 @@
 
 ## Purpose
 
-A Blazor Web App that consumes the Web API to visualize entity analytics,
-trending data, and publisher coverage. The current routed pages use
-`InteractiveServer` rendering.
+A **Blazor Web App** dashboard that consumes the Web API to visualize entity
+analytics and trending data. It supports Interactive Server and Interactive
+WebAssembly render modes.
 
 ## Key Features
 

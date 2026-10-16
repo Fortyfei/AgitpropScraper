@@ -1,9 +1,9 @@
-﻿using Polly;
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Configuration;
 using System.Diagnostics;
 
 using Agitprop.Core;
 using Agitprop.Core.Interfaces;
+using Agitprop.Infrastructure;
 
 using Microsoft.Extensions.Logging;
 
@@ -33,9 +33,7 @@ public class NewsfeedSink : ISink
         {
             _logger?.LogDebug("Checking if page already visited: {Url}", TelemetryUrl.RedactQueryAndFragment(url));
 
-            var exists = await Polly.Policy
-                .Handle<Exception>()
-                .WaitAndRetryAsync(_retryCount, attempt => TimeSpan.FromSeconds(0.5 * attempt), (ex, ts, attempt, ctx) =>
+            var exists = await RetryPolicyFactory.CreateExceptionPolicy(_retryCount, (ex, attempt) =>
                 {
                     _logger?.LogWarning(ex, "[RETRY] Exception checking page {Url} on attempt {Attempt}",
                         TelemetryUrl.RedactQueryAndFragment(url), attempt);
@@ -70,9 +68,7 @@ public class NewsfeedSink : ISink
 
             try
             {
-                var entities = await Policy
-                    .Handle<Exception>()
-                    .WaitAndRetryAsync(_retryCount, attempt => TimeSpan.FromSeconds(0.5 * attempt), (ex, ts, attempt, ctx) =>
+                var entities = await RetryPolicyFactory.CreateExceptionPolicy(_retryCount, (ex, attempt) =>
                     {
                         _logger?.LogWarning(ex, "[RETRY] Exception analyzing entities for {Url} on attempt {Attempt}",
                             TelemetryUrl.RedactQueryAndFragment(url), attempt);
@@ -82,9 +78,7 @@ public class NewsfeedSink : ISink
                 _logger?.LogDebug("Received {EntityCount} entities for article in {Url}",
                     entities.All.Count, TelemetryUrl.RedactQueryAndFragment(url));
 
-                var count = await Polly.Policy
-                    .Handle<Exception>()
-                    .WaitAndRetryAsync(_retryCount, attempt => TimeSpan.FromSeconds(0.5 * attempt), (ex, ts, attempt, ctx) =>
+                var count = await RetryPolicyFactory.CreateExceptionPolicy(_retryCount, (ex, attempt) =>
                     {
                         _logger?.LogWarning(ex, "[RETRY] Exception inserting mentions for {Url} on attempt {Attempt}",
                             TelemetryUrl.RedactQueryAndFragment(url), attempt);

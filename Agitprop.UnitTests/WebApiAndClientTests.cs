@@ -168,7 +168,9 @@ public sealed class WebApiAndClientTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(handler.RequestUri!.ToString(), Does.Contain("search=news%20%26%20politics"));
+            Assert.That(
+                handler.RequestUri!.GetComponents(UriComponents.Query, UriFormat.UriEscaped),
+                Does.Contain("search=news%20%26%20politics"));
             Assert.That(result!.Items.Single().Id, Is.EqualTo("entity/1"));
             Assert.That(result.Items.Single().MentionCount, Is.EqualTo(4));
             Assert.That(result.Page, Is.EqualTo(2));

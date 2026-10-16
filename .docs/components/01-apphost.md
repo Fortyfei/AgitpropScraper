@@ -19,20 +19,15 @@ Agitprop.AppHost/Agitprop.AppHost.csproj`.
     lifetime, OTLP exporter; attaches database `newsfeed`.
 - Adds all .NET projects to the application model:
   - `consumer` — waits for and references `newsfeedDb` and `messaging`; runs Hungarian NER in-process.
-  - `rssreader` — waits for `messaging`, `consumer`.
-  - `backend` (Web.Api) — waits for `newsfeedDb`, `messaging`.
+  - `rss-feed-reader` — waits for and references `messaging`, and waits for `consumer`.
+  - `backend` (Web.Api) — waits for and references `newsfeedDb`; it has no RabbitMQ dependency.
   - `frontend` (Web.Client) — waits for `backend`, external HTTP endpoints.
-- Each project uses `WithOtlpExporter` and `WithEnvironmentAwareImagePush`.
+- AppHost-managed services use OTLP exporters. The containerized projects are
+  configured for environment-aware image publishing.
 
 ## Key File
 
 - `Agitprop.AppHost/AppHost.cs` — main orchestration definition.
 - `Agitprop.AppHost/Extensions.cs` — optional extensions.
 
-## Configuration
-
-- `appsettings.Development.json` — development configuration overrides.
-
-The repository-level Aspire configuration points to this AppHost. The former
-web-only and worker-only AppHost projects are retained outside the default
-solution build while their remaining callers are reviewed.
+The repository-level Aspire configuration points to this canonical AppHost.

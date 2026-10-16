@@ -1,11 +1,11 @@
 ﻿using Microsoft.Extensions.Configuration;
-using Polly;
 using System.Net;
 using System.Text;
 using System.Diagnostics;
 
 using Agitprop.Core;
 using Agitprop.Core.Interfaces;
+using Agitprop.Infrastructure;
 
 using Microsoft.Extensions.Logging;
 
@@ -52,13 +52,10 @@ public class HttpStaticPageLoader : IStaticPageLoader
         HttpResponseMessage response = null!;
         try
         {
-            response = await Policy
-                .Handle<Exception>()
-                .OrResult<HttpResponseMessage>(r => !r.IsSuccessStatusCode)
-                .WaitAndRetryAsync(
+            response = await RetryPolicyFactory.CreateResultPolicy<HttpResponseMessage>(
                     _retryCount,
-                    attempt => TimeSpan.FromSeconds(0.5 * attempt),
-                    (outcome, ts, attempt, ctx) =>
+                    response => !response.IsSuccessStatusCode,
+                    (outcome, attempt) =>
                     {
                         if (outcome.Exception != null)
                             Logger?.LogWarning(outcome.Exception, "[RETRY] Exception loading page {Url} on attempt {Attempt}",
