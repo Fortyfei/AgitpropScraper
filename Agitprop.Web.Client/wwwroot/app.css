@@ -268,28 +268,50 @@ h1:focus {
 }
 
 .timeframe-selector {
-    display: inline-flex;
-    gap: 0.75rem;
-    padding: 0.9rem 1rem;
+    align-items: center;
+    background: #f1f4f5;
+    border: 1px solid var(--line);
     border-radius: 999px;
-    background: #eff6ff;
-    border: 1px solid #dbeafe;
+    display: inline-flex;
+    padding: 0.2rem;
 }
 
 .timeframe-pill {
-    border: none;
     background: transparent;
-    color: #475569;
-    border-radius: 999px;
-    padding: 0.55rem 1rem;
+    border: 0;
+    border-radius: 0;
+    color: var(--slate);
     cursor: pointer;
-    transition: all 0.15s ease-in-out;
+    flex: 0 0 auto;
+    font: inherit;
+    font-size: 0.86rem;
+    font-weight: 700;
+    min-height: 2.4rem;
+    padding: 0.4rem 0.8rem;
 }
 
-.timeframe-pill.active,
-.timeframe-pill:hover {
-    background: #2563eb;
-    color: #ffffff;
+.timeframe-pill:first-child {
+    border-radius: 999px 0 0 999px;
+}
+
+.timeframe-pill:last-child {
+    border-radius: 0 999px 999px 0;
+}
+
+.timeframe-pill:hover:not(:disabled) {
+    background: #e5edf1;
+    color: var(--ink);
+}
+
+.timeframe-pill.active {
+    background: var(--signal-blue);
+    color: #fff;
+}
+
+@media (max-width: 35rem) {
+    .timeframe-pill {
+        flex: 1 1 0;
+    }
 }
 
 .landing-podium {
@@ -450,28 +472,6 @@ h1:focus {
     .podium-row {
         grid-template-columns: 1fr;
     }
-}
-
-.timeframe-pill {
-    border: 1px solid #cbd5e1;
-    background: #ffffff;
-    color: #0f172a;
-    border-radius: 999px;
-    padding: 0.55rem 1rem;
-    cursor: pointer;
-    transition: all 0.15s ease-in-out;
-}
-
-.timeframe-pill.active,
-.timeframe-pill:hover {
-    background: #2563eb;
-    border-color: #2563eb;
-    color: #ffffff;
-}
-
-.timeframe-pill.active {
-    box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.35);
-    font-weight: 700;
 }
 
 .landing-grid {

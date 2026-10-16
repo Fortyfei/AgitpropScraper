@@ -49,35 +49,6 @@
     font-weight: 650;
 }
 
-.timeframe-selector {
-    background: var(--surface);
-    border: 1px solid var(--line);
-    display: inline-flex;
-    padding: 0.2rem;
-}
-
-.timeframe-pill {
-    background: transparent;
-    border: 0;
-    border-radius: 0;
-    color: var(--slate);
-    cursor: pointer;
-    font-size: 0.88rem;
-    font-weight: 650;
-    min-height: 2.5rem;
-    padding: 0.45rem 0.8rem;
-}
-
-.timeframe-pill:hover {
-    background: #edf3f7;
-    color: var(--ink);
-}
-
-.timeframe-pill.active {
-    background: var(--signal-blue);
-    color: #fff;
-}
-
 .home-dashboard-grid {
     align-items: start;
     display: grid;
@@ -217,11 +188,6 @@
     .timeframe-selector {
         display: flex;
         width: 100%;
-    }
-
-    .timeframe-pill {
-        flex: 1;
-        padding-inline: 0.35rem;
     }
 
     .entity-rank-card {

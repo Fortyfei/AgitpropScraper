@@ -39,33 +39,6 @@
     font-weight: 650;
 }
 
-.timeframe-selector {
-    background: var(--surface);
-    border: 1px solid var(--line);
-    display: inline-flex;
-    padding: 0.2rem;
-}
-
-.timeframe-pill {
-    background: transparent;
-    border: 0;
-    color: var(--slate);
-    cursor: pointer;
-    font-size: 0.84rem;
-    font-weight: 700;
-    min-height: 2.4rem;
-    padding: 0.4rem 0.7rem;
-}
-
-.timeframe-pill:hover {
-    background: #edf3f7;
-}
-
-.timeframe-pill.active {
-    background: var(--signal-blue);
-    color: #fff;
-}
-
 .sources-panel {
     background: var(--surface);
     border: 1px solid var(--line);
@@ -188,10 +161,6 @@
     .timeframe-selector {
         display: flex;
         width: 100%;
-    }
-
-    .timeframe-pill {
-        flex: 1;
     }
 
     .source-row {
