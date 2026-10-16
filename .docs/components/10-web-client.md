@@ -2,9 +2,9 @@
 
 ## Purpose
 
-A **Blazor WebAssembly** dashboard that consumes the Web API to visualize
-entity analytics and trending data. Uses **InteractiveServer** rendering mode
-via `RazorComponents`.
+A **Blazor Web App** dashboard that consumes the Web API to visualize entity
+analytics and trending data. It supports Interactive Server and Interactive
+WebAssembly render modes.
 
 ## Key Features
 
@@ -16,8 +16,8 @@ via `RazorComponents`.
 
 ## Rendering Mode
 
-Uses `InteractiveServer` rendermode (not `InteractiveAuto` — the App.razor uses
-`InteractiveServer` for `HeadOutlet` and `Routes`).
+The host registers both interactive render modes. `App.razor` selects the mode
+for its routed components.
 
 ## Project Structure
 
@@ -44,5 +44,5 @@ var frontend = builder.AddProject<Projects.Agitprop_Web_Client>("frontend")
 
 ## Package Requirements
 
-- `Microsoft.AspNetCore.Components.WebAssembly.Server` is required for
-  Blazor WebAssembly server-side rendering support.
+- `Microsoft.AspNetCore.Components.WebAssembly.Server` supports WebAssembly
+  rendering from the Blazor Web App host.

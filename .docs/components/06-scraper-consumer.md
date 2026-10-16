@@ -70,4 +70,12 @@ acknowledgement and retry behavior.
 - MassTransit: `ConnectionStrings:messaging` → RabbitMQ AMQP
 - Database: `ConnectionStrings:newsfeed` → PostgreSQL
 - NLP model directory: `NLP__ModelDirectory` (defaults to `ner-model` beside the binaries)
-- Model assets must be provisioned before startup; the consumer fails fast if they are missing.
+- The model provisioner downloads pinned assets on first use and verifies their
+  SHA-256 hashes. A pre-provisioned model directory can be used for offline startup.
+
+## Retry behavior
+
+The endpoint retries unhandled consumer failures after 500 ms and 1,000 ms.
+`ArgumentException` is logged and handled by the consumer, so it is not retried.
+After the retry policy is exhausted, MassTransit moves the failed message to its
+error queue for the CLI `retry` command to requeue.

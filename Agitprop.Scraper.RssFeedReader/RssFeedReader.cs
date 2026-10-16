@@ -138,11 +138,6 @@ public class RssFeedReader : IHostedService, IDisposable
                     var news = feed.Items.Select(item =>
                     {
                         var link = item.Links.FirstOrDefault()?.Uri?.GetLeftPart(UriPartial.Path);
-                        feedActivity?.AddEvent(new ActivityEvent("FeedItemRead", default, new ActivityTagsCollection
-                        {
-                            { "item.title", item.Title.Text },
-                            { "item.link", link is null ? "null" : Core.TelemetryUrl.RedactQueryAndFragment(link) }
-                        }));
 
                         return new NewsfeedJobDescrpition
                         {
@@ -151,6 +146,7 @@ public class RssFeedReader : IHostedService, IDisposable
                         };
                     }).ToList();
 
+                    feedActivity?.SetTag("feed.items.count", news.Count);
                     _itemsFetched.Add(news.Count, new KeyValuePair<string, object?>("feed.host", feedHost));
                     _logger.LogDebug("Fetched {ItemCount} items from feed {FeedUrl}", news.Count, safeFeedUrl);
                     scrapingJobs.AddRange(news);

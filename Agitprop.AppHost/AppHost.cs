@@ -16,7 +16,7 @@ internal class Program
         var messaging = builder.AddRabbitMQ("messaging")
                                .WithManagementPlugin(15672)
                                .WithExternalHttpEndpoints()
-                               .WithDataVolume()
+                            //    .WithDataVolume()
                                .WithLifetime(ContainerLifetime.Persistent)
                                .WithOtlpExporter();
 
@@ -49,8 +49,6 @@ internal class Program
         var backend = builder.AddProject<Agitprop_Web_Api>("backend")
                              .WaitFor(newsfeedDb)
                              .WithReference(newsfeedDb)
-                             .WaitFor(messaging)
-                             .WithReference(messaging)
                              .WithOtlpExporter()
                              .WithContainerRegistry(registry)
                              .WithEnvironmentAwareImagePush();

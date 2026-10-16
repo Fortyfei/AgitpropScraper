@@ -147,7 +147,7 @@ dotnet ef migrations add <Name> \
 dotnet run --project Agitprop.CLI/Agitprop.CLI.csproj -- --help
 dotnet run --project Agitprop.CLI/Agitprop.CLI.csproj -- scrape-article --url <URL> --shorten
 dotnet run --project Agitprop.CLI/Agitprop.CLI.csproj -- scrape-archive --date 2024-01-01
-dotnet run --project Agitprop.CLI/Agitprop.CLI.csproj -- retry --failedQueue <queue> --targetQueue <queue> --max 10
+dotnet run --project Agitprop.CLI/Agitprop.CLI.csproj -- retry --connection <RabbitMQ-connection-string> --failed-queue <queue> --target-queue <queue> --max 10
 ```
 
 ## 6. Adding a New Content Parser

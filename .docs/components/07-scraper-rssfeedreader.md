@@ -3,8 +3,11 @@
 ## Purpose
 
 An **ASP.NET Core hosted service** that periodically pulls RSS feeds from
-configured URLs and publishes `ScrapingJobDescription` messages to
+configured URLs and publishes `NewsfeedJobDescrpition` messages to
 **RabbitMQ** for downstream processing by the Consumer.
+
+The job contract is defined in the shared Core project, so the RSS reader does
+not depend on the Newsfeed sink project.
 
 ## Responsibilities
 
@@ -41,15 +44,12 @@ In `appsettings.json`:
 - ActivitySource: `"Agitprop.RssFeedReader"`
 - OpenTelemetry tracing + metrics
 - Activity kinds: `Producer` for publish, `Consumer` for feed processing
+- Feed spans include a bounded item count rather than a trace event per item;
+  individual jobs are traced through message publishing and consumption.
 
 ## Startup
 
-Started by `Agitprop.AppHost` as project `rssreader`:
-
-```csharp
-var rssReader = builder.AddProject<Projects.Agitprop_Scraper_RssFeedReader>("rssreader")
-    .WithReference(messaging).WaitFor(messaging)
-    .WaitFor(consumer);
-```
+Started by `Agitprop.AppHost` as project `rss-feed-reader`. It waits for
+RabbitMQ and for the consumer to start.
 
 Requires `ConnectionStrings:messaging` (RabbitMQ AMQP).

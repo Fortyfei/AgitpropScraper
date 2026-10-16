@@ -2,10 +2,9 @@
 
 ## Purpose
 
-A shared class library that provides **common service configuration** for all
-ASP.NET Core and Aspire projects in the solution. All services call
-`builder.AddServiceDefaults()` at startup. No other content — this is a thin
-configuration layer.
+A shared class library that provides **common service configuration** for the
+consumer, RSS reader, Web API, and Web Client application processes. Each calls
+`builder.AddServiceDefaults()` at startup. This is a thin configuration layer.
 
 ## Responsibilities
 
@@ -16,8 +15,30 @@ configuration layer.
 - **OTLP export**: enabled when `OTEL_EXPORTER_OTLP_ENDPOINT` is configured;
   Aspire supplies that endpoint for AppHost-managed services.
 - **Health checks**: registers built-in health checks for all services.
-- **Resilience**: configures retry policies, circuit breakers, and HTTP
-  client resilience via Polly extensions.
+- **HTTP client resilience**: configures the standard retry, timeout, and
+  circuit-breaker pipeline for clients created by `IHttpClientFactory`.
+
+## Retry boundaries
+
+HTTP client defaults are not the only retry behavior in the application.
+Keep these scopes distinct when changing retry behavior:
+
+| Scope | Owner | Default behavior |
+|-------|-------|------------------|
+| `IHttpClientFactory` clients | `AddServiceDefaults()` | 3 retries; 90-second total request timeout |
+| Direct page loading | `HttpStaticPageLoader` | `Retry:PageLoader` (3); retries exceptions and non-success responses |
+| Browser loading | Puppeteer page loaders | 3 retries for browser download and navigation; separately configurable per loader |
+| URL-existence checks, entity analysis and persistence | `NewsfeedSink` | `Retry:NewsfeedSink` (3) for each operation |
+| Message consumption | `NewsfeedJobConsumerDefinition` | retries at 500 ms and 1,000 ms; handled `ArgumentException`s are not retried |
+| Manual error recovery | CLI `retry` command | requeues messages; not an automatic retry policy |
+
+The direct `RespectfulPageRequester` constructs its own `HttpClient` and does
+not receive the `IHttpClientFactory` resilience handler. Factory-created
+clients, such as the Web Client API client and proxy-provider clients, do.
+
+The local Polly policies share their retry count and delay implementation via
+`Agitprop.Infrastructure.RetryPolicyFactory`; their scope, triggers, and
+configuration keys remain owned by the calling component.
 
 ## Key File
 
