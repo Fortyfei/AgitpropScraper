@@ -83,12 +83,20 @@
                 {
                     <p class="data-state">Loading trend line…</p>
                 }
-                else if (TopEntities.Any() && SelectedTrendSeries.Any(series => series.Timeline.Count > 0))
+                else if (TopEntities.Count == 0)
                 {
-                    <ApexChart @key="SelectedTimeframeIndex" TItem="TimelinePoint" XAxisType="XAxisType.Datetime"
+                    <p class="data-state">No trend data is available for this period.</p>
+                }
+                else if (!VisibleTrendSeries.Any())
+                {
+                    <p class="data-state">Select at least one entity to see its trend.</p>
+                }
+                else
+                {
+                    <ApexChart @key="ChartKey" TItem="TimelinePoint" XAxisType="XAxisType.Datetime"
                                Height="360"
                                Options="ReadOnlyChartOptions">
-                        @foreach (var series in SelectedTrendSeries)
+                        @foreach (var series in VisibleTrendSeries)
                         {
                             <ApexPointSeries TItem="TimelinePoint" Items="series.Timeline" Name="@series.Name"
                                              SeriesType="SeriesType.Line"
@@ -98,11 +106,38 @@
                         }
                     </ApexChart>
                 }
-                else
-                {
-                    <p class="data-state">No trend data is available for this period.</p>
-                }
             </div>
+
+            @if (!IsLoading && TopEntities.Count > 0)
+            {
+                <div class="trend-legend" role="group" aria-label="Chart entities">
+                    <div class="trend-legend-actions">
+                        <button type="button" class="legend-action-button"
+                                disabled="@AllSelected" @onclick="SelectAll">
+                            Select all
+                        </button>
+                        <button type="button" class="legend-action-button"
+                                disabled="@(SelectedEntityIds.Count == 0)" @onclick="DeselectAll">
+                            Deselect all
+                        </button>
+                    </div>
+                    <div class="trend-legend-items">
+                        @foreach (var item in TopEntities.Select((entity, index) => (entity, index)))
+                        {
+                            var entityId = item.entity.Id;
+                            var isSelected = SelectedEntityIds.Contains(entityId);
+                            <button type="button"
+                                    class="trend-legend-item @(isSelected ? "selected" : string.Empty)"
+                                    style="--entity-color: @TrendColor(item.index)"
+                                    aria-pressed="@isSelected"
+                                    @onclick="() => ToggleEntity(entityId)">
+                                <span class="trend-legend-marker" aria-hidden="true"></span>
+                                <span class="trend-legend-name">@item.entity.Name</span>
+                            </button>
+                        }
+                    </div>
+                </div>
+            }
         </section>
     </div>
 </div>
@@ -116,6 +151,7 @@
             Selection = new Selection { Enabled = false },
             Toolbar = new Toolbar { Show = false }
         },
+        Legend = new Legend { Show = false },
         Yaxis =
         [
             new YAxis
@@ -142,6 +178,34 @@
     private string? ErrorMessage { get; set; }
 
     private TimeframeOption SelectedTimeframe => TimeframeOptions[SelectedTimeframeIndex];
+
+    private HashSet<string> SelectedEntityIds { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    private bool AllSelected => TopEntities.Count > 0 && SelectedEntityIds.Count == TopEntities.Count;
+
+    private string ChartKey =>
+        $"{SelectedTimeframeIndex}-{string.Join(',', TopEntities.Where(e => SelectedEntityIds.Contains(e.Id)).Select(e => e.Id))}";
+
+    private IEnumerable<EntityTrendSeries> VisibleTrendSeries =>
+        SelectedTrendSeries.Where(series => SelectedEntityIds.Contains(series.EntityId));
+
+    private void ToggleEntity(string entityId)
+    {
+        if (!SelectedEntityIds.Remove(entityId))
+        {
+            SelectedEntityIds.Add(entityId);
+        }
+    }
+
+    private void SelectAll()
+    {
+        SelectedEntityIds = new HashSet<string>(TopEntities.Select(e => e.Id), StringComparer.OrdinalIgnoreCase);
+    }
+
+    private void DeselectAll()
+    {
+        SelectedEntityIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    }
 
     private IEnumerable<EntityTrendSeries> SelectedTrendSeries =>
         TopEntities.Select((entity, index) => new EntityTrendSeries
@@ -204,6 +268,7 @@
 
             ReadOnlyChartOptions.Xaxis = DailyAxis(SelectedTimeframe.Days + 1);
             TopEntities = topEntities;
+            SelectedEntityIds = new HashSet<string>(topEntities.Select(e => e.Id), StringComparer.OrdinalIgnoreCase);
             EntityTimelines = timelines;
         }
         catch
@@ -251,7 +316,7 @@
 
     private static string TrendColor(int index)
     {
-        var palette = new[] { "#135D91", "#407A5A", "#D99024", "#7053A6", "#257C82", "#A64D4D" };
+        var palette = new[] { "#135D91", "#407A5A", "#D99024", "#7053A6", "#257C82", "#A64D4D", "#6B7A8F", "#B5651D" };
         return palette[index % palette.Length];
     }
 
