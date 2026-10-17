@@ -9,23 +9,52 @@ WebAssembly render modes.
 ## Key Features
 
 - Razor Components with server-side interactivity.
-- ApexCharts integration (`Agitprop.Web.Client` depends on
-  `Blazored.ApexCharts` / `Blazor-ApexCharts`).
-- HTTP client for API calls (`AnalyticsService`).
+- ApexCharts integration through the `Blazor-ApexCharts` package.
+- `AnalyticsService` HTTP client for API calls.
 - OTLP metrics export for telemetry.
+- Responsive coverage-monitor navigation: a top bar on desktop and a fixed
+  bottom tab bar on narrow screens.
+- Dashboard and entity timeline charts, a top-sources donut chart, and an
+  entity mention-count bar chart.
 
 ## Rendering Mode
 
-The host registers both interactive render modes. `App.razor` selects the mode
-for its routed components.
+`Program.cs` registers both Interactive Server and Interactive WebAssembly
+render modes, but the current page components explicitly use
+`InteractiveServer`. `App.razor` applies Interactive Server rendering to
+`HeadOutlet` and `Routes`.
+
+## Pages and visualization
+
+| Route | Component | Behavior |
+|-------|-----------|----------|
+| `/` and `/home` | `Components/Pages/Home.razor` | Coverage dashboard with a timeline chart and ranked entities. |
+| `/entities` | `Components/Pages/EntityBrowser.razor` | Searchable directory of 50 entities per page with Prev/Next controls above and below the list; a "Top entities by coverage" bar chart shows up to eight entities from the current page, and selecting a bar opens that entity. |
+| `/entity/{Id}` | `Components/Pages/EntityDetail.razor` | Entity details, source breakdown, article list, and timeline chart. |
+| `/sources` | `Components/Pages/Sources.razor` | Publisher coverage by normalized domain; a donut chart displays the top six sources and combines the remainder as “Other.” |
+
+Timeframe changes reload the corresponding analytics data. The Sources chart
+is shown only when source data is available; the Entities chart uses the
+currently loaded results and updates with search, timeframe, and pagination.
+
+## Layout and navigation
+
+`Components/Layout/MainLayout.razor` provides the shared shell and page content
+container. `NavMenu.razor` renders the Dashboard, Entities, and Sources links.
+The desktop links are presented in the dark top bar with a visible active state.
+At widths up to `38rem`, the navigation becomes a fixed bottom tab bar, includes
+safe-area padding, and the content container reserves space below it.
+`NavMenu.razor.css` and `MainLayout.razor.css` define these responsive styles.
 
 ## Project Structure
 
 | File | Purpose |
 |------|---------|
-| `Program.cs` | Service collection setup: AddServiceDefaults, AddRazorComponents, AddApexCharts, AddHttpClient |
-| `Components/App.razor` | Root component with `<Router>`, `<HeadOutlet>`, `<Routes>` |
-| Services | `AnalyticsService` for API calls |
+| `Program.cs` | Service setup, render modes, ApexCharts, and the `AnalyticsService` HTTP client. |
+| `Components/App.razor` | Root component and document shell. |
+| `Components/Layout/MainLayout.razor` | Shared navigation and page-content layout. |
+| `Components/Pages/` | Dashboard, entities, entity detail, and sources pages. |
+| `Services/AnalyticsService.cs` | Typed client-side access to analytics API endpoints. |
 
 ## Configuration
 
@@ -44,5 +73,7 @@ var frontend = builder.AddProject<Projects.Agitprop_Web_Client>("frontend")
 
 ## Package Requirements
 
-- `Microsoft.AspNetCore.Components.WebAssembly.Server` supports WebAssembly
-  rendering from the Blazor Web App host.
+- `Blazor-ApexCharts` provides the chart components used by the pages.
+- `Microsoft.AspNetCore.Components.WebAssembly.Server` supports the registered
+  Interactive WebAssembly render mode; the current routed pages use
+  Interactive Server.

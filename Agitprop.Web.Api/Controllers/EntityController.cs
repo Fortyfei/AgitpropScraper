@@ -276,17 +276,24 @@ public class EntitiesController : ControllerBase
         {
             var mentionings = _entityRepository.GetMentioningArticlesAsync(entityIds, from, to);
 
+            // Emit every day in the requested range (zero-filled) so sparse series still span the whole window.
             var timeline = mentionings.ToDictionary(
                 pair => pair.Key,
-                pair => pair.Value
-                    .GroupBy(article => DateOnly.FromDateTime(article.PublishedTime))
-                    .Select(group => new EntityTimelinePoint
-                    {
-                        Date = group.Key,
-                        Count = group.Count()
-                    })
-                    .OrderBy(point => point.Date)
-                    .ToList(),
+                pair =>
+                {
+                    var countsByDay = pair.Value
+                        .GroupBy(article => DateOnly.FromDateTime(article.PublishedTime))
+                        .ToDictionary(group => group.Key, group => group.Count());
+
+                    return Enumerable.Range(0, to.DayNumber - from.DayNumber + 1)
+                        .Select(offset => from.AddDays(offset))
+                        .Select(day => new EntityTimelinePoint
+                        {
+                            Date = day,
+                            Count = countsByDay.GetValueOrDefault(day)
+                        })
+                        .ToList();
+                },
                 StringComparer.OrdinalIgnoreCase);
 
             var response = new EntitiesTimelineResponse { Timeline = timeline };

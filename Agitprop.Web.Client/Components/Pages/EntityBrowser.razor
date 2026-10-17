@@ -1,6 +1,7 @@
 @page "/entities"
 @rendermode InteractiveServer
 @using Agitprop.Web.Client.Models
+@using ApexCharts
 @inject Agitprop.Web.Client.Services.AnalyticsService Analytics
 @implements IDisposable
 
@@ -27,7 +28,7 @@
                        @oninput="OnSearchInput" />
             </div>
 
-            <div class="timeframe-selector">
+            <div class="timeframe-selector" role="group" aria-label="Coverage window">
                 @for (var i = 0; i < TimeframeOptions.Count; i++)
                 {
                     var option = TimeframeOptions[i];
@@ -48,6 +49,21 @@
         <div class="alert alert-warning" role="alert">@ErrorMessage</div>
     }
 
+    @if (Items.Count > 0)
+    {
+        <section class="entity-chart-panel">
+            <h2>Top entities by coverage</h2>
+            <p class="chart-hint">The eight most covered entities in these results. Select a bar to open it.</p>
+            <ApexChart @key="ChartKey" TItem="EntityBrowseItem" Height="320" Options="BarOptions"
+                       OnDataPointSelection="OpenEntity">
+                <ApexPointSeries TItem="EntityBrowseItem" Items="Items.Take(8).ToList()" Name="Mentions"
+                                 SeriesType="SeriesType.Bar"
+                                 XValue="@(item => item.Name)"
+                                 YValue="@(item => (decimal?)item.MentionCount)" />
+            </ApexChart>
+        </section>
+    }
+
     <section class="entity-list-panel">
         @if (IsLoading && Items.Count == 0)
         {
@@ -65,6 +81,10 @@
                     @if (!string.IsNullOrWhiteSpace(SearchQuery))
                     {<text> matching "<strong>@SearchQuery</strong>"</text>}
                 </span>
+                @if (TotalPages > 1)
+                {
+                    @PagerControls
+                }
             </div>
 
             <ul class="entity-browser-list">
@@ -91,9 +111,7 @@
             @if (TotalPages > 1)
             {
                 <div class="browser-pagination">
-                    <button class="pagination-btn" @onclick="PrevPage" disabled="@(CurrentPage <= 1 || IsLoading)">← Prev</button>
-                    <span class="pagination-info">Page @CurrentPage of @TotalPages</span>
-                    <button class="pagination-btn" @onclick="NextPage" disabled="@(CurrentPage >= TotalPages || IsLoading)">Next →</button>
+                    @PagerControls
                 </div>
             }
         }
@@ -101,7 +119,22 @@
 </div>
 
 @code {
-    private const int PageSize = 25;
+    private const int PageSize = 50;
+
+    private RenderFragment PagerControls => @<div class="pager-controls">
+        <button class="pagination-btn" @onclick="PrevPage" disabled="@(CurrentPage <= 1 || IsLoading)">← Prev</button>
+        <span class="pagination-info">Page @CurrentPage of @TotalPages</span>
+        <button class="pagination-btn" @onclick="NextPage" disabled="@(CurrentPage >= TotalPages || IsLoading)">Next →</button>
+    </div>;
+
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
+
+    private void OpenEntity(SelectedData<EntityBrowseItem> selected)
+    {
+        var id = selected.DataPoint?.Items?.FirstOrDefault()?.Id;
+        if (!string.IsNullOrEmpty(id))
+            Navigation.NavigateTo($"/entity/{id}");
+    }
 
     private static readonly List<TimeframeOption> TimeframeOptions = new()
     {
@@ -123,6 +156,15 @@
     private string? ErrorMessage { get; set; }
 
     private System.Threading.Timer? _debounceTimer;
+
+    private string ChartKey => $"{SelectedTimeframeIndex}-{CurrentPage}-{SearchQuery}-{TotalCount}";
+
+    private static readonly ApexChartOptions<EntityBrowseItem> BarOptions = new()
+    {
+        Colors = ["#135D91"],
+        PlotOptions = new PlotOptions { Bar = new PlotOptionsBar { Horizontal = true, BorderRadius = 2 } },
+        Chart = new Chart { Toolbar = new Toolbar { Show = false } }
+    };
 
     protected override async Task OnInitializedAsync()
     {

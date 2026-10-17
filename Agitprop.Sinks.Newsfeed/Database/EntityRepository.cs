@@ -116,12 +116,56 @@ public class EntityRepository : IEntityRepository
                 .OrderByDescending(x => x.Count)
                 .ToList();
         }
+
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to retrieve domain breakdown for entity {entityId}", entityId);
             trace?.SetStatus(ActivityStatusCode.Error, ex.Message);
             throw;
         }
+    }
+
+    public IEnumerable<(string Domain, int Count)> GetArticleDomainsAsync(DateOnly startDate, DateOnly endDate)
+    {
+        using var trace = _activitySource.StartActivity("GetArticleDomains", ActivityKind.Internal);
+        trace?.SetTag("from", startDate.ToString());
+        trace?.SetTag("to", endDate.ToString());
+
+        var from = DateTime.SpecifyKind(startDate.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
+        var to = DateTime.SpecifyKind(endDate.ToDateTime(TimeOnly.MaxValue), DateTimeKind.Utc);
+
+        try
+        {
+            var urls = _dbContext.Articles
+                .Where(article => article.PublishedTime >= from && article.PublishedTime <= to)
+                .Select(article => article.Url)
+                .AsNoTracking()
+                .ToList();
+
+            var domains = urls
+                .Select(NormalizeDomain)
+                .GroupBy(domain => domain, StringComparer.OrdinalIgnoreCase)
+                .Select(group => (Domain: group.Key, Count: group.Count()))
+                .OrderByDescending(item => item.Count)
+                .ThenBy(item => item.Domain, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            trace?.SetTag("resultCount", domains.Count);
+            return domains;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to retrieve article domains between {startDate} and {endDate}", startDate, endDate);
+            trace?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            throw;
+        }
+    }
+
+    private static string NormalizeDomain(string url)
+    {
+        return Uri.TryCreate(url, UriKind.Absolute, out var uri)
+            ? uri.Host.Replace("www.", string.Empty, StringComparison.OrdinalIgnoreCase)
+            : url;
     }
 
     public (IEnumerable<Article> Items, int TotalCount) GetMentioningArticlesPaginatedAsync(string entityId, DateOnly startDate, DateOnly endDate, int page, int pageSize)

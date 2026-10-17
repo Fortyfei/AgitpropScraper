@@ -52,6 +52,18 @@ public class AnalyticsService
         }).ToList() ?? [];
     }
 
+    public async Task<List<SourceStat>?> GetSourcesAsync(DateOnly from, DateOnly to)
+    {
+        var endpoint = $"api/sources?from={ToQueryDate(from)}&to={ToQueryDate(to)}";
+        var response = await TryGetAsync<SourcesResponseDto>(endpoint);
+        return response?.Sources.Select(source => new SourceStat
+        {
+            Domain = source.Domain,
+            Count = source.Count,
+            Percent = source.Percent
+        }).ToList();
+    }
+
     public async Task<EntityInfo?> GetEntityByIdAsync(string entityId)
     {
         var endpoint = $"api/entities/{Uri.EscapeDataString(entityId)}";
@@ -178,6 +190,19 @@ public class AnalyticsService
     {
         public List<DomainStatItemDto> Domains { get; set; } = [];
         public int TotalCount { get; set; }
+    }
+
+    private sealed class SourcesResponseDto
+    {
+        public List<SourceStatItemDto> Sources { get; set; } = [];
+        public int TotalCount { get; set; }
+    }
+
+    private sealed class SourceStatItemDto
+    {
+        public string Domain { get; set; } = string.Empty;
+        public int Count { get; set; }
+        public double Percent { get; set; }
     }
 
     private sealed class DomainStatItemDto

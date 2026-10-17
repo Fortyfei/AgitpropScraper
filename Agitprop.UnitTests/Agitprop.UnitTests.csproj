@@ -28,6 +28,12 @@
     <ProjectReference Include="..\Agitprop.Infrastructure.Puppeteer\Agitprop.Infrastructure.Puppeteer.csproj" />
     <ProjectReference Include="..\Agitprop.Scraper.NLPService\Agitprop.Scraper.NLPService.csproj" />
     <ProjectReference Include="..\Agitprop.Sinks.Newsfeed\Agitprop.Sinks.Newsfeed.csproj" />
+    <ProjectReference Include="..\Agitprop.Web.Api\Agitprop.Web.Api.csproj" />
+    <ProjectReference Include="..\Agitprop.Web.Client\Agitprop.Web.Client.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
   <ItemGroup>

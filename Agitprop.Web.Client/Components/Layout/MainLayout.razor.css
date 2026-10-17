@@ -12,6 +12,12 @@
     padding: clamp(1.5rem, 3vw, 3rem) 0 3.5rem;
 }
 
+@media (max-width: 38rem) {
+    .content {
+        padding-bottom: 6rem;
+    }
+}
+
 #blazor-error-ui {
     background: #fff4d9;
     border-top: 1px solid #d99024;

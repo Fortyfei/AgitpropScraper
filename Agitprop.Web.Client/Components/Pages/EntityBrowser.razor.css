@@ -63,31 +63,18 @@
     outline: none;
 }
 
-.timeframe-selector {
+.entity-chart-panel {
     background: var(--surface);
     border: 1px solid var(--line);
-    display: inline-flex;
-    padding: 0.2rem;
+    margin-bottom: 1.5rem;
+    padding: clamp(1rem, 2vw, 1.5rem);
 }
 
-.timeframe-pill {
-    background: transparent;
-    border: 0;
-    color: var(--slate);
-    cursor: pointer;
-    font-size: 0.84rem;
-    font-weight: 700;
-    min-height: 2.4rem;
-    padding: 0.4rem 0.65rem;
-}
-
-.timeframe-pill:hover {
-    background: #edf3f7;
-}
-
-.timeframe-pill.active {
-    background: var(--signal-blue);
-    color: #fff;
+.entity-chart-panel h2 {
+    color: var(--ink);
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 1.3rem;
+    margin: 0 0 0.5rem;
 }
 
 .entity-list-panel {
@@ -96,8 +83,30 @@
 }
 
 .browser-list-header {
+    align-items: center;
     border-bottom: 1px solid var(--line);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    justify-content: space-between;
     padding: 0.85rem 1rem;
+}
+
+.pager-controls {
+    align-items: center;
+    display: flex;
+    gap: 1rem;
+}
+
+.browser-pagination .pager-controls {
+    justify-content: space-between;
+    width: 100%;
+}
+
+.chart-hint {
+    color: var(--slate);
+    font-size: 0.88rem;
+    margin: 0 0 0.5rem;
 }
 
 .browser-result-count {
@@ -245,10 +254,6 @@
 
     .timeframe-selector {
         display: flex;
-    }
-
-    .timeframe-pill {
-        flex: 1;
     }
 
     .entity-browser-row {

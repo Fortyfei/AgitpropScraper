@@ -23,6 +23,13 @@ public class DomainStat
     public double Percent { get; set; }
 }
 
+public class SourceStat
+{
+    public string Domain { get; set; } = string.Empty;
+    public int Count { get; set; }
+    public double Percent { get; set; }
+}
+
 public class EntitySummary
 {
     public string Id { get; set; } = string.Empty;

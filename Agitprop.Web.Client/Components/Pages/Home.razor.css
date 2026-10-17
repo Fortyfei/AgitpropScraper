@@ -49,40 +49,92 @@
     font-weight: 650;
 }
 
-.timeframe-selector {
-    background: var(--surface);
-    border: 1px solid var(--line);
-    display: inline-flex;
-    padding: 0.2rem;
-}
-
-.timeframe-pill {
-    background: transparent;
-    border: 0;
-    border-radius: 0;
-    color: var(--slate);
-    cursor: pointer;
-    font-size: 0.88rem;
-    font-weight: 650;
-    min-height: 2.5rem;
-    padding: 0.45rem 0.8rem;
-}
-
-.timeframe-pill:hover {
-    background: #edf3f7;
-    color: var(--ink);
-}
-
-.timeframe-pill.active {
-    background: var(--signal-blue);
-    color: #fff;
-}
-
 .home-dashboard-grid {
     align-items: start;
     display: grid;
     gap: 1.5rem;
     grid-template-columns: minmax(18rem, 0.9fr) minmax(0, 1.35fr);
+}
+
+.trend-legend-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.legend-action-button {
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    color: var(--ink);
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 700;
+    padding: 0.35rem 0.9rem;
+    white-space: nowrap;
+}
+
+.legend-action-button:hover:not(:disabled) {
+    background: #edf3f7;
+}
+
+.legend-action-button:disabled {
+    cursor: default;
+    opacity: 0.55;
+}
+
+.trend-legend {
+    border-top: 1px solid var(--line-soft);
+    display: grid;
+    gap: 0.45rem;
+    justify-items: end;
+    margin-top: 0.65rem;
+    padding-top: 0.75rem;
+}
+
+.trend-legend-items {
+    display: grid;
+    gap: 0.35rem 0.5rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    width: 100%;
+}
+
+.trend-legend-item {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    color: var(--slate);
+    cursor: pointer;
+    display: flex;
+    gap: 0.4rem;
+    min-width: 0;
+    opacity: 0.55;
+    padding: 0.25rem 0.15rem;
+    text-align: left;
+}
+
+.trend-legend-item.selected {
+    color: var(--ink);
+    opacity: 1;
+}
+
+.trend-legend-item:hover .trend-legend-name {
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+}
+
+.trend-legend-marker {
+    background: var(--entity-color);
+    border-radius: 50%;
+    flex: 0 0 auto;
+    height: 0.7rem;
+    width: 0.7rem;
+}
+
+.trend-legend-name {
+    font-size: 0.8rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .monitor-panel {
@@ -219,9 +271,8 @@
         width: 100%;
     }
 
-    .timeframe-pill {
-        flex: 1;
-        padding-inline: 0.35rem;
+    .trend-legend-items {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .entity-rank-card {
