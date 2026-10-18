@@ -22,9 +22,3 @@ public sealed record PageLoadResult(
     string StrategyName,
     TimeSpan Duration
 );
-
-public enum TransportMode
-{
-    RotatingProxy,
-    RespectfulDirect
-}
