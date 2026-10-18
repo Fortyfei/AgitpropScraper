@@ -1,6 +1,5 @@
-using Agitprop.Sinks.Newsfeed;
+using Agitprop.Data;
 using Microsoft.EntityFrameworkCore;
-using Agitprop.Sinks.Newsfeed.Database;
 using Agitprop.Web.Api;
 
 var builder = WebApplication.CreateBuilder(args);

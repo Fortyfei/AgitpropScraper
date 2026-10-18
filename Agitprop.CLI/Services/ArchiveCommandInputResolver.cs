@@ -1,4 +1,6 @@
-using Agitprop.Core.Enums;
+using Agitprop.Core;
+using Agitprop.Core.Interfaces;
+using Agitprop.Sources;
 using Microsoft.Extensions.Configuration;
 using System.Globalization;
 
@@ -20,7 +22,7 @@ public sealed record ArchiveCommandRawInput(
 
 public sealed record ArchiveCommandResolvedInput(
     List<DateOnly> Dates,
-    List<NewsSites> Sites,
+    List<SourceId> Sites,
     CliOutputVerbosity Verbosity,
     bool IsRangeMode,
     string ResolvedFeedConfigPath,
@@ -52,20 +54,9 @@ public enum CliOutputVerbosity
 public sealed class ArchiveCommandInputResolver : IArchiveCommandInputResolver
 {
     private static readonly string[] SupportedDateFormats = ["yyyy-MM-dd", "yyyy.MM.dd"];
-    private static readonly List<NewsSites> DateArchiveFallbackSites =
-    [
-        NewsSites.Origo,
-        NewsSites.Ripost,
-        NewsSites.Mandiner,
-        NewsSites.Metropol,
-        NewsSites.MagyarNemzet,
-        NewsSites.HuszonnegyHu,
-        NewsSites.NegyNegyNegy,
-        NewsSites.HVG,
-        NewsSites.Telex,
-        NewsSites.Index,
-        NewsSites.Merce
-    ];
+    private static readonly INewsfeedSourceCatalog Catalog = new NewsfeedSourceCatalog(NewsfeedSources.BuiltIn());
+    private static readonly List<SourceId> DateArchiveFallbackSites =
+        [.. Catalog.All.Where(source => source.GetArchiveUrl(DateOnly.MinValue) is not null).Select(source => source.Id)];
 
     public ArchiveCommandInputResolution Resolve(ArchiveCommandRawInput input)
     {
@@ -193,7 +184,7 @@ public sealed class ArchiveCommandInputResolver : IArchiveCommandInputResolver
                || DateOnly.TryParse(value, out date);
     }
 
-    private static bool TryResolveSites(string[] newsites, string feedConfigPath, out List<NewsSites> sites, out string error, out List<string> warnings)
+    private static bool TryResolveSites(string[] newsites, string feedConfigPath, out List<SourceId> sites, out string error, out List<string> warnings)
     {
         error = string.Empty;
         warnings = [];
@@ -206,7 +197,7 @@ public sealed class ArchiveCommandInputResolver : IArchiveCommandInputResolver
         var useDefault = rawTokens.Count == 0;
         if (!useDefault && rawTokens.Any(token => token.Equals("all", StringComparison.OrdinalIgnoreCase)))
         {
-            sites = Enum.GetValues<NewsSites>().ToList();
+            sites = Catalog.All.Select(source => source.Id).ToList();
             return true;
         }
 
@@ -236,8 +227,9 @@ public sealed class ArchiveCommandInputResolver : IArchiveCommandInputResolver
                 continue;
             }
 
-            if (Enum.TryParse<NewsSites>(token, true, out var parsedSite))
+            if (Catalog.TryGetById(token, out var parsedSource))
             {
+                var parsedSite = parsedSource.Id;
                 if (!IsDateArchiveSupported(parsedSite))
                 {
                     warnings.Add($"Warning: '{parsedSite}' does not support date archive scraping and will be skipped.");
@@ -265,7 +257,7 @@ public sealed class ArchiveCommandInputResolver : IArchiveCommandInputResolver
         return true;
     }
 
-    private static bool TryResolveDefaultSites(string feedConfigPath, out List<NewsSites> sites, out string error, out List<string> warnings)
+    private static bool TryResolveDefaultSites(string feedConfigPath, out List<SourceId> sites, out string error, out List<string> warnings)
     {
         sites = [];
         warnings = [];
@@ -339,36 +331,25 @@ public sealed class ArchiveCommandInputResolver : IArchiveCommandInputResolver
         return Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), feedConfigPath));
     }
 
-    private static bool TryMapHostToSite(string host, out NewsSites site)
+    private static bool TryMapHostToSite(string host, out SourceId site)
     {
-        site = host.Trim().ToLowerInvariant() switch
+        if (Catalog.TryGetByFeedHost(host.Trim(), out var source))
         {
-            "origo.hu" or "www.origo.hu" => NewsSites.Origo,
-            "ripost.hu" or "www.ripost.hu" => NewsSites.Ripost,
-            "mandiner.hu" or "www.mandiner.hu" => NewsSites.Mandiner,
-            "metropol.hu" or "www.metropol.hu" => NewsSites.Metropol,
-            "magyarnemzet.hu" or "www.magyarnemzet.hu" => NewsSites.MagyarNemzet,
-            "alfahir.hu" or "www.alfahir.hu" or "blobs.alfahir.hu" => NewsSites.Alfahir,
-            "24.hu" or "www.24.hu" => NewsSites.HuszonnegyHu,
-            "444.hu" or "www.444.hu" => NewsSites.NegyNegyNegy,
-            "hvg.hu" or "www.hvg.hu" => NewsSites.HVG,
-            "telex.hu" or "www.telex.hu" => NewsSites.Telex,
-            "rtl.hu" or "www.rtl.hu" or "rss.rtl.hu" => NewsSites.RTL,
-            "index.hu" or "www.index.hu" => NewsSites.Index,
-            "merce.hu" or "www.merce.hu" => NewsSites.Merce,
-            _ => default,
-        };
+            site = source.Id;
+            return true;
+        }
 
-        return Enum.IsDefined(site);
+        site = default;
+        return false;
     }
 
-    private static bool IsDateArchiveSupported(NewsSites site)
+    private static bool IsDateArchiveSupported(SourceId site)
     {
-        return site is not NewsSites.Alfahir
-            and not NewsSites.RTL;
+        return Catalog.TryGetById(site.Value, out var source)
+            && source.GetArchiveUrl(DateOnly.MinValue) is not null;
     }
 
-    private static void AddUniqueSites(List<NewsSites> target, IEnumerable<NewsSites> toAdd)
+    private static void AddUniqueSites(List<SourceId> target, IEnumerable<SourceId> toAdd)
     {
         foreach (var site in toAdd)
         {

@@ -256,7 +256,7 @@ public class SpiderTests
 
     private static ContentParserResult CreateContentResult(string text) => new()
     {
-        SourceSite = NewsSites.Telex,
+        SourceSite = "Telex",
         PublishDate = new DateTime(2026, 1, 1),
         Text = text
     };

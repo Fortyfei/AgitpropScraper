@@ -1,5 +1,4 @@
-using Agitprop.Core.Enums;
-using Agitprop.Sinks.Newsfeed.Factories;
+using Agitprop.Core;
 
 namespace Agitprop.Sinks.Newsfeed_Test;
 
@@ -11,9 +10,9 @@ public class ArchiveParserTests
     }
 
     [TestCaseSource(typeof(TestCaseFactory), nameof(TestCaseFactory.GetArchiveParserCases))]
-    public void ArchiveParserTest(NewsSites siteIn, int expectedCount)
+    public void ArchiveParserTest(SourceId siteIn, int expectedCount)
     {
-        var parser = ArchiveLinkParserFactory.GetLinkParser(siteIn);
+        var parser = TestCaseFactory.GetSource(siteIn).CreateLinkParser();
         var htmlContent = File.ReadAllText(TestCaseFactory.GetArchiveParserTestCasePath(siteIn));
         var result = parser.GetLinksAsync("testBaseUrl", htmlContent).Result;
         Assert.That(result, Has.Count.EqualTo(expectedCount));

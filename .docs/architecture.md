@@ -82,7 +82,9 @@ flowchart TB
 | 10 | **Agitprop.Web.Client** | Blazor Web App (Interactive Server and WebAssembly) | backend (Web.Api) |
 | 11 | **Agitprop.CLI** | System.CommandLine operator tool | — |
 | 12 | **Agitprop.ServiceDefaults** | Shared library (OTel, health checks, HTTP resilience) | — |
-| 13 | **Agitprop.Sinks.Newsfeed** | Parsers, EF Core sink and repositories | — |
+| 13 | **Agitprop.Sinks.Newsfeed** | `NewsfeedSink` + NLP wiring (uses Data) | — |
+| 13a | **Agitprop.Sources** | Per-site `INewsfeedSource`s, parsers, `NewsfeedPipeline` | — |
+| 13b | **Agitprop.Data** | EF Core context, migrations, repositories | — |
 | 14 | **Agitprop.Sinks.Newsfeed_Test** | Parser fixture tests | — |
 | 15 | **Agitprop.UnitTests** | Unit tests | — |
 | 16 | **Agitprop.IntegrationTests** | API/PostgreSQL integration tests | Testing.AppHost |

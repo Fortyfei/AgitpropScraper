@@ -19,7 +19,7 @@
 
   <ItemGroup>
     <ProjectReference
-      Include="..\Agitprop.Sinks.Newsfeed\Agitprop.Sinks.Newsfeed.csproj" />
+      Include="..\Agitprop.Data\Agitprop.Data.csproj" />
     <ProjectReference Include="..\Agitprop.ServiceDefaults\Agitprop.ServiceDefaults.csproj" />
   </ItemGroup>
 

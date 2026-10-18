@@ -1,8 +1,10 @@
 <Solution>
   <Project Path="Agitprop.AppHost/Agitprop.AppHost.csproj" />
+  <Project Path="Agitprop.Sources/Agitprop.Sources.csproj" />
   <Project Path="Agitprop.Testing.AppHost/Agitprop.Testing.AppHost.csproj" />
   <Project Path="Agitprop.CLI/Agitprop.CLI.csproj" />
   <Project Path="Agitprop.Core/Agitprop.Core.csproj" />
+  <Project Path="Agitprop.Data/Agitprop.Data.csproj" />
   <Project Path="Agitprop.Infrastructure.Puppeteer/Agitprop.Infrastructure.Puppeteer.csproj" />
   <Project Path="Agitprop.Infrastructure/Agitprop.Infrastructure.csproj" />
   <Project Path="Agitprop.Scraper.Consumer/Agitprop.Scraper.Consumer.csproj" />

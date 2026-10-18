@@ -18,7 +18,7 @@ public sealed record ArticleScrapeRequest(string Url, bool ShortenOutput);
 
 public sealed record ArticleScrapeExecutionResult(IReadOnlyList<string> OutputLines);
 
-public sealed record ArchiveSiteScrapeRequest(NewsSites Site, DateOnly Date);
+public sealed record ArchiveSiteScrapeRequest(SourceId Site, DateOnly Date);
 
 public sealed record ArchiveSiteScrapeExecutionResult(string SourceUrl, List<ScrapingJobDescription> Jobs);
 
