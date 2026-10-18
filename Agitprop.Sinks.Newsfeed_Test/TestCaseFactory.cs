@@ -28,7 +28,9 @@ public static class TestCaseFactory
         "RTL",
         "Telex",
         "HuszonnegyHu",
-        "NegyNegyNegy"
+        "NegyNegyNegy",
+        "Blikk",
+        "Kontroll"
     ];
 
     private static readonly (SourceId Site, int ExpectedCount)[] ArchiveExpectedCounts =
@@ -44,7 +46,9 @@ public static class TestCaseFactory
         ("RTL", 50),
         ("Telex", 85),
         ("HuszonnegyHu", 24),
-        ("NegyNegyNegy", 55)
+        ("NegyNegyNegy", 55),
+        ("Blikk", 30),
+        ("Kontroll", 100)
     ];
 
     public static IEnumerable<TestCaseData> GetArchiveParserCases()

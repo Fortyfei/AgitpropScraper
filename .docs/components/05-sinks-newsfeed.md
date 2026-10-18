@@ -32,6 +32,8 @@ All extend the abstract `BaseArticleContentParser : IContentParser`.
 | `HuszonnegyArticleContentParser.cs` | 24.hu |
 | `AlfahirArticleContentParser.cs` | Alfahir |
 | `MerceArticleContentParser.cs` | Mérce |
+| `BlikkArticleContentParser.cs` | Blikk |
+| `KontrollArticleContentParser.cs` | Kontroll (archive = single rolling sitemap, ~1 week) |
 | `MandinerArticleContentParser.cs` | Mandiner |
 | `MagyarNemzetArticleContentParser.cs` | Magyar Nemzet |
 | `MetropolArticleContentParser.cs` | Metropol |
