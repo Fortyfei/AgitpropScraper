@@ -10,6 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="MessagePack" />
     <PackageReference Include="Aspire.Hosting.PostgreSQL" />
   </ItemGroup>
 

@@ -44,7 +44,7 @@ dependencies beyond the .NET runtime.
 |-----------|-------------|
 | `ISpider` | `CrawlAsync(ScrapingJob, ISink, CancellationToken)` |
 | `IProxyPool` | `GetNextProxyAsync`, `MarkDeadAsync`, `MarkSuccessAsync` (IAsyncDisposable) |
-| `IPageTransport` | `LoadAsync(string, PageLoadOptions?, CancellationToken)`; records `PageLoadOptions`, `PageLoadResult`; `TransportMode` enum |
+| `IPageTransport` | `LoadAsync(string, PageLoadOptions?, CancellationToken)`; records `PageLoadOptions`, `PageLoadResult` |
 | `ISink` | `EmitAsync(string, List<ContentParserResult>, CancellationToken)`, `CheckPageAlreadyVisited(string)` |
 | `IContentParser` | `ParseContentAsync(HtmlDocument)`, `ParseContentAsync(string)` |
 | `ILinkParser` | `GetLinksAsync(string, string)`, `GetLinksAsync(string, HtmlDocument)` |
