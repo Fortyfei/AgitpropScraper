@@ -13,8 +13,8 @@ public static class NewsfeedSources
     [
         new OrigoSource(), new RipostSource(), new MandinerSource(), new MetropolSource(),
         new MagyarNemzetSource(), new AlfahirSource(), new HuszonnegyHuSource(), new NegyNegyNegySource(),
-        new HvgSource(), new TelexSource(), new RtlSource(), new IndexSource(), new MerceSource()
-    ];
+        new HvgSource(), new TelexSource(), new RtlSource(), new IndexSource(),         new MerceSource(),
+                new BlikkSource(), new KontrollSource()    ];
 
     /// <summary>
     /// Built-in sources, filtered by the optional "Newsfeed:Sources:Enabled" array of source ids
