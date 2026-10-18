@@ -101,7 +101,7 @@ If online tests still fail after two full iterations of Steps 3–6 for the same
 Use git to commit your changes at meaningful steps:
 
 1. After updating test data: `git add Agitprop.Sinks.Newsfeed_Test/TestData/{siteName}/`
-2. After successfully updating a parser: `git add Agitprop.Sinks.Newsfeed.Scrapers.ContentParsers/{SiteName}ArticleContentParser.cs`
+2. After successfully updating a parser: `git add Agitprop.Sources/Scrapers/ContentParsers/{SiteName}ArticleContentParser.cs`
 3. After all changes are complete: 
    - If updating a single site: `git commit -m "Update content parser for {siteName}: refresh HTML fixture and parser logic"`
    - If updating multiple sites in one pass: `git commit -m "Refresh HTML fixtures and parsers for: {site1}, {site2}, ..."`

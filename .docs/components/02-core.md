@@ -19,7 +19,7 @@ dependencies beyond the .NET runtime.
 - `PageCategory` — e.g. `TargetPage`, `Archive`, etc.
 - `PageType` — page classification enum.
 - `PageContentType` — content type enum.
-- `NewsSites` — supported news sites (Index, Hvg, ...).
+- `SourceId` — string-backed site identifier (replaces the `NewsSites` enum); `INewsfeedSource` / `INewsfeedPipeline` contracts.
 - `PageActionType` — browser action types.
 
 ### Key Records
@@ -30,7 +30,7 @@ dependencies beyond the .NET runtime.
 - `ScrapingJobDescription` — `required string Url`.
 - `NewsfeedJobDescrpition` — RabbitMQ job payload (`Url`, `PageContentType`).
   Its existing namespace and type name are retained for message compatibility.
-- `ContentParserResult` — record class: `NewsSites SourceSite`,
+- `ContentParserResult` — record class: `SourceId SourceSite`,
   `DateTime PublishDate` (normalized to UTC), `string Text`, `string Title = ""`.
 - `PageAction` — record with `PageActionType` + `object[] Parameters`.
 - `NamedEntity` — `(string Name, string Type)` JSON-named tuple; implements

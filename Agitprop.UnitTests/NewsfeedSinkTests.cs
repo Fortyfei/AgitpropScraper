@@ -129,7 +129,7 @@ public class NewsfeedSinkTests
 
     private static ContentParserResult CreateArticle(string text) => new()
     {
-        SourceSite = NewsSites.Telex,
+        SourceSite = "Telex",
         PublishDate = new DateTime(2026, 1, 1),
         Text = text
     };

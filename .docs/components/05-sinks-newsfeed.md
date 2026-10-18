@@ -2,16 +2,25 @@
 
 ## Purpose
 
-The **sink layer** — contains site-specific content parsers, paginators,
-link parsers, EF Core models, database context, and the `NewsfeedSink`
-implementation that persists scraped data to PostgreSQL.
+The **sink layer** — the `NewsfeedSink` (persist + NLP enrichment) and its DI
+wiring (`AddNewsfeedSink`).
 
-> Note: The project folder is named `Agitprop.Sinks.Newsfeed` (not
-> `Agitprop.Scraper.Sinks.Newsfeed` as referenced in some older docs).
+> The source side and the database were split out:
+> - **`Agitprop.Sources`** — one `INewsfeedSource` per site (`Sites/*Source.cs`),
+>   `NewsfeedSourceCatalog`, `NewsfeedPipeline` (`INewsfeedPipeline`), and the
+>   parsers/paginators below (`Scrapers/`). Register with `AddNewsfeedSources()`;
+>   restrict sites via config `Newsfeed:Sources:Enabled` (array of ids).
+>   Adding a site = adding one source class + listing it in `NewsfeedSources.BuiltIn()`.
+> - **`Agitprop.Data`** — EF Core context, models, migrations, repositories
+>   (`AddNewsfeedDB`, `AddNewsfeedRepositories`). Namespaces: `Agitprop.Data`,
+>   `Agitprop.Data.Models`, `Agitprop.Data.Migrations`.
+> - Contracts (`INewsfeedSource`, `INewsfeedPipeline`, `SourceId`) live in Core.
+>
+> The sections below describing parsers and the database now live in those projects.
 
 ## Contents
 
-### Content Parsers (`Scrapers/ContentParsers/`)
+### Content Parsers (`Agitprop.Sources/Scrapers/ContentParsers/`)
 
 All extend the abstract `BaseArticleContentParser : IContentParser`.
 
@@ -36,18 +45,17 @@ All extend the abstract `BaseArticleContentParser : IContentParser`.
 
 - Abstract properties: `DateXPaths`, `TitleXPaths`, `LeadXPaths`,
   `ArticleXPaths` (lists of XPath strings for fallback extraction).
-- `SourceSite` (abstract `NewsSites`).
+- `SourceSite` (abstract `SourceId`).
 - Handles JSON-LD `articleBody` and `"key":"text"` / `"value"` script patterns.
 - Uses HtmlAgilityPack `HtmlDocument`.
 
 ### Paginators & Link Parsers
 
 - `ArchiveLinkParser.cs` — parses archive pages for article links.
-- `ArchiveLinkParserFactory.cs` — factory for archive link parsers.
-- `PaginatorFactory.cs` — factory for paginators.
+- Each `*Source` creates its own parsers and paginator (the old factories were removed).
 - `IContentParser`, `ILinkParser`, `IPaginator` implementations.
 
-### Database (`Database/`)
+### Database (`Agitprop.Data/`)
 
 | File | Purpose |
 |------|---------|
@@ -62,11 +70,7 @@ All extend the abstract `BaseArticleContentParser : IContentParser`.
 | File | Purpose |
 |------|---------|
 | `NewsfeedSink.cs` | Implements `ISink` — `EmitAsync` persists results; `CheckPageAlreadyVisited` |
-| `Extensions.cs` | `AddNewsfeedSink` / `AddNewsfeedRepositories` DI registration |
-| `Factories/ScrapingJobFactory.cs` | Builds `ScrapingJob` for article/archive sources |
-| `Factories/ContentParserFactory.cs` | Maps `NewsSites` → `IContentParser` |
-| `Consumer/NewsfeedJobConsumer.cs` | MassTransit consumer — orchestrates the crawl |
-| `Consumer/NewsfeedJobConsumerDefinition.cs` | Consumer definition (queues, concurrency) |
+| `Extensions.cs` | `AddNewsfeedSink` DI registration (also registers `ISink`) |
 | `Helper.cs` | Utility helpers for scraping |
 | `CommonArchiveSchemas.cs` | Archive page HTML structure schemas |
 

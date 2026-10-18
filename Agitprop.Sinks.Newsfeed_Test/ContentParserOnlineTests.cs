@@ -1,5 +1,4 @@
-using Agitprop.Core.Enums;
-using Agitprop.Sinks.Newsfeed.Factories;
+using Agitprop.Core;
 using System.Net;
 
 namespace Agitprop.Sinks.Newsfeed_Test;
@@ -7,9 +6,9 @@ namespace Agitprop.Sinks.Newsfeed_Test;
 public class ContentParserOnlineTests
 {
 	[TestCaseSource(typeof(TestCaseFactory), nameof(TestCaseFactory.GetContentParserOnlineCases))]
-	public void ContentParserTest(NewsSites site, ContentParserTestCase testCase)
+	public void ContentParserTest(SourceId site, ContentParserTestCase testCase)
 	{
-		var scraper = ContentParserFactory.GetContentParser(site);
+		var scraper = TestCaseFactory.GetSource(site).CreateContentParser();
 		using var handler = new HttpClientHandler
 		{
 			AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate | DecompressionMethods.Brotli

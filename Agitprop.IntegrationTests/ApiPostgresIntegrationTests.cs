@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text.Json;
-using Agitprop.Sinks.Newsfeed.Database;
-using Agitprop.Sinks.Newsfeed.Database.Models;
+using Agitprop.Data;
+using Agitprop.Data.Models;
 using Aspire.Hosting.Testing;
 using Microsoft.EntityFrameworkCore;
 using Projects;

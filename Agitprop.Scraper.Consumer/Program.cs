@@ -3,7 +3,7 @@
 using Agitprop.Core.Interfaces;
 using Agitprop.Infrastructure.Puppeteer;
 using Agitprop.Sinks.Newsfeed;
-
+using Agitprop.Sources;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -34,7 +34,7 @@ public class Program
 
         // Add the Newsfeed sink for processing scraped data.
         builder.AddNewsfeedSink();
-
+        builder.AddNewsfeedSources();
         builder.Configuration.AddUserSecrets<Program>();    
         
         var newsfeedConnectionString = builder.Configuration.GetConnectionString("newsfeed");

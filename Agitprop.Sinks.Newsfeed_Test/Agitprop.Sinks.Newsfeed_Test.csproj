@@ -29,6 +29,7 @@
     <ProjectReference Include="..\Agitprop.Core\Agitprop.Core.csproj" />
     <ProjectReference Include="..\Agitprop.Scraper.NLPService\Agitprop.Scraper.NLPService.csproj" />
     <ProjectReference Include="..\Agitprop.Sinks.Newsfeed\Agitprop.Sinks.Newsfeed.csproj" />
+    <ProjectReference Include="..\Agitprop.Sources\Agitprop.Sources.csproj" />
   </ItemGroup>
 
   <ItemGroup>

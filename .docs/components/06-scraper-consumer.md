@@ -10,9 +10,9 @@ Spider, parsers, in-process NLP library, and the Newsfeed sink.
 
 1. **Message consumption** — consumes `ScrapingJobDescription` messages from
    the RabbitMQ queue (via `NewsfeedJobConsumer` + `NewsfeedJobConsumerDefinition`).
-2. **Job building** — uses `ScrapingJobFactory` to construct a `ScrapingJob`
-   with the appropriate `ContentParsers`, `LinkParsers`, and `Paginator`.
-3. **Crawling** — calls `ISpider.CrawlAsync()` to crawl the target URL.
+2. **Job building** — `INewsfeedPipeline` resolves the site's `INewsfeedSource`
+   by host and builds the `ScrapingJob` (parsers, link parsers, paginator).
+3. **Crawling** — the pipeline calls `ISpider.CrawlAsync()` and returns discovered jobs.
 4. **NLP enrichment** — the sink (`NewsfeedSink`) calls
    `NamedEntityRecognizer` in-process to extract Hungarian named entities
    (PER/LOC/ORG/MISC) from article text using ONNX Runtime.

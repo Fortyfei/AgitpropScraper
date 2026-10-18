@@ -18,9 +18,8 @@ namespace Agitprop.Scraper.Consumer.Consumers
     /// </summary>
     public class NewsfeedJobConsumer : IConsumer<NewsfeedJobDescrpition>
     {
-        private readonly ISpider _spider;
+        private readonly INewsfeedPipeline _pipeline;
         private readonly ILogger<NewsfeedJobConsumer> _logger;
-        private readonly NewsfeedSink _sink;
         private static readonly ActivitySource _activitySource = new("Agitprop.NewsfeedJobConsumer");
         private static readonly Meter _meter = new("Agitprop.NewsfeedJobConsumer");
         private static readonly Counter<long> _jobsConsumed = _meter.CreateCounter<long>(
@@ -41,13 +40,11 @@ namespace Agitprop.Scraper.Consumer.Consumers
             "Time spent processing a newsfeed job");
 
         public NewsfeedJobConsumer(
-            ISpider spider,
-            ILogger<NewsfeedJobConsumer> logger,
-            NewsfeedSink sink)
+            INewsfeedPipeline pipeline,
+            ILogger<NewsfeedJobConsumer> logger)
         {
-            _spider = spider;
+            _pipeline = pipeline;
             _logger = logger;
-            _sink = sink;
         }
 
         private static void RecordJobFailure(string jobType, string handling)
@@ -78,23 +75,20 @@ namespace Agitprop.Scraper.Consumer.Consumers
 
             try
             {
-                var job = descriptor.ConvertToScrapingJob();
-
-                List<Core.ScrapingJobDescription> newJobs = await _spider.CrawlAsync(job, _sink, context.CancellationToken);
+                var newJobs = await _pipeline.CrawlAsync(descriptor, cancellationToken: context.CancellationToken);
 
                 _logger.LogInformation("Newsfeed job completed for {Url}; discovered {Count} jobs",
-                    Core.TelemetryUrl.RedactQueryAndFragment(job.Url), newJobs.Count);
+                    safeUrl, newJobs.Count);
 
                 if (newJobs.Count > 0)
                 {
                     using var publishActivity = _activitySource.StartActivity("PublishNewJobs", ActivityKind.Producer);
-                    var idk = newJobs.Select(x => (NewsfeedJobDescrpition)x).ToList();
-                    publishActivity?.SetTag("publish.jobs.count", idk.Count);
+                    publishActivity?.SetTag("publish.jobs.count", newJobs.Count);
                     try
                     {
-                        await context.PublishBatch(idk);
+                        await context.PublishBatch(newJobs);
                         _logger.LogDebug("Published {Count} new jobs from {Url}",
-                            idk.Count, Core.TelemetryUrl.RedactQueryAndFragment(job.Url));
+                            newJobs.Count, safeUrl);
                         publishActivity?.SetStatus(ActivityStatusCode.Ok);
                     }
                     catch (Exception ex)
