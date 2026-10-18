@@ -17,6 +17,7 @@ internal abstract class BaseArticleContentParser : IContentParser
     protected abstract List<string> LeadXPaths { get; }
     protected abstract List<string> ArticleXPaths { get; }
     protected abstract SourceId SourceSite { get; }
+    protected virtual bool AllowsLeadOnlyContent => false;
 
     private HtmlNode? SelectSingleNode(HtmlDocument doc, List<string> xpaths)
     {
@@ -181,7 +182,8 @@ internal abstract class BaseArticleContentParser : IContentParser
             string leadText = leadNode != null ? ExtractNodeText(leadNode) + " " : "";
 
             var articleNodes = SelectMultipleNodes(html, ArticleXPaths);
-            if (!articleNodes.Any())
+            if (!articleNodes.Any() &&
+                (!AllowsLeadOnlyContent || string.IsNullOrWhiteSpace(leadText)))
                 throw new ContentParserException("Article content not found");
 
             string articleText = string.Join(" ", articleNodes.Select(ExtractNodeText).Where(text => !string.IsNullOrWhiteSpace(text)));
