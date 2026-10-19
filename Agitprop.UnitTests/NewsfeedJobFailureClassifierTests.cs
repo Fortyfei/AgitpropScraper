@@ -45,6 +45,39 @@ public class NewsfeedJobFailureClassifierTests
             Is.EqualTo(NewsfeedJobFailureKind.Unknown));
     }
 
+    [TestCaseSource(nameof(TransientFailures))]
+    public void ShouldRetry_TransientFailure_ReturnsTrue(Exception exception)
+    {
+        Assert.That(NewsfeedJobFailureClassifier.ShouldRetry(exception), Is.True);
+    }
+
+    [TestCaseSource(nameof(PermanentFailures))]
+    public void ShouldRetry_PermanentFailure_ReturnsFalse(Exception exception)
+    {
+        Assert.That(NewsfeedJobFailureClassifier.ShouldRetry(exception), Is.False);
+    }
+
+    [Test]
+    public void ShouldRetry_CancellationRequested_ReturnsFalse()
+    {
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        Assert.That(
+            NewsfeedJobFailureClassifier.ShouldRetry(
+                new OperationCanceledException(cancellation.Token)),
+            Is.False);
+    }
+
+    [Test]
+    public void ShouldRetry_UnknownFailure_ReturnsFalse()
+    {
+        Assert.That(
+            NewsfeedJobFailureClassifier.ShouldRetry(
+                new InvalidOperationException("Unexpected")),
+            Is.False);
+    }
+
     private static IEnumerable<Exception> PermanentFailures()
     {
         yield return new ContentParserException("Article content not found");

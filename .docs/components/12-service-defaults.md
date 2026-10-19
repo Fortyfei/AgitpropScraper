@@ -29,7 +29,7 @@ Keep these scopes distinct when changing retry behavior:
 | Direct page loading | `HttpStaticPageLoader` | `Retry:PageLoader` (3); retries exceptions and non-success responses |
 | Browser loading | Puppeteer page loaders | 3 retries for browser download and navigation; separately configurable per loader |
 | URL-existence checks, entity analysis and persistence | `NewsfeedSink` | `Retry:NewsfeedSink` (3) for each operation |
-| Message consumption | `NewsfeedJobConsumerDefinition` | retries at 500 ms and 1,000 ms; handled `ArgumentException`s are not retried |
+| Message consumption | `NewsfeedJobConsumerDefinition` | 3 retries for classified transient failures, at 500 ms, 2 seconds, and 5 seconds |
 | Manual error recovery | CLI `retry` command | requeues messages; not an automatic retry policy |
 
 The direct `RespectfulPageRequester` constructs its own `HttpClient` and does

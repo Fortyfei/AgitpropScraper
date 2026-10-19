@@ -1,5 +1,7 @@
 ﻿namespace Agitprop.Consumer.Consumers
 {
+    using System;
+
     using Agitprop.Scraper.Consumer.Consumers;
 
     using MassTransit;
@@ -29,6 +31,15 @@
         /// <param name="context">The registration context.</param>
         protected override void ConfigureConsumer(IReceiveEndpointConfigurator endpointConfigurator, IConsumerConfigurator<NewsfeedJobConsumer> consumerConfigurator, IRegistrationContext context)
         {
+            endpointConfigurator.UseMessageRetry(retryConfigurator =>
+            {
+                retryConfigurator.Handle<Exception>(NewsfeedJobFailureClassifier.ShouldRetry);
+                retryConfigurator.Intervals(
+                    TimeSpan.FromMilliseconds(500),
+                    TimeSpan.FromSeconds(2),
+                    TimeSpan.FromSeconds(5));
+            });
+
             endpointConfigurator.UseInMemoryOutbox(context);
         }
     }

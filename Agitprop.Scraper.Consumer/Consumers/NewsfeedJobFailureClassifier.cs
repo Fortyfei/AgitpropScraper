@@ -15,6 +15,15 @@ internal enum NewsfeedJobFailureKind
 
 internal static class NewsfeedJobFailureClassifier
 {
+    internal static bool ShouldRetry(Exception exception)
+    {
+        var cancellationToken = exception is OperationCanceledException cancellationException
+            ? cancellationException.CancellationToken
+            : CancellationToken.None;
+
+        return Classify(exception, cancellationToken) == NewsfeedJobFailureKind.Transient;
+    }
+
     internal static NewsfeedJobFailureKind Classify(
         Exception exception,
         CancellationToken cancellationToken)
