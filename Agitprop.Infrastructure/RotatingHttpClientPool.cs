@@ -100,6 +100,10 @@ public class RotatingHttpClientPool
                 
                 return resp;
             }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 _logger?.LogWarning(ex, "Request {Method} {Url} via proxy {Proxy} failed", 
@@ -112,6 +116,10 @@ public class RotatingHttpClientPool
 
                 throw;
             }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {

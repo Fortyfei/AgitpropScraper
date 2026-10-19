@@ -16,6 +16,7 @@ public interface IPageRequester
     /// Sends an HTTP GET request to the specified URL.
     /// </summary>
     /// <param name="url">The URL to send the GET request to.</param>
+    /// <param name="cancellationToken">A token used to cancel the HTTP request.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains the HTTP response message.</returns>
-    Task<HttpResponseMessage> GetAsync(string url);
+    Task<HttpResponseMessage> GetAsync(string url, CancellationToken cancellationToken = default);
 }

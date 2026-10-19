@@ -33,8 +33,13 @@ public class PuppeteerPageLoader : BrowserPageLoader, IBrowserPageLoader
         _retryCount = configuration?.GetValue<int>("Retry:PuppeteerPageLoader", 3) ?? 3;
     }
 
-    public async Task<string> Load(string url, List<PageAction>? pageActions = null, bool headless = true)
+    public async Task<string> Load(
+        string url,
+        List<PageAction>? pageActions = null,
+        bool headless = true,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         using var trace = ActivitySource.StartActivity("LoadPageWithBrowser", ActivityKind.Producer);
         trace?.SetTag("url", TelemetryUrl.RedactQueryAndFragment(url));
         Logger?.LogDebug("Starting page load: {Url}", TelemetryUrl.RedactQueryAndFragment(url));
@@ -44,7 +49,7 @@ public class PuppeteerPageLoader : BrowserPageLoader, IBrowserPageLoader
             Path = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)
         });
 
-        await _semaphore.WaitAsync();
+        await _semaphore.WaitAsync(cancellationToken);
         try
         {
             Logger?.LogInformation("Downloading browser...");
@@ -54,7 +59,9 @@ public class PuppeteerPageLoader : BrowserPageLoader, IBrowserPageLoader
                     {
                         Logger?.LogWarning(ex, "[RETRY] Exception downloading browser on attempt {attempt}", attempt);
                     })
-                .ExecuteAsync(() => browserFetcher.DownloadAsync(BrowserTag.Stable));
+                .ExecuteAsync(
+                    _ => browserFetcher.DownloadAsync(BrowserTag.Stable),
+                    cancellationToken);
             Logger?.LogInformation("Browser downloaded successfully");
         }
         finally
@@ -62,6 +69,7 @@ public class PuppeteerPageLoader : BrowserPageLoader, IBrowserPageLoader
             _semaphore.Release();
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
         Logger?.LogInformation("Launching browser");
         await using var browser = await PuppeteerSharp.Puppeteer.LaunchAsync(new LaunchOptions
         {
@@ -69,10 +77,11 @@ public class PuppeteerPageLoader : BrowserPageLoader, IBrowserPageLoader
             ExecutablePath = browserFetcher.GetInstalledBrowsers().First().GetExecutablePath(),
         });
 
+        cancellationToken.ThrowIfCancellationRequested();
         Logger?.LogInformation("Creating a new page");
-        await using var page = (await browser.PagesAsync())[0];
+        await using var page = (await browser.PagesAsync().WaitAsync(cancellationToken))[0];
 
-        var cookies = await _cookiesStorage.GetAsync();
+        var cookies = await _cookiesStorage.GetAsync().WaitAsync(cancellationToken);
         if (cookies != null)
         {
             var cookieParams = cookies.GetAllCookies().Select(c => new CookieParam
@@ -81,7 +90,7 @@ public class PuppeteerPageLoader : BrowserPageLoader, IBrowserPageLoader
                 Value = c.Value
             }).ToArray();
 
-            await page.SetCookieAsync(cookieParams);
+            await page.SetCookieAsync(cookieParams).WaitAsync(cancellationToken);
         }
 
         Logger?.LogDebug("Navigating to page: {Url}", TelemetryUrl.RedactQueryAndFragment(url));
@@ -92,7 +101,9 @@ public class PuppeteerPageLoader : BrowserPageLoader, IBrowserPageLoader
                     Logger?.LogWarning(ex, "[RETRY] Exception navigating to page {Url} on attempt {Attempt}",
                         TelemetryUrl.RedactQueryAndFragment(url), attempt);
                 })
-            .ExecuteAsync(() => page.GoToAsync(url, WaitUntilNavigation.Networkidle2));
+            .ExecuteAsync(
+                    ct => page.GoToAsync(url, WaitUntilNavigation.Networkidle2).WaitAsync(ct),
+                cancellationToken);
 
         if (pageActions != null)
         {
@@ -105,15 +116,19 @@ public class PuppeteerPageLoader : BrowserPageLoader, IBrowserPageLoader
                     pageActions.Count,
                     pageAction.Type);
 
-                await PageActions[pageAction.Type](page, pageAction.Parameters);
+                await PageActions[pageAction.Type](page, pageAction.Parameters, cancellationToken);
             }
         }
 
-        var html = await page.GetContentAsync();
+        var html = await page.GetContentAsync().WaitAsync(cancellationToken);
         Logger?.LogInformation("Page load completed: {Url}", TelemetryUrl.RedactQueryAndFragment(url));
         return html;
     }
 
-    public Task<string> Load(string url, object? pageActions, bool headless)
-        => Load(url, (List<PageAction>?)pageActions, headless);
+    public Task<string> Load(
+        string url,
+        object? pageActions,
+        bool headless,
+        CancellationToken cancellationToken = default)
+        => Load(url, (List<PageAction>?)pageActions, headless, cancellationToken);
 }

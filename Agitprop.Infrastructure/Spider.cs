@@ -74,7 +74,6 @@ public sealed class Spider(
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             outcome = "cancelled";
-            activity?.SetStatus(ActivityStatusCode.Error, outcome);
             throw;
         }
         catch (Exception ex)

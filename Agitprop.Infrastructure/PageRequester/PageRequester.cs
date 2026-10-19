@@ -33,9 +33,9 @@ public PageRequester(CookieContainer? cookieContainer = null)
     /// </summary>
     /// <param name="url">The URL to send the GET request to.</param>
     /// <returns>The HTTP response message.</returns>
-    public async Task<HttpResponseMessage> GetAsync(string url)
+    public async Task<HttpResponseMessage> GetAsync(string url, CancellationToken cancellationToken = default)
     {
-        return await client!.GetAsync(url);
+        return await client!.GetAsync(url, cancellationToken);
     }
 
     /// <summary>

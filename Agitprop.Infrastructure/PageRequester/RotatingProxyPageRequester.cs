@@ -24,7 +24,7 @@ public class RotatingProxyPageRequester : IPageRequester
         _logger = logger;
     }
 
-    public async Task<HttpResponseMessage> GetAsync(string url)
+    public async Task<HttpResponseMessage> GetAsync(string url, CancellationToken cancellationToken = default)
     {
         using var req = new HttpRequestMessage(HttpMethod.Get, url);
         req.Headers.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
@@ -32,8 +32,12 @@ public class RotatingProxyPageRequester : IPageRequester
 
         try
         {
-            var resp = await _pool.SendAsync(req);
+            var resp = await _pool.SendAsync(req, cancellationToken);
             return resp;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
