@@ -36,10 +36,10 @@ public class RespectfulPageRequester : IPageRequester
 
     public CookieContainer CookieContainer { get; set; }
 
-    public async Task<HttpResponseMessage> GetAsync(string url)
+    public async Task<HttpResponseMessage> GetAsync(string url, CancellationToken cancellationToken = default)
     {
         var uri = new Uri(url);
-        await EnforceDomainRateLimitAsync(uri);
+        await EnforceDomainRateLimitAsync(uri, cancellationToken);
 
         using var activity = _activitySource.StartActivity("Request", ActivityKind.Internal);
         activity?.SetTag("url", TelemetryUrl.RedactQueryAndFragment(url));
@@ -48,7 +48,7 @@ public class RespectfulPageRequester : IPageRequester
         var stopwatch = Stopwatch.StartNew();
         try
         {
-            var response = await _httpClient.GetAsync(url);
+            var response = await _httpClient.GetAsync(url, cancellationToken);
             return response;
         }
         finally
@@ -59,7 +59,7 @@ public class RespectfulPageRequester : IPageRequester
         }
     }
 
-    private async Task EnforceDomainRateLimitAsync(Uri uri)
+    private async Task EnforceDomainRateLimitAsync(Uri uri, CancellationToken cancellationToken)
     {
         var domain = uri.Host;
         var now = DateTime.UtcNow;
@@ -89,7 +89,7 @@ public class RespectfulPageRequester : IPageRequester
             _logger?.LogInformation("Respectful scraping wait: {WaitTime} for domain {Domain}", waitTime, domain);
             _rateLimitWaits.Add(1, new KeyValuePair<string, object?>("domain", domain));
             _rateLimitWaitDuration.Record(waitTime.TotalMilliseconds, new KeyValuePair<string, object?>("domain", domain));
-            await Task.Delay(waitTime);
+            await Task.Delay(waitTime, cancellationToken);
             lock (queue)
             {
                 queue.Enqueue(DateTime.UtcNow);

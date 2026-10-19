@@ -40,14 +40,15 @@ public class HttpStaticPageLoader : IStaticPageLoader
     /// <summary>
     /// Loads the content of a static page from the specified URL.
     /// </summary>
-    public async Task<string> Load(string url)
+    public async Task<string> Load(string url, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         using var trace = ActivitySource.StartActivity("Load", ActivityKind.Producer);
         trace?.SetTag("url", TelemetryUrl.RedactQueryAndFragment(url));
 
         Logger?.LogDebug("Starting to load page: {Url}", TelemetryUrl.RedactQueryAndFragment(url));
 
-        PageRequester.CookieContainer = await CookiesStorage.GetAsync();
+        PageRequester.CookieContainer = await CookiesStorage.GetAsync().WaitAsync(cancellationToken);
 
         HttpResponseMessage response = null!;
         try
@@ -64,12 +65,14 @@ public class HttpStaticPageLoader : IStaticPageLoader
                             Logger?.LogWarning("[RETRY] Failed to load page {Url} on attempt {Attempt}. Status: {StatusCode}",
                                 TelemetryUrl.RedactQueryAndFragment(url), attempt, outcome.Result.StatusCode);
                     })
-                .ExecuteAsync(() => PageRequester.GetAsync(url));
+                .ExecuteAsync(
+                        ct => PageRequester.GetAsync(url, ct),
+                    cancellationToken);
 
             if (response.IsSuccessStatusCode)
             {
                 Logger?.LogDebug("Successfully loaded page: {Url}", TelemetryUrl.RedactQueryAndFragment(url));
-                return await response.Content.ReadAsStringAsync();
+                return await response.Content.ReadAsStringAsync(cancellationToken);
             }
 
             Logger?.LogError("Failed to load page {Url}. Status code: {StatusCode}",
@@ -82,6 +85,11 @@ public class HttpStaticPageLoader : IStaticPageLoader
         }
         catch (Exception ex)
         {
+            if (ex is OperationCanceledException && cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+
             Logger?.LogError(ex, "Exception thrown while loading page {Url}", TelemetryUrl.RedactQueryAndFragment(url));
             trace?.SetStatus(System.Diagnostics.ActivityStatusCode.Error, ex.Message);
             throw;

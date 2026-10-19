@@ -26,6 +26,7 @@
     <ProjectReference Include="..\Agitprop.Core\Agitprop.Core.csproj" />
     <ProjectReference Include="..\Agitprop.Infrastructure\Agitprop.Infrastructure.csproj" />
     <ProjectReference Include="..\Agitprop.Infrastructure.Puppeteer\Agitprop.Infrastructure.Puppeteer.csproj" />
+    <ProjectReference Include="..\Agitprop.Scraper.Consumer\Agitprop.Scraper.Consumer.csproj" />
     <ProjectReference Include="..\Agitprop.Scraper.NLPService\Agitprop.Scraper.NLPService.csproj" />
     <ProjectReference Include="..\Agitprop.Sinks.Newsfeed\Agitprop.Sinks.Newsfeed.csproj" />
     <ProjectReference Include="..\Agitprop.Sources\Agitprop.Sources.csproj" />

@@ -61,9 +61,9 @@ Requires two connection strings; throws `InvalidOperationException` if missing:
 The consumer's trace follows message consumption through Spider processing,
 entity recognition, and database persistence. Custom URL fields in consumer
 logs/spans omit query strings and fragments. EF Core spans provide query
-timings without SQL text or parameter values. Handled invalid jobs and
-propagated failures are both measured while preserving the existing
-acknowledgement and retry behavior.
+timings without SQL text or parameter values. Invalid jobs and propagated
+failures are both measured; non-cancellation failures are propagated for
+MassTransit retry and error-queue handling.
 
 ## Configuration
 
@@ -75,7 +75,8 @@ acknowledgement and retry behavior.
 
 ## Retry behavior
 
-The endpoint retries unhandled consumer failures after 500 ms and 1,000 ms.
-`ArgumentException` is logged and handled by the consumer, so it is not retried.
-After the retry policy is exhausted, MassTransit moves the failed message to its
-error queue for the CLI `retry` command to requeue.
+The endpoint retries only classified transient failures, after 500 ms, 2 seconds,
+and 5 seconds. Permanent and unknown failures, as well as requested
+cancellations, are not retried. After all retries are exhausted, MassTransit
+moves the failed message to its error queue for the CLI `retry` command to
+requeue.

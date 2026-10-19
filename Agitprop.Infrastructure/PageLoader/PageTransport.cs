@@ -22,6 +22,7 @@ public class PageTransport : IPageTransport
 
     public async Task<PageLoadResult> LoadAsync(string url, PageLoadOptions? options = null, CancellationToken ct = default)
     {
+        ct.ThrowIfCancellationRequested();
         options ??= new PageLoadOptions();
         var stopwatch = Stopwatch.StartNew();
 
@@ -33,11 +34,11 @@ public class PageTransport : IPageTransport
                 throw new InvalidOperationException("Browser loading is not available in this configuration.");
             }
 
-            content = await _browserPageLoader.Load(url, options.Actions, options.Headless);
+            content = await _browserPageLoader.Load(url, options.Actions, options.Headless, ct);
         }
         else
         {
-            content = await _staticPageLoader.Load(url);
+            content = await _staticPageLoader.Load(url, ct);
         }
 
         stopwatch.Stop();

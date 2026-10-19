@@ -102,18 +102,21 @@ namespace Agitprop.Scraper.Consumer.Consumers
                 _jobsCompleted.Add(1, new KeyValuePair<string, object?>("job_type", jobType));
                 activity?.SetStatus(ActivityStatusCode.Ok, "Job processed successfully");
             }
-            catch (ArgumentException ex)
-            {
-                outcome = "handled_failure";
-                RecordJobFailure(jobType, "handled");
-                _logger.LogError(ex, "Invalid argument in newsfeed job for {Url}", safeUrl);
-                activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-            }
             catch (Exception ex)
             {
-                outcome = "failure";
-                RecordJobFailure(jobType, "propagated");
-                _logger.LogError(ex, "Newsfeed job failed for {Url}", safeUrl);
+                var failureKind = NewsfeedJobFailureClassifier.Classify(ex, context.CancellationToken);
+                if (failureKind == NewsfeedJobFailureKind.Cancelled)
+                {
+                    outcome = "cancelled";
+                    _logger.LogInformation("Newsfeed job cancelled for {Url}", safeUrl);
+                    throw;
+                }
+
+                var failureTag = failureKind.ToString().ToLowerInvariant();
+                outcome = $"{failureTag}_failure";
+                RecordJobFailure(jobType, failureTag);
+                _logger.LogError(ex, "Newsfeed job failed for {Url}; failure kind: {FailureKind}",
+                    safeUrl, failureTag);
                 activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
                 throw;
             }

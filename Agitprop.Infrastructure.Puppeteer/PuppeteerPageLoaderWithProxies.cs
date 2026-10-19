@@ -33,11 +33,20 @@ internal class PuppeteerPageLoaderWithProxies : BrowserPageLoader, IBrowserPageL
         _retryCount = configuration?.GetValue<int>("Retry:PuppeteerPageLoaderWithProxies", 3) ?? 3;
     }
 
-    public Task<string> Load(string url, object? pageActions, bool headless)
-        => Load(url, (List<PageAction>?)pageActions, headless);
+    public Task<string> Load(
+        string url,
+        object? pageActions,
+        bool headless,
+        CancellationToken cancellationToken = default)
+        => Load(url, (List<PageAction>?)pageActions, headless, cancellationToken);
 
-    public async Task<string> Load(string url, List<PageAction>? pageActions = null, bool headless = true)
+    public async Task<string> Load(
+        string url,
+        List<PageAction>? pageActions = null,
+        bool headless = true,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         using var trace = ActivitySource.StartActivity("LoadPageWithProxyBrowser", ActivityKind.Internal);
         trace?.SetTag("url", TelemetryUrl.RedactQueryAndFragment(url));
         Logger?.LogDebug("Starting page load: {Url}", TelemetryUrl.RedactQueryAndFragment(url));
@@ -49,7 +58,7 @@ internal class PuppeteerPageLoaderWithProxies : BrowserPageLoader, IBrowserPageL
                 Path = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? string.Empty,
             });
 
-            await _semaphore.WaitAsync();
+            await _semaphore.WaitAsync(cancellationToken);
             try
             {
                 Logger?.LogInformation("Downloading browser...");
@@ -59,7 +68,9 @@ internal class PuppeteerPageLoaderWithProxies : BrowserPageLoader, IBrowserPageL
                         {
                             Logger?.LogWarning(ex, "[RETRY] Exception downloading browser on attempt {attempt}", attempt);
                         })
-                    .ExecuteAsync(() => browserFetcher.DownloadAsync());
+                    .ExecuteAsync(
+                        _ => browserFetcher.DownloadAsync(),
+                        cancellationToken);
                 _executablePath = browserFetcher.GetInstalledBrowsers().First().GetExecutablePath();
                 Logger?.LogInformation("Browser downloaded successfully");
             }
@@ -69,8 +80,9 @@ internal class PuppeteerPageLoaderWithProxies : BrowserPageLoader, IBrowserPageL
             }
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
         // ✅ NEW: Get proxy address from IProxyPool
-        var proxyAddress = await _proxyPool.GetNextProxyAsync();
+        var proxyAddress = await _proxyPool.GetNextProxyAsync(cancellationToken);
         if (string.IsNullOrEmpty(proxyAddress))
             throw new InvalidOperationException("No proxy address available");
 
@@ -101,9 +113,10 @@ internal class PuppeteerPageLoaderWithProxies : BrowserPageLoader, IBrowserPageL
             Args = launchArgs.ToArray()
         });
 
-        await using var page = (await browser.PagesAsync())[0];
+        cancellationToken.ThrowIfCancellationRequested();
+        await using var page = (await browser.PagesAsync().WaitAsync(cancellationToken))[0];
 
-        var cookies = await _cookieStorage.GetAsync();
+        var cookies = await _cookieStorage.GetAsync().WaitAsync(cancellationToken);
         if (cookies != null)
         {
             var cookieParams = cookies.GetAllCookies().Select(c => new CookieParam
@@ -114,7 +127,7 @@ internal class PuppeteerPageLoaderWithProxies : BrowserPageLoader, IBrowserPageL
                 Secure = c.Secure
             }).ToArray();
 
-            await page.SetCookieAsync(cookieParams);
+            await page.SetCookieAsync(cookieParams).WaitAsync(cancellationToken);
         }
 
         try
@@ -127,8 +140,14 @@ internal class PuppeteerPageLoaderWithProxies : BrowserPageLoader, IBrowserPageL
                         Logger?.LogWarning(ex, "[RETRY] Exception navigating to page {Url} on attempt {Attempt}",
                             TelemetryUrl.RedactQueryAndFragment(url), attempt);
                     })
-                .ExecuteAsync(() => page.GoToAsync(url, WaitUntilNavigation.Networkidle2));
+                .ExecuteAsync(
+                        ct => page.GoToAsync(url, WaitUntilNavigation.Networkidle2).WaitAsync(ct),
+                    cancellationToken);
             Logger?.LogDebug("Page navigation successful: {Url}", TelemetryUrl.RedactQueryAndFragment(url));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -145,11 +164,11 @@ internal class PuppeteerPageLoaderWithProxies : BrowserPageLoader, IBrowserPageL
                 var pageAction = pageActions[i];
                 Logger?.LogDebug("Executing page action {Current}/{Total} type {ActionType}",
                     i + 1, pageActions.Count, pageAction.Type);
-                await PageActions[pageAction.Type](page, pageAction.Parameters);
+                await PageActions[pageAction.Type](page, pageAction.Parameters, cancellationToken);
             }
         }
 
-        var html = await page.GetContentAsync();
+        var html = await page.GetContentAsync().WaitAsync(cancellationToken);
         Logger?.LogInformation("Page load completed: {Url}", TelemetryUrl.RedactQueryAndFragment(url));
         return html;
     }

@@ -9,7 +9,7 @@ public static class RetryPolicyFactory
         Action<Exception, int> onRetry)
     {
         return Policy
-            .Handle<Exception>()
+            .Handle<Exception>(exception => exception is not OperationCanceledException)
             .WaitAndRetryAsync(
                 retryCount,
                 GetDelay,
@@ -22,7 +22,7 @@ public static class RetryPolicyFactory
         Action<DelegateResult<TResult>, int> onRetry)
     {
         return Policy
-            .Handle<Exception>()
+            .Handle<Exception>(exception => exception is not OperationCanceledException)
             .OrResult(shouldRetry)
             .WaitAndRetryAsync(
                 retryCount,
