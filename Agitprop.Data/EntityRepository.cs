@@ -161,7 +161,7 @@ public class EntityRepository : IEntityRepository
         }
     }
 
-    private static string NormalizeDomain(string url)
+    internal static string NormalizeDomain(string url)
     {
         return Uri.TryCreate(url, UriKind.Absolute, out var uri)
             ? uri.Host.Replace("www.", string.Empty, StringComparison.OrdinalIgnoreCase)

@@ -26,6 +26,7 @@ public static class DataExtensions
     {
         builder.AddPostgresConnection();
         builder.Services.AddTransient<IEntityRepository, EntityRepository>();
+        builder.Services.AddTransient<IArticleFeedRepository, ArticleFeedRepository>();
         builder.Services.AddTransient<ITrendingRepository, TrendingRepository>();
 
         return builder;

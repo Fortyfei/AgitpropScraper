@@ -111,6 +111,65 @@ public class ApiPostgresIntegrationTests
         });
     }
 
+    [Test]
+    public async Task ArticleFeed_FiltersByPublisherEntityAndSearch()
+    {
+        var feed = await GetJsonAsync("/api/articles/feed?from=2026-01-01&to=2026-01-31");
+        var items = feed.GetProperty("items");
+        Assert.Multiple(() =>
+        {
+            Assert.That(feed.GetProperty("totalCount").GetInt32(), Is.EqualTo(4));
+            Assert.That(items[0].GetProperty("domain").GetString(), Is.EqualTo("publisher-two.test"));
+            Assert.That(items[3].GetProperty("domain").GetString(), Is.EqualTo("integration.test"));
+            Assert.That(items[3].GetProperty("entities").GetArrayLength(), Is.EqualTo(2));
+        });
+
+        var byDomain = await GetJsonAsync("/api/articles/feed?from=2026-01-01&to=2026-01-31&domain=integration.test&pageSize=2");
+        Assert.Multiple(() =>
+        {
+            Assert.That(byDomain.GetProperty("totalCount").GetInt32(), Is.EqualTo(3));
+            Assert.That(byDomain.GetProperty("items").GetArrayLength(), Is.EqualTo(2));
+        });
+
+        var byEntity = await GetJsonAsync($"/api/articles/feed?from=2026-01-01&to=2026-01-31&entityId={_coMentionEntityId}");
+        Assert.That(byEntity.GetProperty("totalCount").GetInt32(), Is.EqualTo(2));
+
+        var bySearch = await GetJsonAsync("/api/articles/feed?from=2026-01-01&to=2026-01-31&search=SECOND");
+        Assert.That(bySearch.GetProperty("totalCount").GetInt32(), Is.EqualTo(1));
+    }
+
+    [Test]
+    public async Task DailyCounts_ReturnsZeroFilledDays()
+    {
+        var daily = await GetJsonAsync("/api/articles/daily?from=2026-01-14&to=2026-01-19");
+        var counts = daily.GetProperty("days").EnumerateArray()
+            .Select(day => day.GetProperty("count").GetInt32())
+            .ToArray();
+
+        Assert.That(counts, Is.EqualTo(new[] { 0, 1, 1, 1, 1, 0 }));
+    }
+
+    [Test]
+    public async Task FirstPublishers_RanksPublishersByEarliestArticle()
+    {
+        var result = await GetJsonAsync($"/api/articles/first-publishers?from=2026-01-01&to=2026-01-31&entityId={_entityId}");
+        var publishers = result.GetProperty("publishers");
+        Assert.Multiple(() =>
+        {
+            Assert.That(publishers[0].GetProperty("domain").GetString(), Is.EqualTo("integration.test"));
+            Assert.That(publishers[0].GetProperty("articleCount").GetInt32(), Is.EqualTo(3));
+            Assert.That(publishers[1].GetProperty("domain").GetString(), Is.EqualTo("publisher-two.test"));
+        });
+    }
+
+    private async Task<JsonElement> GetJsonAsync(string url)
+    {
+        using var response = await _client!.GetAsync(url);
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return body.RootElement.Clone();
+    }
+
     private static async Task<(Guid EntityId, Guid CoMentionEntityId)> SeedDatabaseAsync(
         Aspire.Hosting.DistributedApplication application,
         CancellationToken cancellationToken)

@@ -83,6 +83,7 @@
 .domain-breakdown-panel,
 .chart-panel,
 .co-mention-panel,
+.first-publisher-panel,
 .article-list-panel {
     background: var(--surface);
     border: 1px solid var(--line);
@@ -236,6 +237,54 @@
 
 .chart-panel {
     min-height: 22rem;
+}
+
+.first-publisher-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.first-publisher-list li {
+    align-items: baseline;
+    border-bottom: 1px solid var(--line-soft);
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: minmax(0, 1fr) 8.5rem 5rem 6rem;
+    padding: 0.6rem 0;
+}
+
+.first-publisher-list li:first-child .first-publisher-domain {
+    color: var(--signal-blue);
+}
+
+.first-publisher-domain {
+    color: var(--ink);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.first-publisher-list time,
+.first-publisher-lag,
+.first-publisher-count {
+    color: var(--slate);
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.first-publisher-count {
+    text-align: right;
+}
+
+@media (max-width: 720px) {
+    .first-publisher-list li {
+        grid-template-columns: 1fr auto;
+    }
+
+    .first-publisher-list time,
+    .first-publisher-count {
+        display: none;
+    }
 }
 
 .entity-article-list {

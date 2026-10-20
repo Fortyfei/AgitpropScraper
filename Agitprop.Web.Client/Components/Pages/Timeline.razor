@@ -1,0 +1,340 @@
+@page "/timeline"
+@rendermode InteractiveServer
+@using Agitprop.Web.Client.Models
+@inject Agitprop.Web.Client.Services.AnalyticsService Analytics
+
+<PageTitle>Timeline</PageTitle>
+
+<div class="page-block timeline-page">
+    <section class="timeline-intro">
+        <div>
+            <p class="page-kicker">Articles</p>
+            <h1>Timeline</h1>
+            <p>Follow articles as they are published. Pick a day on the strip to narrow the feed.</p>
+        </div>
+
+        <div class="timeframe-selector" role="group" aria-label="Timeline window">
+            @for (var i = 0; i < TimeframeOptions.Count; i++)
+            {
+                var option = TimeframeOptions[i];
+                var optionIndex = i;
+                <button type="button"
+                        class="timeframe-pill @(SelectedTimeframeIndex == optionIndex ? "active" : string.Empty)"
+                        disabled="@IsLoading"
+                        @onclick="() => ChangeTimeframe(optionIndex)">
+                    @option.Label
+                </button>
+            }
+        </div>
+    </section>
+
+    <section class="timeline-filters" aria-label="Filters">
+        <form class="timeline-search" @onsubmit="ApplySearch" @onsubmit:preventDefault="true">
+            <label for="timeline-search-input">Search headlines</label>
+            <input id="timeline-search-input" type="search" @bind="SearchInput" placeholder="Headline contains…" />
+            <button type="submit" disabled="@IsLoading">Search</button>
+        </form>
+
+        @if (HasActiveFilters)
+        {
+            <ul class="filter-chips" aria-label="Active filters">
+                @if (!string.IsNullOrWhiteSpace(EntityId))
+                {
+                    <li><button type="button" @onclick="ClearEntity">Entity: @EntityName <span aria-hidden="true">×</span><span class="visually-hidden">remove filter</span></button></li>
+                }
+                @if (!string.IsNullOrWhiteSpace(Domain))
+                {
+                    <li><button type="button" @onclick="ClearDomain">Publisher: @Domain <span aria-hidden="true">×</span><span class="visually-hidden">remove filter</span></button></li>
+                }
+                @if (!string.IsNullOrWhiteSpace(Search))
+                {
+                    <li><button type="button" @onclick="ClearSearch">Search: “@Search” <span aria-hidden="true">×</span><span class="visually-hidden">remove filter</span></button></li>
+                }
+            </ul>
+        }
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+    {
+        <div class="alert alert-warning" role="alert">@ErrorMessage</div>
+    }
+
+    <section class="volume-panel">
+        <div class="panel-header">
+            <div>
+                <h2>Articles per day</h2>
+                <p>
+                    @if (SelectedDay is { } day)
+                    {
+                        <span>Showing @day.ToString("dddd d MMM"). </span>
+                        <button type="button" class="link-button" @onclick="ClearDay">Show the whole window</button>
+                    }
+                    else
+                    {
+                        <span>Amber days are well above the window's average.</span>
+                    }
+                </p>
+            </div>
+        </div>
+
+        @if (IsLoading && Days.Count == 0)
+        {
+            <p class="chart-empty">Loading…</p>
+        }
+        else if (Days.Count == 0)
+        {
+            <p class="chart-empty">No data for this window.</p>
+        }
+        else
+        {
+            <ol class="volume-strip" style="--days: @Days.Count">
+                @foreach (var dayCount in Days)
+                {
+                    var isSelected = SelectedDay == dayCount.Date;
+                    <li>
+                        <button type="button"
+                                class="volume-day @(dayCount.IsSpike ? "spike" : string.Empty) @(isSelected ? "selected" : string.Empty)"
+                                aria-pressed="@isSelected"
+                                aria-label="@($"{dayCount.Date:d MMM}: {dayCount.Count} articles{(dayCount.IsSpike ? ", unusually high" : string.Empty)}")"
+                                disabled="@(dayCount.Count == 0)"
+                                @onclick="() => SelectDay(dayCount.Date)">
+                            <span class="volume-count">@(dayCount.Count > 0 ? dayCount.Count.ToString() : string.Empty)</span>
+                            <span class="volume-bar" style="height: @BarHeight(dayCount.Count)"></span>
+                            <span class="volume-label">@dayCount.Date.ToString("d MMM")</span>
+                        </button>
+                    </li>
+                }
+            </ol>
+        }
+    </section>
+
+    <section class="feed-panel">
+        <div class="panel-header">
+            <h2>Articles</h2>
+            @if (!IsLoading)
+            {
+                <span>@TotalCount.ToString("N0") @(TotalCount == 1 ? "article" : "articles")</span>
+            }
+        </div>
+
+        @if (IsLoading && Articles.Count == 0)
+        {
+            <p class="chart-empty">Loading articles…</p>
+        }
+        else if (Articles.Count == 0)
+        {
+            <p class="chart-empty">No articles match these filters.</p>
+        }
+        else
+        {
+            @foreach (var group in GroupedArticles)
+            {
+                <section class="feed-day" aria-label="@group.Date.ToString("D")">
+                    <h3>@group.Date.ToString("dddd d MMMM") <small>@group.Items.Count shown</small></h3>
+                    <ul class="feed-list">
+                        @foreach (var article in group.Items)
+                        {
+                            <li class="feed-item">
+                                <time datetime="@article.PublishedTime.ToString("O")">@article.PublishedTime.ToString("HH:mm")</time>
+                                <div>
+                                    <a class="feed-title" href="@article.Url" target="_blank" rel="noopener noreferrer">@article.Title</a>
+                                    <div class="feed-meta">
+                                        <button type="button" class="feed-domain" title="Only show this publisher" @onclick="() => SetDomain(article.Domain)">@article.Domain</button>
+                                        @foreach (var entity in article.Entities)
+                                        {
+                                            <button type="button" class="feed-entity" title="Only show articles mentioning @entity.Name" @onclick="() => SetEntity(entity)">@entity.Name</button>
+                                        }
+                                    </div>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                </section>
+            }
+
+            @if (Articles.Count < TotalCount)
+            {
+                <button type="button" class="load-more" disabled="@IsLoadingMore" @onclick="LoadMoreAsync">
+                    @(IsLoadingMore ? "Loading…" : $"Load more ({TotalCount - Articles.Count:N0} remaining)")
+                </button>
+            }
+        }
+    </section>
+</div>
+
+@code {
+    private const int PageSize = 30;
+
+    private static readonly List<TimeframeOption> TimeframeOptions =
+    [
+        new("7 days", 7),
+        new("3 weeks", 21),
+        new("3 months", 90)
+    ];
+
+    private List<FeedArticle> Articles { get; set; } = [];
+    private List<DailyCount> Days { get; set; } = [];
+    private int TotalCount { get; set; }
+    private int CurrentPage { get; set; }
+    private int SelectedTimeframeIndex { get; set; }
+    private DateOnly? SelectedDay { get; set; }
+    private string? EntityId { get; set; }
+    private string? EntityName { get; set; }
+    private string? Domain { get; set; }
+    private string? Search { get; set; }
+    private string SearchInput { get; set; } = string.Empty;
+    private bool IsLoading { get; set; } = true;
+    private bool IsLoadingMore { get; set; }
+    private string? ErrorMessage { get; set; }
+    private int loadVersion;
+
+    private bool HasActiveFilters =>
+        !string.IsNullOrWhiteSpace(EntityId) || !string.IsNullOrWhiteSpace(Domain) || !string.IsNullOrWhiteSpace(Search);
+
+    private IEnumerable<(DateOnly Date, List<FeedArticle> Items)> GroupedArticles =>
+        Articles
+            .GroupBy(article => DateOnly.FromDateTime(article.PublishedTime))
+            .Select(group => (group.Key, group.ToList()));
+
+    protected override async Task OnInitializedAsync() => await ReloadAsync();
+
+    private (DateOnly From, DateOnly To) WindowRange()
+    {
+        var to = DateOnly.FromDateTime(DateTime.UtcNow);
+        return (to.AddDays(-(TimeframeOptions[SelectedTimeframeIndex].Days - 1)), to);
+    }
+
+    private (DateOnly From, DateOnly To) FeedRange() =>
+        SelectedDay is { } day ? (day, day) : WindowRange();
+
+    private async Task ReloadAsync(bool reloadStrip = true)
+    {
+        var version = ++loadVersion;
+        IsLoading = true;
+        ErrorMessage = null;
+        CurrentPage = 0;
+
+        try
+        {
+            var window = WindowRange();
+            var feedRange = FeedRange();
+            var feedTask = Analytics.GetArticleFeedAsync(feedRange.From, feedRange.To, EntityId, Domain, Search, 0, PageSize);
+            var stripTask = reloadStrip
+                ? Analytics.GetDailyArticleCountsAsync(window.From, window.To, EntityId, Domain)
+                : Task.FromResult<List<DailyCount>?>(Days);
+
+            await Task.WhenAll(feedTask, stripTask);
+            if (version != loadVersion) return;
+
+            var feed = await feedTask;
+            var strip = await stripTask;
+            if (feed is null || strip is null)
+            {
+                ErrorMessage = "Unable to load articles.";
+                return;
+            }
+
+            Articles = feed.Items;
+            TotalCount = feed.TotalCount;
+            Days = strip;
+        }
+        finally
+        {
+            if (version == loadVersion)
+                IsLoading = false;
+        }
+    }
+
+    private async Task LoadMoreAsync()
+    {
+        IsLoadingMore = true;
+        try
+        {
+            var range = FeedRange();
+            var page = await Analytics.GetArticleFeedAsync(range.From, range.To, EntityId, Domain, Search, CurrentPage + 1, PageSize);
+            if (page is null)
+            {
+                ErrorMessage = "Unable to load more articles.";
+                return;
+            }
+
+            CurrentPage++;
+            Articles.AddRange(page.Items);
+            TotalCount = page.TotalCount;
+        }
+        finally
+        {
+            IsLoadingMore = false;
+        }
+    }
+
+    private async Task ChangeTimeframe(int index)
+    {
+        if (SelectedTimeframeIndex == index) return;
+        SelectedTimeframeIndex = index;
+        SelectedDay = null;
+        await ReloadAsync();
+    }
+
+    private async Task SelectDay(DateOnly day)
+    {
+        SelectedDay = SelectedDay == day ? null : day;
+        await ReloadAsync(reloadStrip: false);
+    }
+
+    private async Task ClearDay()
+    {
+        SelectedDay = null;
+        await ReloadAsync(reloadStrip: false);
+    }
+
+    private async Task ApplySearch()
+    {
+        Search = string.IsNullOrWhiteSpace(SearchInput) ? null : SearchInput.Trim();
+        await ReloadAsync(reloadStrip: false);
+    }
+
+    private async Task ClearSearch()
+    {
+        Search = null;
+        SearchInput = string.Empty;
+        await ReloadAsync(reloadStrip: false);
+    }
+
+    private async Task SetEntity(FeedEntity entity)
+    {
+        EntityId = entity.Id;
+        EntityName = entity.Name;
+        await ReloadAsync();
+    }
+
+    private async Task ClearEntity()
+    {
+        EntityId = null;
+        EntityName = null;
+        await ReloadAsync();
+    }
+
+    private async Task SetDomain(string domain)
+    {
+        Domain = domain;
+        await ReloadAsync();
+    }
+
+    private async Task ClearDomain()
+    {
+        Domain = null;
+        await ReloadAsync();
+    }
+
+    private string BarHeight(int count)
+    {
+        var max = Days.Count > 0 ? Days.Max(day => day.Count) : 0;
+        if (max <= 0 || count <= 0)
+            return "0%";
+
+        return (count * 100.0 / max).ToString("F1", System.Globalization.CultureInfo.InvariantCulture) + "%";
+    }
+
+    private sealed record TimeframeOption(string Label, int Days);
+}

@@ -170,6 +170,42 @@
             }
         </section>
 
+        <section class="panel-card first-publisher-panel">
+            <div class="panel-header">
+                <div>
+                    <h2>Who published first</h2>
+                    <p>Publishers ranked by their earliest stored article about @Entity.Name in this period.</p>
+                </div>
+            </div>
+
+            @if (IsLoadingData)
+            {
+                <p class="chart-empty">Loading publishers…</p>
+            }
+            else if (!string.IsNullOrWhiteSpace(FirstPublisherError))
+            {
+                <p class="chart-empty" role="alert">@FirstPublisherError</p>
+            }
+            else if (FirstPublishers.Count == 0)
+            {
+                <p class="chart-empty">No articles were published about @Entity.Name during this period.</p>
+            }
+            else
+            {
+                <ol class="first-publisher-list">
+                    @foreach (var publisher in FirstPublishers)
+                    {
+                        <li>
+                            <span class="first-publisher-domain">@publisher.Domain</span>
+                            <time datetime="@publisher.FirstPublished.ToString("O")">@publisher.FirstPublished.ToString("d MMM HH:mm")</time>
+                            <span class="first-publisher-lag">@FormatLag(publisher.FirstPublished - FirstPublishers[0].FirstPublished)</span>
+                            <span class="first-publisher-count">@publisher.ArticleCount.ToString("N0") @(publisher.ArticleCount == 1 ? "article" : "articles")</span>
+                        </li>
+                    }
+                </ol>
+            }
+        </section>
+
         <section class="panel-card article-list-panel">
             <div class="panel-header">
                 <h2>Articles</h2>
@@ -246,6 +282,8 @@
     private List<DomainStat> DomainBreakdown { get; set; } = [];
     private List<CoMentionEntity> CoMentions { get; set; } = [];
     private string? CoMentionError { get; set; }
+    private List<FirstPublisher> FirstPublishers { get; set; } = [];
+    private string? FirstPublisherError { get; set; }
     private List<ArticleSummary> Articles { get; set; } = [];
     private int TotalArticles { get; set; }
     private int TotalMentions { get; set; }
@@ -276,6 +314,8 @@
         DomainBreakdown = [];
         CoMentions = [];
         CoMentionError = null;
+        FirstPublishers = [];
+        FirstPublisherError = null;
         CurrentArticlePage = 1;
 
         try
@@ -285,8 +325,9 @@
             var articlesTask = Analytics.GetEntityArticlesAsync(Id, range.From, range.To, 1, PageSize);
             var domainTask = Analytics.GetEntityDomainStatsAsync(Id, range.From, range.To);
             var coMentionsTask = Analytics.GetCoMentionsAsync(Id, range.From, range.To);
+            var firstPublishersTask = Analytics.GetFirstPublishersAsync(Id, range.From, range.To);
 
-            await Task.WhenAll(timelineTask, articlesTask, domainTask, coMentionsTask);
+            await Task.WhenAll(timelineTask, articlesTask, domainTask, coMentionsTask, firstPublishersTask);
 
             var timelineData = await timelineTask;
             Timeline = timelineData.TryGetValue(Id, out var pts) ? pts : [];
@@ -307,6 +348,9 @@
             var coMentions = await coMentionsTask;
             CoMentions = coMentions ?? [];
             CoMentionError = coMentions is null ? "Unable to load co-mentions." : null;
+            var firstPublishers = await firstPublishersTask;
+            FirstPublishers = firstPublishers ?? [];
+            FirstPublisherError = firstPublishers is null ? "Unable to load publishers." : null;
             TotalMentions = TotalArticles;
         }
         catch
@@ -365,6 +409,14 @@
 
         return (articleCount * 100.0 / largestCount)
             .ToString("F1", System.Globalization.CultureInfo.InvariantCulture) + "%";
+    }
+
+    private static string FormatLag(TimeSpan lag)
+    {
+        if (lag <= TimeSpan.Zero) return "first";
+        if (lag.TotalMinutes < 60) return $"+{(int)lag.TotalMinutes} min";
+        if (lag.TotalHours < 48) return $"+{(int)lag.TotalHours} h";
+        return $"+{(int)lag.TotalDays} d";
     }
 
     private sealed record TimeframeOption(string Label, int Days);
