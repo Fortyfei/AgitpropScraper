@@ -45,6 +45,120 @@
     padding: clamp(1rem, 2vw, 1.5rem);
 }
 
+.coverage-error {
+    color: #8c3434;
+}
+
+.coverage-table-scroll {
+    overflow-x: auto;
+    padding-bottom: 0.5rem;
+}
+
+.coverage-table-scroll:focus-visible {
+    outline: 3px solid var(--signal-amber);
+    outline-offset: 3px;
+}
+
+.coverage-table {
+    border-collapse: collapse;
+    min-width: 58rem;
+    width: 100%;
+}
+
+.coverage-table th,
+.coverage-table td {
+    border-bottom: 1px solid var(--line-soft);
+    padding: 0.75rem 0.65rem;
+    text-align: left;
+    vertical-align: middle;
+}
+
+.coverage-table thead th {
+    color: var(--slate);
+    font-size: 0.78rem;
+    font-weight: 650;
+    vertical-align: bottom;
+}
+
+.coverage-table thead th:first-child,
+.coverage-table tbody th {
+    left: 0;
+    position: sticky;
+    z-index: 1;
+}
+
+.coverage-table thead th:first-child,
+.coverage-table tbody th {
+    background: var(--surface);
+}
+
+.coverage-table tbody th {
+    color: var(--ink);
+    font-size: 0.88rem;
+    font-weight: 700;
+    max-width: 12rem;
+    overflow-wrap: anywhere;
+}
+
+.coverage-table thead th:nth-child(2),
+.coverage-table tbody td:nth-child(2) {
+    color: var(--slate);
+    font-size: 0.82rem;
+    white-space: nowrap;
+}
+
+.coverage-table a {
+    color: var(--ink);
+    display: block;
+    font-weight: 650;
+    max-width: 8rem;
+    overflow-wrap: anywhere;
+    text-decoration-color: var(--signal-blue);
+    text-underline-offset: 0.2em;
+}
+
+.coverage-table a:focus-visible {
+    outline: 2px solid var(--signal-amber);
+    outline-offset: 2px;
+}
+
+.coverage-cell {
+    min-width: 5.5rem;
+}
+
+.coverage-cell strong {
+    color: var(--ink);
+    font-size: 0.9rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.coverage-cell-track {
+    background: #e6edf1;
+    display: block;
+    height: 0.28rem;
+    margin: 0.35rem 0;
+    overflow: hidden;
+}
+
+.coverage-cell-track span {
+    background: var(--signal-blue);
+    display: block;
+    height: 100%;
+}
+
+.coverage-cell small {
+    color: var(--slate);
+    display: block;
+    font-size: 0.68rem;
+    white-space: nowrap;
+}
+
+.coverage-note {
+    color: var(--slate);
+    font-size: 0.8rem;
+    margin: 0.9rem 0 0;
+}
+
 .panel-header {
     align-items: baseline;
     border-bottom: 1px solid var(--line);

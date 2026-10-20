@@ -16,6 +16,12 @@ WebAssembly render modes.
   bottom tab bar on narrow screens.
 - Dashboard and entity timeline charts, a top-sources donut chart, and an
   entity mention-count bar chart.
+- Entity detail pages include ranked co-mentions and a "who published first"
+  ranking; the Sources page includes a publisher-by-entity coverage matrix.
+- The Timeline page (`/timeline`) shows a clickable articles-per-day strip with
+  spike days highlighted above a day-grouped article feed. The feed filters by
+  publisher, entity and headline search; clicking a publisher or entity on an
+  article applies that filter.
 
 ## Rendering Mode
 
@@ -30,8 +36,8 @@ render modes, but the current page components explicitly use
 |-------|-----------|----------|
 | `/` and `/home` | `Components/Pages/Home.razor` | Coverage dashboard with a timeline chart and ranked entities. |
 | `/entities` | `Components/Pages/EntityBrowser.razor` | Searchable directory of 50 entities per page with Prev/Next controls above and below the list; a "Top entities by coverage" bar chart shows up to eight entities from the current page, and selecting a bar opens that entity. |
-| `/entity/{Id}` | `Components/Pages/EntityDetail.razor` | Entity details, source breakdown, article list, and timeline chart. |
-| `/sources` | `Components/Pages/Sources.razor` | Publisher coverage by normalized domain; a donut chart displays the top six sources and combines the remainder as “Other.” |
+| `/entity/{Id}` | `Components/Pages/EntityDetail.razor` | Entity details, source breakdown, co-mentioned entities, article list, and timeline chart. |
+| `/sources` | `Components/Pages/Sources.razor` | Publisher coverage by normalized domain and entity; a donut chart displays the top six sources and combines the remainder as “Other.” |
 
 Timeframe changes reload the corresponding analytics data. The Sources chart
 is shown only when source data is available; the Entities chart uses the

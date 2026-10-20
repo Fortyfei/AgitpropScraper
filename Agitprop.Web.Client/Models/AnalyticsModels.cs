@@ -73,3 +73,64 @@ public class EntityTrendSeries
     public string Color { get; set; } = string.Empty;
     public List<TimelinePoint> Timeline { get; set; } = new();
 }
+
+public class CoMentionEntity
+{
+    public string EntityId { get; set; } = string.Empty;
+    public string EntityName { get; set; } = string.Empty;
+    public string EntityType { get; set; } = string.Empty;
+    public int SharedArticleCount { get; set; }
+}
+
+public class SourceEntityCoverage
+{
+    public string Domain { get; set; } = string.Empty;
+    public int ArticleCount { get; set; }
+    public List<EntityCoverageStat> Entities { get; set; } = [];
+}
+
+public class EntityCoverageStat
+{
+    public string EntityId { get; set; } = string.Empty;
+    public string EntityName { get; set; } = string.Empty;
+    public string EntityType { get; set; } = string.Empty;
+    public int ArticleCount { get; set; }
+    public double PercentOfSourceArticles { get; set; }
+}
+
+public class FeedEntity
+{
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Type { get; set; } = string.Empty;
+}
+
+public class FeedArticle
+{
+    public string Id { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public string Url { get; set; } = string.Empty;
+    public string Domain { get; set; } = string.Empty;
+    public DateTime PublishedTime { get; set; }
+    public List<FeedEntity> Entities { get; set; } = [];
+}
+
+public class FeedPage
+{
+    public List<FeedArticle> Items { get; set; } = [];
+    public int TotalCount { get; set; }
+}
+
+public class DailyCount
+{
+    public DateOnly Date { get; set; }
+    public int Count { get; set; }
+    public bool IsSpike { get; set; }
+}
+
+public class FirstPublisher
+{
+    public string Domain { get; set; } = string.Empty;
+    public DateTime FirstPublished { get; set; }
+    public int ArticleCount { get; set; }
+}

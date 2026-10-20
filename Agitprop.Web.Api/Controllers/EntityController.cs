@@ -237,6 +237,63 @@ public class EntitiesController : ControllerBase
         }
     }
 
+    [HttpGet("{id}/co-mentions")]
+    public ActionResult<CoMentionsResponse> GetCoMentions(
+        string id,
+        [FromQuery] DateOnly from,
+        [FromQuery] DateOnly to,
+        [FromQuery] int limit = 8)
+    {
+        using var activity = _activitySource.StartActivity("GetCoMentions", ActivityKind.Internal);
+        activity?.SetTag("api.operation", "entities.co_mentions");
+
+        if (!Guid.TryParse(id, out _))
+            return BadRequest(new { error = "A valid entity id is required." });
+
+        if (from == default || to == default)
+            return BadRequest(new { error = "Both 'from' and 'to' query parameters are required." });
+
+        if (from > to)
+            return BadRequest(new { error = "The 'from' date must be earlier than or equal to the 'to' date." });
+
+        limit = Math.Clamp(limit, 1, 25);
+        var cacheKey = $"entity-co-mentions:{id}:{from:yyyy-MM-dd}:{to:yyyy-MM-dd}:limit{limit}";
+        if (_cache.TryGetValue(cacheKey, out CoMentionsResponse? cached) && cached is not null)
+        {
+            ApiMetrics.RecordCacheResult(activity, "entities.co_mentions", "hit");
+            return Ok(cached);
+        }
+        ApiMetrics.RecordCacheResult(activity, "entities.co_mentions", "miss");
+
+        try
+        {
+            if (_entityRepository.GetEntityByIdAsync(id) is null)
+                return NotFound(new { error = $"Entity '{id}' not found." });
+
+            var relatedEntities = _entityRepository.GetCoMentionedEntities(id, from, to, limit)
+                .Select(entity => new CoMentionItem
+                {
+                    EntityId = entity.EntityId,
+                    EntityName = entity.EntityName,
+                    EntityType = entity.EntityType,
+                    SharedArticleCount = entity.SharedArticleCount
+                })
+                .ToList();
+
+            var response = new CoMentionsResponse { Entities = relatedEntities };
+            _cache.Set(cacheKey, response, CacheDuration);
+            activity?.SetTag("api.result_count", relatedEntities.Count);
+            activity?.SetStatus(ActivityStatusCode.Ok);
+            return Ok(response);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving entities mentioned with {Id}", id);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.GetType().Name);
+            return StatusCode(500, new { error = "Failed to retrieve co-mentioned entities." });
+        }
+    }
+
     [HttpGet("timeline")]
     public ActionResult<EntitiesTimelineResponse> GetEntitiesTimeline(
         [FromQuery] DateOnly from,

@@ -76,7 +76,7 @@
         box-shadow: 0 -6px 20px rgba(23, 32, 51, 0.25);
         display: grid;
         gap: 0;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(4, 1fr);
         left: 0;
         padding-bottom: env(safe-area-inset-bottom);
         position: fixed;

@@ -161,11 +161,173 @@ public class EntityRepository : IEntityRepository
         }
     }
 
-    private static string NormalizeDomain(string url)
+    internal static string NormalizeDomain(string url)
     {
         return Uri.TryCreate(url, UriKind.Absolute, out var uri)
             ? uri.Host.Replace("www.", string.Empty, StringComparison.OrdinalIgnoreCase)
             : url;
+    }
+
+    public IReadOnlyList<EntityCoMention> GetCoMentionedEntities(
+        string entityId, DateOnly startDate, DateOnly endDate, int limit)
+    {
+        using var trace = _activitySource.StartActivity("GetCoMentionedEntities", ActivityKind.Internal);
+        trace?.SetTag("entityId", entityId);
+        trace?.SetTag("from", startDate.ToString());
+        trace?.SetTag("to", endDate.ToString());
+        trace?.SetTag("limit", limit);
+
+        var targetEntityId = Guid.Parse(entityId);
+        var from = DateTime.SpecifyKind(startDate.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
+        var to = DateTime.SpecifyKind(endDate.ToDateTime(TimeOnly.MaxValue), DateTimeKind.Utc);
+
+        try
+        {
+            var relatedEntities = _dbContext.Mentions
+                .Where(mention =>
+                    mention.EntityId != targetEntityId &&
+                    mention.Article.PublishedTime >= from &&
+                    mention.Article.PublishedTime <= to &&
+                    mention.Article.Mentions.Any(articleMention => articleMention.EntityId == targetEntityId))
+                .GroupBy(mention => new
+                {
+                    mention.EntityId,
+                    mention.Entity.Name,
+                    mention.Entity.Type
+                })
+                .Select(group => new
+                {
+                    group.Key.EntityId,
+                    group.Key.Name,
+                    group.Key.Type,
+                    SharedArticleCount = group.Count()
+                })
+                .OrderByDescending(entity => entity.SharedArticleCount)
+                .ThenBy(entity => entity.Name)
+                .Take(limit)
+                .AsNoTracking()
+                .ToList();
+
+            var coMentions = relatedEntities
+                .Select(entity => new EntityCoMention(
+                    entity.EntityId.ToString(),
+                    entity.Name,
+                    entity.Type,
+                    entity.SharedArticleCount))
+                .ToList();
+
+            trace?.SetTag("resultCount", coMentions.Count);
+            return coMentions;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to retrieve entities mentioned with {entityId} between {startDate} and {endDate}", entityId, startDate, endDate);
+            trace?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            throw;
+        }
+    }
+
+    public IReadOnlyList<SourceEntityCoverage> GetSourceEntityCoverage(
+        DateOnly startDate, DateOnly endDate, int sourceLimit, int entityLimit)
+    {
+        using var trace = _activitySource.StartActivity("GetSourceEntityCoverage", ActivityKind.Internal);
+        trace?.SetTag("from", startDate.ToString());
+        trace?.SetTag("to", endDate.ToString());
+        trace?.SetTag("sourceLimit", sourceLimit);
+        trace?.SetTag("entityLimit", entityLimit);
+
+        var from = DateTime.SpecifyKind(startDate.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
+        var to = DateTime.SpecifyKind(endDate.ToDateTime(TimeOnly.MaxValue), DateTimeKind.Utc);
+
+        try
+        {
+            var articles = _dbContext.Articles
+                .Where(article => article.PublishedTime >= from && article.PublishedTime <= to)
+                .Select(article => new { article.Id, article.Url })
+                .AsNoTracking()
+                .ToList();
+            var domainByArticleId = articles.ToDictionary(
+                article => article.Id,
+                article => NormalizeDomain(article.Url));
+
+            var topSources = articles
+                .GroupBy(article => NormalizeDomain(article.Url), StringComparer.OrdinalIgnoreCase)
+                .Select(group => new { Domain = group.Key, ArticleCount = group.Count() })
+                .OrderByDescending(source => source.ArticleCount)
+                .ThenBy(source => source.Domain, StringComparer.OrdinalIgnoreCase)
+                .Take(sourceLimit)
+                .ToList();
+            var topSourceDomains = topSources
+                .Select(source => source.Domain)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var mentions = _dbContext.Mentions
+                .Where(mention => mention.Article.PublishedTime >= from &&
+                                  mention.Article.PublishedTime <= to)
+                .Select(mention => new
+                {
+                    mention.ArticleId,
+                    mention.EntityId,
+                    mention.Entity.Name,
+                    mention.Entity.Type
+                })
+                .AsNoTracking()
+                .ToList();
+
+            var topEntities = mentions
+                .GroupBy(mention => new { mention.EntityId, mention.Name, mention.Type })
+                .Select(group => new
+                {
+                    group.Key.EntityId,
+                    group.Key.Name,
+                    group.Key.Type,
+                    ArticleCount = group.Count()
+                })
+                .OrderByDescending(entity => entity.ArticleCount)
+                .ThenBy(entity => entity.Name)
+                .Take(entityLimit)
+                .ToList();
+            var topEntityIds = topEntities
+                .Select(entity => entity.EntityId)
+                .ToHashSet();
+
+            var sourceEntityCounts = mentions
+                .Where(mention =>
+                    topEntityIds.Contains(mention.EntityId) &&
+                    domainByArticleId.TryGetValue(mention.ArticleId, out var domain) &&
+                    topSourceDomains.Contains(domain))
+                .GroupBy(mention => (
+                    Domain: domainByArticleId[mention.ArticleId],
+                    mention.EntityId))
+                .ToDictionary(group => group.Key, group => group.Count());
+
+            var coverage = topSources
+                .Select(source => new SourceEntityCoverage(
+                    source.Domain,
+                    source.ArticleCount,
+                    topEntities.Select(entity =>
+                    {
+                        sourceEntityCounts.TryGetValue((source.Domain, entity.EntityId), out var articleCount);
+                        return new EntityCoverageStat(
+                            entity.EntityId.ToString(),
+                            entity.Name,
+                            entity.Type,
+                            articleCount,
+                            source.ArticleCount > 0
+                                ? articleCount * 100.0 / source.ArticleCount
+                                : 0);
+                    }).ToList()))
+                .ToList();
+
+            trace?.SetTag("resultCount", coverage.Count);
+            return coverage;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to retrieve source/entity coverage between {startDate} and {endDate}", startDate, endDate);
+            trace?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            throw;
+        }
     }
 
     public (IEnumerable<Article> Items, int TotalCount) GetMentioningArticlesPaginatedAsync(string entityId, DateOnly startDate, DateOnly endDate, int page, int pageSize)
