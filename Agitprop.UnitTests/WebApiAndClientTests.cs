@@ -321,6 +321,10 @@ public sealed class WebApiAndClientTests
             ArticleDomainCalls++;
             return ArticleDomains;
         }
+        public IReadOnlyList<EntityCoMention> GetCoMentionedEntities(
+            string entityId, DateOnly from, DateOnly to, int limit) => [];
+        public IReadOnlyList<Agitprop.Core.Models.SourceEntityCoverage> GetSourceEntityCoverage(
+            DateOnly from, DateOnly to, int sourceLimit, int entityLimit) => [];
         public Entity? GetEntityByIdAsync(string entityId) => null;
         public IEnumerable<Entity> SearchEntitiesAsync(string query) => [];
         public IEnumerable<Entity> GetEntitiesPaginatedAsync(DateOnly from, DateOnly to, int page, int pageSize) => [];

@@ -10,6 +10,10 @@ namespace Agitprop.Core.Interfaces
         (IEnumerable<Article> Items, int TotalCount) GetMentioningArticlesPaginatedAsync(string entityId, DateOnly from, DateOnly to, int page, int pageSize);
         IEnumerable<(string Domain, int Count)> GetMentioningArticlesByDomainAsync(string entityId, DateOnly from, DateOnly to);
         IEnumerable<(string Domain, int Count)> GetArticleDomainsAsync(DateOnly from, DateOnly to);
+        IReadOnlyList<EntityCoMention> GetCoMentionedEntities(
+            string entityId, DateOnly from, DateOnly to, int limit);
+        IReadOnlyList<SourceEntityCoverage> GetSourceEntityCoverage(
+            DateOnly from, DateOnly to, int sourceLimit, int entityLimit);
         Entity? GetEntityByIdAsync(string entityId);
         IEnumerable<Entity> SearchEntitiesAsync(string query);
         IEnumerable<Entity> GetEntitiesPaginatedAsync(DateOnly from, DateOnly to, int page, int pageSize);

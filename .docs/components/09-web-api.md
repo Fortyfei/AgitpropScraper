@@ -28,6 +28,7 @@ entity analytics data to the Blazor client and external consumers.
 | `GetEntityDomainStats` | GET `{id}/domain-stats` | from, to | `EntityDomainStatsResponse` |
 | `GetEntityById` | GET `{id}` | — | `EntityResponse` |
 | `GetArticles` | GET `{id}/articles` | — | `EntityArticlesResponse` |
+| `GetCoMentions` | GET `{id}/co-mentions` | from, to, limit | `CoMentionsResponse` |
 
 ### AnalyticsController
 
@@ -39,6 +40,7 @@ entity analytics data to the Blazor client and external consumers.
 | Endpoint | Method | Query Params | Returns |
 |----------|--------|--------------|---------|
 | `GetTopMentionedEntities` | GET `topmentions` | from, to | `TopMentionedEntitiesResponse` |
+| `GetSourceEntityCoverage` | GET `source-entities` | from, to, sourceLimit, entityLimit | `SourceEntityCoverageResponse` |
 
 ### SourcesController
 
@@ -69,6 +71,8 @@ The API reads PostgreSQL only; RabbitMQ is not required for API startup.
 - `EntityResponse`
 - `EntityArticlesResponse`, `ArticleDto`
 - `TopMentionedEntitiesResponse`, `TopMentionedEntity`
+- `CoMentionsResponse`, `CoMentionItem`
+- `SourceEntityCoverageResponse`, `SourceCoverageItem`, `SourceEntityCoverageItem`
 - `SourcesResponse`, `SourceStatDto`
 
 ## Startup Validation

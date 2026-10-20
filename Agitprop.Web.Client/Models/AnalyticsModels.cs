@@ -73,3 +73,27 @@ public class EntityTrendSeries
     public string Color { get; set; } = string.Empty;
     public List<TimelinePoint> Timeline { get; set; } = new();
 }
+
+public class CoMentionEntity
+{
+    public string EntityId { get; set; } = string.Empty;
+    public string EntityName { get; set; } = string.Empty;
+    public string EntityType { get; set; } = string.Empty;
+    public int SharedArticleCount { get; set; }
+}
+
+public class SourceEntityCoverage
+{
+    public string Domain { get; set; } = string.Empty;
+    public int ArticleCount { get; set; }
+    public List<EntityCoverageStat> Entities { get; set; } = [];
+}
+
+public class EntityCoverageStat
+{
+    public string EntityId { get; set; } = string.Empty;
+    public string EntityName { get; set; } = string.Empty;
+    public string EntityType { get; set; } = string.Empty;
+    public int ArticleCount { get; set; }
+    public double PercentOfSourceArticles { get; set; }
+}

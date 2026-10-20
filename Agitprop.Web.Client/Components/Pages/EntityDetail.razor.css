@@ -82,6 +82,7 @@
 
 .domain-breakdown-panel,
 .chart-panel,
+.co-mention-panel,
 .article-list-panel {
     background: var(--surface);
     border: 1px solid var(--line);
@@ -153,6 +154,84 @@
 .domain-bar-fill {
     background: var(--signal-blue);
     height: 100%;
+}
+
+.co-mention-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.co-mention-row {
+    align-items: center;
+    border-bottom: 1px solid var(--line-soft);
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: 2rem minmax(0, 1fr) 7rem;
+    padding: 0.8rem 0;
+}
+
+.co-mention-rank {
+    color: var(--signal-amber);
+    font-size: 0.78rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+.co-mention-detail {
+    display: grid;
+    gap: 0.45rem;
+    min-width: 0;
+}
+
+.co-mention-entity {
+    align-items: baseline;
+    color: var(--ink);
+    display: inline-flex;
+    flex-wrap: wrap;
+    font-weight: 700;
+    gap: 0.45rem;
+    overflow-wrap: anywhere;
+    text-decoration-color: #a4c2d5;
+    text-underline-offset: 0.18em;
+    width: fit-content;
+}
+
+.co-mention-entity:hover {
+    color: var(--signal-blue);
+}
+
+.co-mention-entity small {
+    color: var(--slate);
+    font-size: 0.68rem;
+    font-weight: 650;
+}
+
+.co-mention-bar {
+    background: #e5ebee;
+    display: block;
+    height: 0.38rem;
+    overflow: hidden;
+}
+
+.co-mention-bar span {
+    background: var(--signal-blue);
+    display: block;
+    height: 100%;
+}
+
+.co-mention-count {
+    color: var(--ink);
+    display: grid;
+    font-size: 0.95rem;
+    font-variant-numeric: tabular-nums;
+    justify-items: end;
+}
+
+.co-mention-count span {
+    color: var(--slate);
+    font-size: 0.7rem;
+    font-weight: 500;
 }
 
 .chart-panel {
@@ -245,5 +324,10 @@
 
     .panel-header > span {
         text-align: left;
+    }
+
+    .co-mention-row {
+        gap: 0.6rem;
+        grid-template-columns: 1.5rem minmax(0, 1fr) 5.25rem;
     }
 }

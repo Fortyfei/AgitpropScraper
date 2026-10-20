@@ -120,6 +120,56 @@
             </section>
         </div>
 
+        <section class="panel-card co-mention-panel">
+            <div class="panel-header">
+                <div>
+                    <h2>Mentioned alongside</h2>
+                    <p>Other entities appearing in articles that mention @Entity.Name.</p>
+                </div>
+                @if (!IsLoadingData && CoMentions.Count > 0)
+                {
+                    <span>@CoMentions.Count related entities</span>
+                }
+            </div>
+
+            @if (IsLoadingData)
+            {
+                <p class="chart-empty">Loading co-mentions…</p>
+            }
+            else if (!string.IsNullOrWhiteSpace(CoMentionError))
+            {
+                <p class="chart-empty" role="alert">@CoMentionError</p>
+            }
+            else if (CoMentions.Count == 0)
+            {
+                <p class="chart-empty">No other recognized entities were found in articles about @Entity.Name during this period.</p>
+            }
+            else
+            {
+                <ol class="co-mention-list" aria-label="@($"Entities most often mentioned alongside {Entity.Name}")">
+                    @foreach (var relatedEntity in CoMentions)
+                    {
+                        <li class="co-mention-row">
+                            <span class="co-mention-rank" aria-hidden="true">@((CoMentions.IndexOf(relatedEntity) + 1).ToString("D2"))</span>
+                            <div class="co-mention-detail">
+                                <a class="co-mention-entity" href="@($"/entity/{relatedEntity.EntityId}")">
+                                    <span>@relatedEntity.EntityName</span>
+                                    <small>@relatedEntity.EntityType</small>
+                                </a>
+                                <span class="co-mention-bar" aria-hidden="true">
+                                    <span style="width: @CoMentionWidth(relatedEntity.SharedArticleCount)"></span>
+                                </span>
+                            </div>
+                            <strong class="co-mention-count">
+                                @relatedEntity.SharedArticleCount.ToString("N0")
+                                <span>shared articles</span>
+                            </strong>
+                        </li>
+                    }
+                </ol>
+            }
+        </section>
+
         <section class="panel-card article-list-panel">
             <div class="panel-header">
                 <h2>Articles</h2>
@@ -194,6 +244,8 @@
     private EntityInfo? Entity { get; set; }
     private List<TimelinePoint> Timeline { get; set; } = [];
     private List<DomainStat> DomainBreakdown { get; set; } = [];
+    private List<CoMentionEntity> CoMentions { get; set; } = [];
+    private string? CoMentionError { get; set; }
     private List<ArticleSummary> Articles { get; set; } = [];
     private int TotalArticles { get; set; }
     private int TotalMentions { get; set; }
@@ -222,6 +274,8 @@
         ErrorMessage = null;
         Articles = [];
         DomainBreakdown = [];
+        CoMentions = [];
+        CoMentionError = null;
         CurrentArticlePage = 1;
 
         try
@@ -230,8 +284,9 @@
             var timelineTask = Analytics.GetEntitiesTimelineAsync(range.From, range.To, [Id]);
             var articlesTask = Analytics.GetEntityArticlesAsync(Id, range.From, range.To, 1, PageSize);
             var domainTask = Analytics.GetEntityDomainStatsAsync(Id, range.From, range.To);
+            var coMentionsTask = Analytics.GetCoMentionsAsync(Id, range.From, range.To);
 
-            await Task.WhenAll(timelineTask, articlesTask, domainTask);
+            await Task.WhenAll(timelineTask, articlesTask, domainTask, coMentionsTask);
 
             var timelineData = await timelineTask;
             Timeline = timelineData.TryGetValue(Id, out var pts) ? pts : [];
@@ -249,6 +304,9 @@
             }
 
             DomainBreakdown = await domainTask;
+            var coMentions = await coMentionsTask;
+            CoMentions = coMentions ?? [];
+            CoMentionError = coMentions is null ? "Unable to load co-mentions." : null;
             TotalMentions = TotalArticles;
         }
         catch
@@ -297,6 +355,16 @@
         if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
             return uri.Host.Replace("www.", string.Empty);
         return url;
+    }
+
+    private string CoMentionWidth(int articleCount)
+    {
+        var largestCount = CoMentions.Count > 0 ? CoMentions[0].SharedArticleCount : 0;
+        if (largestCount <= 0)
+            return "0%";
+
+        return (articleCount * 100.0 / largestCount)
+            .ToString("F1", System.Globalization.CultureInfo.InvariantCulture) + "%";
     }
 
     private sealed record TimeframeOption(string Label, int Days);

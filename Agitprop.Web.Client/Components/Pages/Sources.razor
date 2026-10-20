@@ -55,6 +55,72 @@
         </section>
     }
 
+    <section class="sources-panel source-entity-panel">
+        <div class="panel-header">
+            <div>
+                <h2>Publisher coverage by entity</h2>
+                <p>Share of each publisher’s articles that mention a leading entity.</p>
+            </div>
+        </div>
+
+        @if (IsLoading)
+        {
+            <p class="data-state">Loading entity coverage…</p>
+        }
+        else if (!string.IsNullOrWhiteSpace(CoverageError))
+        {
+            <p class="data-state coverage-error" role="alert">@CoverageError</p>
+        }
+        else if (SourceEntityCoverage.Count == 0 || CoverageEntities.Count == 0)
+        {
+            <p class="data-state">No publisher/entity coverage is available for this period.</p>
+        }
+        else
+        {
+            <div class="coverage-table-scroll" tabindex="0" aria-label="Publisher coverage table; scroll horizontally to see all entities">
+                <table class="coverage-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Publisher</th>
+                            <th scope="col">Articles</th>
+                            @foreach (var entity in CoverageEntities)
+                            {
+                                <th scope="col">
+                                    <a href="@($"/entity/{entity.EntityId}")" title="@($"{entity.EntityName} ({entity.EntityType})")">
+                                        @entity.EntityName
+                                    </a>
+                                </th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var source in SourceEntityCoverage)
+                        {
+                            <tr>
+                                <th scope="row">@source.Domain</th>
+                                <td>@source.ArticleCount.ToString("N0")</td>
+                                @foreach (var entity in source.Entities)
+                                {
+                                    <td>
+                                        <div class="coverage-cell"
+                                             aria-label="@($"{entity.ArticleCount} of {source.ArticleCount} articles, {FormatPercent(entity.PercentOfSourceArticles)} percent")">
+                                            <strong>@FormatPercent(entity.PercentOfSourceArticles)%</strong>
+                                            <span class="coverage-cell-track" aria-hidden="true">
+                                                <span style="width: @FormatPercent(entity.PercentOfSourceArticles)%"></span>
+                                            </span>
+                                            <small>@entity.ArticleCount.ToString("N0") articles</small>
+                                        </div>
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <p class="coverage-note">Percentages use all articles from that publisher in the selected period. Entity columns show the most-mentioned entities overall.</p>
+        }
+    </section>
+
     <section class="sources-panel">
         <div class="panel-header">
             <div>
@@ -108,11 +174,15 @@
     ];
 
     private List<SourceStat> SourceItems { get; set; } = [];
+    private List<SourceEntityCoverage> SourceEntityCoverage { get; set; } = [];
     private int SelectedTimeframeIndex { get; set; } = 1;
     private bool IsLoading { get; set; }
     private string? ErrorMessage { get; set; }
+    private string? CoverageError { get; set; }
     private TimeframeOption SelectedTimeframe => TimeframeOptions[SelectedTimeframeIndex];
     private int TotalMentions => SourceItems.Sum(source => source.Count);
+    private List<EntityCoverageStat> CoverageEntities =>
+        SourceEntityCoverage.FirstOrDefault()?.Entities ?? [];
 
     private sealed record PieSlice(string Label, int Count);
 
@@ -143,11 +213,16 @@
     {
         IsLoading = true;
         ErrorMessage = null;
+        CoverageError = null;
 
         try
         {
             var range = GetSelectedRange();
-            var result = await Analytics.GetSourcesAsync(range.From, range.To);
+            var sourcesTask = Analytics.GetSourcesAsync(range.From, range.To);
+            var entityCoverageTask = Analytics.GetSourceEntityCoverageAsync(range.From, range.To);
+            await Task.WhenAll(sourcesTask, entityCoverageTask);
+
+            var result = await sourcesTask;
             if (result is null)
             {
                 SourceItems = [];
@@ -157,6 +232,10 @@
             {
                 SourceItems = result;
             }
+
+            var entityCoverage = await entityCoverageTask;
+            SourceEntityCoverage = entityCoverage ?? [];
+            CoverageError = entityCoverage is null ? "Unable to load publisher/entity coverage." : null;
         }
         finally
         {
@@ -179,6 +258,9 @@
         var from = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-SelectedTimeframe.Days));
         return (from, to);
     }
+
+    private static string FormatPercent(double value) =>
+        value.ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
 
     private sealed record TimeframeOption(string Label, int Days);
 }
