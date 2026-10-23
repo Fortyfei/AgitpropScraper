@@ -1,5 +1,6 @@
 using Agitprop.Core.Exceptions;
 using Agitprop.Scraper.Consumer.Consumers;
+using System.Data.Common;
 using System.Net;
 
 namespace Agitprop.UnitTests;
@@ -83,6 +84,7 @@ public class NewsfeedJobFailureClassifierTests
         yield return new ContentParserException("Article content not found");
         yield return new ArgumentException("Unsupported news source");
         yield return new UriFormatException("Invalid URL");
+        yield return new TestDbException("23505");
     }
 
     private static IEnumerable<Exception> TransientFailures()
@@ -90,5 +92,12 @@ public class NewsfeedJobFailureClassifierTests
         yield return new HttpRequestException("Connection failed");
         yield return new TimeoutException("Request timed out");
         yield return new TaskCanceledException("Request timed out");
+        yield return new TestDbException("40001");
+        yield return new InvalidOperationException("Persistence failed", new TestDbException("08006"));
+    }
+
+    private sealed class TestDbException(string sqlState) : DbException
+    {
+        public override string? SqlState => sqlState;
     }
 }

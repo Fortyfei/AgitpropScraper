@@ -7,6 +7,7 @@ using Agitprop.Data.Models;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 
 namespace Agitprop.Data;
 
@@ -129,7 +130,22 @@ public async Task<int> CreateMentionsAsync(
             saveActivity?.SetTag("mentions.to_add", mentionsToAdd.Count);
             saveActivity?.SetTag("entities.added", addedEntities);
 
-            int changes = await _db.SaveChangesAsync();
+            int changes;
+            try
+            {
+                changes = await _db.SaveChangesAsync();
+            }
+            catch (DbUpdateException ex) when (IsArticleUrlUniqueViolation(ex))
+            {
+                _db.ChangeTracker.Clear();
+                _logger.LogInformation(
+                    "Article already persisted by another worker; skipping duplicate URL {Url}",
+                    TelemetryUrl.RedactQueryAndFragment(url));
+                saveActivity?.SetTag("article.duplicate", true);
+                saveActivity?.SetStatus(ActivityStatusCode.Ok, "Duplicate article skipped");
+                activity?.SetStatus(ActivityStatusCode.Ok, "Duplicate article skipped");
+                return 0;
+            }
 
             _logger.LogInformation(
                 "Finished creating mentions. Total entities added: {EntitiesAdded}, DB changes: {DbChanges}",
@@ -153,7 +169,24 @@ public async Task<int> CreateMentionsAsync(
     }
 }
 
-    public async Task<bool> IsUrlAlreadyExists(string url)
+internal static bool IsArticleUrlUniqueViolation(Exception exception)
+{
+    for (Exception? current = exception; current is not null; current = current.InnerException)
+    {
+        if (current is PostgresException
+            {
+                SqlState: "23505",
+                ConstraintName: "IX_articles_Url"
+            })
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+public async Task<bool> IsUrlAlreadyExists(string url)
     {
         using var activity = _activitySource.StartActivity("IsUrlAlreadyExists");
         activity?.SetTag("article.url", TelemetryUrl.RedactQueryAndFragment(url));
