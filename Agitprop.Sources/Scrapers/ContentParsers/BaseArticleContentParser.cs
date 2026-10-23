@@ -4,6 +4,7 @@ using Agitprop.Core.Exceptions;
 using Agitprop.Core.Interfaces;
 using System.Globalization;
 using System.Net;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 using HtmlAgilityPack;
@@ -70,6 +71,11 @@ internal abstract class BaseArticleContentParser : IContentParser
         if (node.Name.Equals("script", StringComparison.OrdinalIgnoreCase))
         {
             var scriptText = node.InnerText ?? string.Empty;
+            if (TryGetJsonLdValue(scriptText, "articleBody", out var jsonArticleBody))
+            {
+                return WebUtility.HtmlDecode(jsonArticleBody).Trim();
+            }
+
             var articleBodyMatch = Regex.Match(scriptText, "\\\"articleBody\\\"\\s*:\\s*\\\"(?<body>.*?)\\\"", RegexOptions.Singleline);
             if (articleBodyMatch.Success)
             {
@@ -95,6 +101,54 @@ internal abstract class BaseArticleContentParser : IContentParser
         }
 
         return node.InnerText?.Trim() ?? string.Empty;
+    }
+
+    private static bool TryGetJsonLdValue(string json, string propertyName, out string value)
+    {
+        value = string.Empty;
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            return TryFindJsonLdValue(document.RootElement, propertyName, out value);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    private static bool TryFindJsonLdValue(JsonElement element, string propertyName, out string value)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            if (element.TryGetProperty(propertyName, out var property) &&
+                property.ValueKind == JsonValueKind.String)
+            {
+                value = property.GetString() ?? string.Empty;
+                return !string.IsNullOrWhiteSpace(value);
+            }
+
+            foreach (var child in element.EnumerateObject())
+            {
+                if (TryFindJsonLdValue(child.Value, propertyName, out value))
+                {
+                    return true;
+                }
+            }
+        }
+        else if (element.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var child in element.EnumerateArray())
+            {
+                if (TryFindJsonLdValue(child, propertyName, out value))
+                {
+                    return true;
+                }
+            }
+        }
+
+        value = string.Empty;
+        return false;
     }
 
     private static bool TryParseDateString(string dateText, out DateTime date)
@@ -169,10 +223,51 @@ internal abstract class BaseArticleContentParser : IContentParser
 
             if (date == DateTime.MinValue)
             {
+                var metadataDateNodes = html.DocumentNode.SelectNodes(
+                    "//meta[@property='article:published_time' or @property='og:article:published_time' " +
+                    "or @property='og:video:release_date' or @itemprop='datePublished' " +
+                    "or @name='date' or @name='publishdate' or @name='pubdate'] | //time[@datetime]");
+                if (metadataDateNodes is not null)
+                {
+                    foreach (var dateNode in metadataDateNodes)
+                    {
+                        if (TryExtractDate(dateNode, out date))
+                        {
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (date == DateTime.MinValue)
+            {
+                var structuredData = html.DocumentNode.SelectNodes("//script[@type='application/ld+json']");
+                if (structuredData is not null)
+                {
+                    foreach (var script in structuredData)
+                    {
+                        if (TryGetJsonLdValue(script.InnerText ?? string.Empty, "datePublished", out var dateText) &&
+                            TryParseDateString(dateText, out date))
+                        {
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (date == DateTime.MinValue)
+            {
                 throw new ContentParserException("Date not found or missing content attribute");
             }
 
-            var titleNode = SelectSingleNode(html, TitleXPaths);
+            var titleNode = SelectSingleNode(html, TitleXPaths) ??
+                SelectSingleNode(html,
+                [
+                    "//h1",
+                    "//meta[@property='og:title']",
+                    "//meta[@name='twitter:title']",
+                    "//title"
+                ]);
             if (titleNode == null)
                 throw new ContentParserException("Title not found");
 
@@ -182,6 +277,17 @@ internal abstract class BaseArticleContentParser : IContentParser
             string leadText = leadNode != null ? ExtractNodeText(leadNode) + " " : "";
 
             var articleNodes = SelectMultipleNodes(html, ArticleXPaths);
+            if (articleNodes.Count == 0)
+            {
+                articleNodes = SelectMultipleNodes(html,
+                [
+                    "//script[contains(., '\"articleBody\"')]",
+                    "//*[contains(@class, 'article-content') or contains(@class, 'article-body') " +
+                    "or contains(@class, 'article-text') or contains(@class, 'content-body') " +
+                    "or contains(@class, 'cikk-torzs')]//*[self::p or self::blockquote]"
+                ]);
+            }
+
             if (!articleNodes.Any() &&
                 (!AllowsLeadOnlyContent || string.IsNullOrWhiteSpace(leadText)))
                 throw new ContentParserException("Article content not found");
