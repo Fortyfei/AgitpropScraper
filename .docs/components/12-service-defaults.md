@@ -29,7 +29,7 @@ Keep these scopes distinct when changing retry behavior:
 | Direct page loading | `HttpStaticPageLoader` | `Retry:PageLoader` (3); retries exceptions and non-success responses |
 | Browser loading | Puppeteer page loaders | 3 retries for browser download and navigation; separately configurable per loader |
 | URL-existence checks, entity analysis and persistence | `NewsfeedSink` | `Retry:NewsfeedSink` (3) for each operation |
-| Message consumption | `NewsfeedJobConsumerDefinition` | 3 retries for classified transient failures, at 500 ms, 2 seconds, and 5 seconds |
+| Message consumption | `NewsfeedJobConsumerDefinition` | 3 retries for classified transient transport and PostgreSQL failures, at 500 ms, 2 seconds, and 5 seconds |
 | Manual error recovery | CLI `retry` command | requeues messages; not an automatic retry policy |
 
 The direct `RespectfulPageRequester` constructs its own `HttpClient` and does
@@ -39,6 +39,11 @@ clients, such as the Web Client API client and proxy-provider clients, do.
 The local Polly policies share their retry count and delay implementation via
 `Agitprop.Infrastructure.RetryPolicyFactory`; their scope, triggers, and
 configuration keys remain owned by the calling component.
+
+The consumer classifies PostgreSQL connection failures (SQLSTATE class `08`)
+and selected transient states (`40001`, `40P01`, `53300`, `55P03`, and `57P01`
+through `57P03`) as retryable. Unique-constraint violations and other
+permanent/unknown failures are not retried.
 
 ## Key File
 

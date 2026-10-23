@@ -53,17 +53,18 @@ Requires two connection strings; throws `InvalidOperationException` if missing:
   through OTLP when configured.
 - Consumer metrics report job counts, outcome, and duration with bounded
   job-type/handling tags, including a dedicated discovered-job publish failure
-  counter. They do not include URLs, exception messages, or other per-job
-  values as metric dimensions.
+  counter and a skipped-job counter. They do not include URLs, exception
+  messages, or other per-job values as metric dimensions.
 
 ## Observability
 
 The consumer's trace follows message consumption through Spider processing,
 entity recognition, and database persistence. Custom URL fields in consumer
 logs/spans omit query strings and fragments. EF Core spans provide query
-timings without SQL text or parameter values. Invalid jobs and propagated
-failures are both measured; non-cancellation failures are propagated for
-MassTransit retry and error-queue handling.
+timings without SQL text or parameter values. Unsupported hosts, invalid URL
+schemes, and article asset URLs are logged and acknowledged without crawling;
+the same eligibility check filters discovered jobs before publication.
+Propagated failures are measured and passed to MassTransit retry/error handling.
 
 ## Configuration
 
@@ -75,8 +76,8 @@ MassTransit retry and error-queue handling.
 
 ## Retry behavior
 
-The endpoint retries only classified transient failures, after 500 ms, 2 seconds,
-and 5 seconds. Permanent and unknown failures, as well as requested
-cancellations, are not retried. After all retries are exhausted, MassTransit
-moves the failed message to its error queue for the CLI `retry` command to
-requeue.
+The endpoint retries classified transient transport and database failures
+after 500 ms, 2 seconds, and 5 seconds. Permanent and unknown failures, as well
+as requested cancellations, are not retried. After all retries are exhausted,
+MassTransit moves the failed message to its error queue for the CLI `retry`
+command to requeue.
