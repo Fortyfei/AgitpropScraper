@@ -284,8 +284,21 @@ internal abstract class BaseArticleContentParser : IContentParser
                     "//script[contains(., '\"articleBody\"')]",
                     "//*[contains(@class, 'article-content') or contains(@class, 'article-body') " +
                     "or contains(@class, 'article-text') or contains(@class, 'content-body') " +
-                    "or contains(@class, 'cikk-torzs')]//*[self::p or self::blockquote]"
+                    "or contains(@class, 'cikk-torzs') or contains(@class, 'block-content')]" +
+                    "//*[self::p or self::blockquote]"
                 ]);
+            }
+
+            if (articleNodes.Count == 0 &&
+                AllowsLeadOnlyContent &&
+                string.IsNullOrWhiteSpace(leadText))
+            {
+                var descriptionNode = SelectSingleNode(html,
+                [
+                    "//meta[@property='og:description']",
+                    "//meta[@name='description']"
+                ]);
+                leadText = descriptionNode != null ? ExtractNodeText(descriptionNode) + " " : string.Empty;
             }
 
             if (!articleNodes.Any() &&

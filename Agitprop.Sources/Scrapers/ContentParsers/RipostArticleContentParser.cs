@@ -12,7 +12,12 @@ internal class RipostArticleContentParser : BaseArticleContentParser
         "//h1",
         "//meta[@property='og:title']"
     };
-    protected override List<string> LeadXPaths => new List<string> { "//div[@class='article-page-lead']", "//p[contains(@class, 'article-lead')]" };
+    protected override List<string> LeadXPaths => new List<string>
+    {
+        "//div[@class='article-page-lead']",
+        "//p[contains(@class, 'article-lead')]"
+    };
     protected override List<string> ArticleXPaths => new List<string> { "//app-wysiwyg-box" };
     protected override SourceId SourceSite => RipostSource.SiteId;
+    protected override bool AllowsLeadOnlyContent => true;
 }

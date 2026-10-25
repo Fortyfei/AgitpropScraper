@@ -12,7 +12,11 @@ internal class MagyarNemzetArticleContentParser : BaseArticleContentParser
         "//h1",
         "//meta[@property='og:title']"
     };
-    protected override List<string> LeadXPaths => new List<string> { "//h2[@class='lead']", "//meta[@name='description']" };
+    protected override List<string> LeadXPaths => new List<string>
+    {
+        "//h2[@class='lead']",
+        "//meta[@name='description']"
+    };
     protected override List<string> ArticleXPaths => new List<string>
     {
         "//script[@class='structured-data' and contains(text(), '\"articleBody\"')]",
@@ -20,4 +24,5 @@ internal class MagyarNemzetArticleContentParser : BaseArticleContentParser
         "//div[contains(@class, 'article-text-formatter')]//*[self::p or self::blockquote]"
     };
     protected override SourceId SourceSite => MagyarNemzetSource.SiteId;
+    protected override bool AllowsLeadOnlyContent => true;
 }

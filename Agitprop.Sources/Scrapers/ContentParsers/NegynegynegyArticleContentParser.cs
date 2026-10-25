@@ -14,4 +14,5 @@ internal class NegynegynegyArticleContentParser : BaseArticleContentParser
     protected override List<string> LeadXPaths => new List<string> { };
     protected override List<string> ArticleXPaths => new List<string> { "/html/body/div[1]/div[1]/div[4]/div[2]/div/div[3]//p","/html/body/div[1]/div[1]/div[5]/div[2]/div/div[3]//p" };
     protected override SourceId SourceSite => NegyNegyNegySource.SiteId;
+    protected override bool AllowsLeadOnlyContent => true;
 }

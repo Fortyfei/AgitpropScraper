@@ -66,6 +66,61 @@ public class ContentParserOfflineTests
     }
 
     [Test]
+    public async Task IndexParser_UsesPublishedTimeInsteadOfStaleUpdatedTime()
+    {
+        const string html = """
+            <meta property="og:updated_time" content="1970-01-01T01:00:00+01:00">
+            <meta property="article:published_time" content="2026-10-24T11:43:00Z">
+            <h1>Index article title</h1>
+            <div class="cikk-torzs"><p>Index article text.</p></div>
+            """;
+
+        var parser = TestCaseFactory.GetSource("Index").CreateContentParser();
+        var result = await parser.ParseContentAsync(html);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.PublishDate, Is.EqualTo(new DateTime(2026, 10, 24, 11, 43, 0, DateTimeKind.Utc)));
+            Assert.That(result.Title, Is.EqualTo("Index article title"));
+            Assert.That(result.Text, Is.EqualTo("Index article title Index article text."));
+        });
+    }
+
+    [Test]
+    public async Task IndexParser_ExcludesPublisherPromotionsAndScriptsFromArticleText()
+    {
+        const string html = """
+            <meta property="article:published_time" content="2026-10-24T11:43:00Z">
+            <h1>Article title</h1>
+            <div class="cikk-torzs">
+                <p>The article discusses Index's reporting on this issue.</p>
+                <a class="google-pref-banner">Put Index at the top of Google results.</a>
+                <script>const publisher = "Index";</script>
+                <style>.publisher::after { content: "Index"; }</style>
+                <div class="miniapp microsite">
+                    <script>const zone = "Index_Belfold_Layer";</script>
+                </div>
+                <div class="miniapp szerkfotoimage">
+                    <p>Photo caption: Neville Chamberlain.</p>
+                </div>
+                <div class="social-stripe cikk-bottom-box">
+                    <p>Follow Index on Facebook.</p>
+                </div>
+                <div class="pp-list">More from Index.</div>
+                <div class="cikk-bottom-text-ad">Promotional content.</div>
+            </div>
+            """;
+
+        var parser = TestCaseFactory.GetSource("Index").CreateContentParser();
+        var result = await parser.ParseContentAsync(html);
+
+        Assert.That(
+            result.Text,
+            Is.EqualTo(
+                "Article title The article discusses Index's reporting on this issue. Photo caption: Neville Chamberlain."));
+    }
+
+    [Test]
     public async Task OrigoParser_UsesStructuredDataForDateAndArticleBody()
     {
         const string html = """
@@ -83,6 +138,57 @@ public class ContentParserOfflineTests
             Assert.That(result.PublishDate, Is.EqualTo(new DateTime(2026, 10, 19, 8, 50, 47, DateTimeKind.Utc)));
             Assert.That(result.Title, Is.EqualTo("Origo article title"));
             Assert.That(result.Text, Is.EqualTo("Origo article title First paragraph. Second paragraph."));
+        });
+    }
+
+    [Test]
+    public async Task OrigoParser_ParsesParagraphsFromBlockContent()
+    {
+        const string html = """
+            <meta property="article:published_time" content="2026-10-24T20:22:00+02:00">
+            <h1 class="article-title">Origo article title</h1>
+            <div class="article-lead">Article summary.</div>
+            <div class="block-content">
+                <p>First article paragraph.</p>
+                <figure class="image"></figure>
+                <p>Second article paragraph.</p>
+            </div>
+            """;
+
+        var parser = TestCaseFactory.GetSource("Origo").CreateContentParser();
+        var result = await parser.ParseContentAsync(html);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Title, Is.EqualTo("Origo article title"));
+            Assert.That(result.Text, Is.EqualTo(
+                "Origo article title Article summary. First article paragraph. Second article paragraph."));
+        });
+    }
+
+    [TestCase("Origo")]
+    [TestCase("MagyarNemzet")]
+    [TestCase("NegyNegyNegy")]
+    [TestCase("Metropol")]
+    [TestCase("Ripost")]
+    public async Task SiteParsers_UseArticleDescriptionWhenBodyIsUnavailable(string site)
+    {
+        const string html = """
+            <meta property="article:published_time" content="2026-10-24T20:22:00+02:00">
+            <meta property="og:title" content="Article title">
+            <meta property="og:description" content="A useful article summary.">
+            <div class="adult-wrapper">
+                <p class="adult-text">This content requires age confirmation.</p>
+            </div>
+            """;
+
+        var parser = TestCaseFactory.GetSource(site).CreateContentParser();
+        var result = await parser.ParseContentAsync(html);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Title, Is.EqualTo("Article title"));
+            Assert.That(result.Text, Is.EqualTo("Article title A useful article summary."));
         });
     }
 
