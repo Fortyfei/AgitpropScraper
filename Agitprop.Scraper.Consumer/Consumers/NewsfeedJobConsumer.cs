@@ -28,6 +28,9 @@ namespace Agitprop.Scraper.Consumer.Consumers
         private static readonly Counter<long> _jobsCompleted = _meter.CreateCounter<long>(
             "newsfeed.jobs.completed",
             description: "Total newsfeed jobs completed successfully");
+        private static readonly Counter<long> _jobsSkipped = _meter.CreateCounter<long>(
+            "newsfeed.jobs.skipped",
+            description: "Total unsupported or non-article newsfeed jobs skipped");
         private static readonly Counter<long> _jobFailures = _meter.CreateCounter<long>(
             "newsfeed.job.failures",
             description: "Total failed newsfeed scraping jobs grouped by job type and handling outcome");
@@ -75,20 +78,40 @@ namespace Agitprop.Scraper.Consumer.Consumers
 
             try
             {
+                if (!NewsfeedJobEligibility.ShouldProcess(descriptor, _pipeline.Sources))
+                {
+                    outcome = "skipped";
+                    _jobsSkipped.Add(1, new KeyValuePair<string, object?>("job_type", jobType));
+                    _logger.LogWarning("Skipping unsupported newsfeed job for {Url}", safeUrl);
+                    activity?.SetStatus(ActivityStatusCode.Ok, "Unsupported job skipped");
+                    return;
+                }
+
                 var newJobs = await _pipeline.CrawlAsync(descriptor, cancellationToken: context.CancellationToken);
 
                 _logger.LogInformation("Newsfeed job completed for {Url}; discovered {Count} jobs",
                     safeUrl, newJobs.Count);
 
-                if (newJobs.Count > 0)
+                var eligibleJobs = newJobs
+                    .Where(job => NewsfeedJobEligibility.ShouldProcess(job, _pipeline.Sources))
+                    .ToList();
+                var skippedJobs = newJobs.Count - eligibleJobs.Count;
+                if (skippedJobs > 0)
+                {
+                    _logger.LogWarning("Skipped {Count} unsupported or non-article jobs discovered from {Url}",
+                        skippedJobs, safeUrl);
+                    _jobsSkipped.Add(skippedJobs, new KeyValuePair<string, object?>("job_type", jobType));
+                }
+
+                if (eligibleJobs.Count > 0)
                 {
                     using var publishActivity = _activitySource.StartActivity("PublishNewJobs", ActivityKind.Producer);
-                    publishActivity?.SetTag("publish.jobs.count", newJobs.Count);
+                    publishActivity?.SetTag("publish.jobs.count", eligibleJobs.Count);
                     try
                     {
-                        await context.PublishBatch(newJobs);
+                        await context.PublishBatch(eligibleJobs);
                         _logger.LogDebug("Published {Count} new jobs from {Url}",
-                            newJobs.Count, safeUrl);
+                            eligibleJobs.Count, safeUrl);
                         publishActivity?.SetStatus(ActivityStatusCode.Ok);
                     }
                     catch (Exception ex)

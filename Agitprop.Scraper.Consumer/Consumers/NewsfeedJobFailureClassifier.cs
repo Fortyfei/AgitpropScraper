@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Data.Common;
 using System.Threading;
 using Agitprop.Core.Exceptions;
 using System.Net.Http;
@@ -15,6 +17,17 @@ internal enum NewsfeedJobFailureKind
 
 internal static class NewsfeedJobFailureClassifier
 {
+    private static readonly HashSet<string> TransientDatabaseSqlStates = new(StringComparer.Ordinal)
+    {
+        "40001",
+        "40P01",
+        "53300",
+        "55P03",
+        "57P01",
+        "57P02",
+        "57P03"
+    };
+
     internal static bool ShouldRetry(Exception exception)
     {
         var cancellationToken = exception is OperationCanceledException cancellationException
@@ -47,6 +60,36 @@ internal static class NewsfeedJobFailureClassifier
             return NewsfeedJobFailureKind.Transient;
         }
 
+        var databaseFailure = ClassifyDatabaseFailure(exception);
+        if (databaseFailure.HasValue)
+        {
+            return databaseFailure.Value;
+        }
+
         return NewsfeedJobFailureKind.Unknown;
+    }
+
+    private static NewsfeedJobFailureKind? ClassifyDatabaseFailure(Exception exception)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is not DbException { SqlState: { } sqlState })
+            {
+                continue;
+            }
+
+            if (TransientDatabaseSqlStates.Contains(sqlState) ||
+                sqlState.StartsWith("08", StringComparison.Ordinal))
+            {
+                return NewsfeedJobFailureKind.Transient;
+            }
+
+            if (sqlState.StartsWith("23", StringComparison.Ordinal))
+            {
+                return NewsfeedJobFailureKind.Permanent;
+            }
+        }
+
+        return null;
     }
 }

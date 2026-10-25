@@ -48,7 +48,18 @@ All extend the abstract `BaseArticleContentParser : IContentParser`.
 - Abstract properties: `DateXPaths`, `TitleXPaths`, `LeadXPaths`,
   `ArticleXPaths` (lists of XPath strings for fallback extraction).
 - `SourceSite` (abstract `SourceId`).
-- Handles JSON-LD `articleBody` and `"key":"text"` / `"value"` script patterns.
+- Falls back to common published-time metadata and JSON-LD `datePublished`,
+  `og:title`, article-body containers, and JSON-LD `articleBody` when a site's
+  primary selectors do not match.
+- Index uses its `i:publication` date metadata when `article:published_time`
+  is unavailable, parsing the numeric Hungarian date without shifting its day.
+- The Index parser excludes scripts/styles, the Google preference banner,
+  social/footer widgets, microsite ad blocks, and related-post lists from the
+  text sent to entity recognition, while retaining article image captions.
+- Origo article paragraphs can come from `.block-content`; selected sources
+  fall back to `og:description` when the page exposes no article body, such as
+  an age-confirmation screen or a video-only article.
+- Handles `"key":"text"` / `"value"` script patterns.
 - Uses HtmlAgilityPack `HtmlDocument`.
 
 ### Paginators & Link Parsers
@@ -66,6 +77,10 @@ All extend the abstract `BaseArticleContentParser : IContentParser`.
 | `EntityRepository.cs` | Implements `IEntityRepository` — entity browse/mentions/pagination |
 | `TrendingRepository.cs` | Implements `ITrendingRepository` — trending entities |
 | `Mappers.cs` | Maps DB models ↔ domain models |
+
+`NewsfeedDB` treats a concurrent duplicate insert on the `IX_articles_Url`
+constraint as an already-persisted article. Other database failures continue to
+propagate for retry/error handling.
 
 ### Other Key Files
 
