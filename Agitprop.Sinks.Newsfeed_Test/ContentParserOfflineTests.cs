@@ -87,6 +87,26 @@ public class ContentParserOfflineTests
     }
 
     [Test]
+    public async Task IndexParser_UsesPublicationDateWhenPublishedTimeIsUnavailable()
+    {
+        const string html = """
+            <meta name="i:publication" content="2026. 10. 25.">
+            <h1>Index article title</h1>
+            <div class="cikk-torzs"><p>Index article text.</p></div>
+            """;
+
+        var parser = TestCaseFactory.GetSource("Index").CreateContentParser();
+        var result = await parser.ParseContentAsync(html);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.PublishDate.Date, Is.EqualTo(new DateTime(2026, 10, 25)));
+            Assert.That(result.Title, Is.EqualTo("Index article title"));
+            Assert.That(result.Text, Is.EqualTo("Index article title Index article text."));
+        });
+    }
+
+    [Test]
     public async Task IndexParser_ExcludesPublisherPromotionsAndScriptsFromArticleText()
     {
         const string html = """

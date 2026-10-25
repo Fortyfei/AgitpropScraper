@@ -51,6 +51,8 @@ All extend the abstract `BaseArticleContentParser : IContentParser`.
 - Falls back to common published-time metadata and JSON-LD `datePublished`,
   `og:title`, article-body containers, and JSON-LD `articleBody` when a site's
   primary selectors do not match.
+- Index uses its `i:publication` date metadata when `article:published_time`
+  is unavailable, parsing the numeric Hungarian date without shifting its day.
 - The Index parser excludes scripts/styles, the Google preference banner,
   social/footer widgets, microsite ad blocks, and related-post lists from the
   text sent to entity recognition, while retaining article image captions.

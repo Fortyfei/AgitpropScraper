@@ -152,20 +152,30 @@ internal abstract class BaseArticleContentParser : IContentParser
     }
 
     private static bool TryParseDateString(string dateText, out DateTime date)
+    {
+        if (DateTime.TryParseExact(
+            dateText,
+            ["yyyy. MM. dd.", "yyyy. M. d."],
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AllowWhiteSpaces,
+            out date))
         {
-            var styles = DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.AssumeLocal;
-            if (DateTime.TryParse(dateText, CultureInfo.InvariantCulture, styles, out date))
-            {
-                return true;
-            }
-
-            if (DateTime.TryParse(dateText, new CultureInfo("hu-HU"), styles, out date))
-            {
-                return true;
-            }
-
-            return false;
+            return true;
         }
+
+        var styles = DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.AssumeLocal;
+        if (DateTime.TryParse(dateText, CultureInfo.InvariantCulture, styles, out date))
+        {
+            return true;
+        }
+
+        if (DateTime.TryParse(dateText, new CultureInfo("hu-HU"), styles, out date))
+        {
+            return true;
+        }
+
+        return false;
+    }
 
     private static bool TryExtractDate(HtmlNode node, out DateTime date)
     {

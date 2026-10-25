@@ -4,7 +4,11 @@ namespace Agitprop.Sources.Scrapers.ContentParsers;
 
 internal class IndexArticleContentParser : BaseArticleContentParser
 {
-    protected override List<string> DateXPaths => new List<string> { "//meta[@property='article:published_time']" };
+    protected override List<string> DateXPaths => new List<string>
+    {
+        "//meta[@property='article:published_time']",
+        "//meta[@name='i:publication']"
+    };
     protected override List<string> TitleXPaths => new List<string>
     {
         "//div[@class='content-title']",
