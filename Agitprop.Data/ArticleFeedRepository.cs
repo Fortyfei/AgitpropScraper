@@ -97,18 +97,6 @@ public class ArticleFeedRepository : IArticleFeedRepository
         return days;
     }
 
-    public IReadOnlyList<PublisherFirstSeen> GetPublisherFirstSeen(string entityId, DateOnly startDate, DateOnly endDate)
-    {
-        return BuildQuery(startDate, endDate, entityId, null)
-            .Select(article => new { article.Url, article.PublishedTime })
-            .ToList()
-            .GroupBy(article => EntityRepository.NormalizeDomain(article.Url), StringComparer.OrdinalIgnoreCase)
-            .Select(group => new PublisherFirstSeen(group.Key, group.Min(article => article.PublishedTime), group.Count()))
-            .OrderBy(publisher => publisher.FirstPublished)
-            .ThenBy(publisher => publisher.Domain, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-    }
-
     private IQueryable<PostgresArticle> BuildQuery(DateOnly startDate, DateOnly endDate, string? entityId, string? domain)
     {
         var from = DateTime.SpecifyKind(startDate.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);

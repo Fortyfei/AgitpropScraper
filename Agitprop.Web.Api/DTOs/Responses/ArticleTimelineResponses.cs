@@ -36,15 +36,3 @@ public sealed class DailyCountsResponse
 {
     public List<DailyCountItem> Days { get; set; } = [];
 }
-
-public sealed class FirstPublisherItem
-{
-    public string Domain { get; set; } = string.Empty;
-    public DateTime FirstPublished { get; set; }
-    public int ArticleCount { get; set; }
-}
-
-public sealed class FirstPublishersResponse
-{
-    public List<FirstPublisherItem> Publishers { get; set; } = [];
-}

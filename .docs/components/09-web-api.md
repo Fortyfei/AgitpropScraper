@@ -61,12 +61,10 @@ entity analytics data to the Blazor client and external consumers.
 |----------|--------|--------------|---------|
 | `GetFeed` | GET `feed` | from, to, entityId, domain, search, page, pageSize (max 100) | `ArticleFeedResponse` (newest first) |
 | `GetDailyCounts` | GET `daily` | from, to, entityId, domain | `DailyCountsResponse` (zero-filled days, `isSpike` flag) |
-| `GetFirstPublishers` | GET `first-publishers` | from, to, entityId | `FirstPublishersResponse` (publishers by earliest stored article) |
 
 A day is a spike when it has at least 3 articles and sits more than two
 standard deviations above the window average; windows under 5 days are never
-flagged (`SpikeDetector`). Publisher order reflects `PublishedTime` only, since
-ingestion time is not stored.
+flagged (`SpikeDetector`).
 
 ## DI Registration (Program.cs)
 

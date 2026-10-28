@@ -9,7 +9,5 @@ namespace Agitprop.Core.Interfaces
 
         IReadOnlyList<DailyArticleCount> GetDailyArticleCounts(
             DateOnly from, DateOnly to, string? entityId, string? domain);
-
-        IReadOnlyList<PublisherFirstSeen> GetPublisherFirstSeen(string entityId, DateOnly from, DateOnly to);
     }
 }
