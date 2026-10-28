@@ -14,8 +14,6 @@ public sealed record ArticleFeedPage(IReadOnlyList<ArticleFeedItem> Items, int T
 
 public sealed record DailyArticleCount(DateOnly Date, int Count, bool IsSpike = false);
 
-public sealed record PublisherFirstSeen(string Domain, DateTime FirstPublished, int ArticleCount);
-
 public static class SpikeDetector
 {
     private const int MinimumDays = 5;

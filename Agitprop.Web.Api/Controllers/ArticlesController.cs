@@ -125,54 +125,6 @@ public class ArticlesController : ControllerBase
         }
     }
 
-    [HttpGet("first-publishers")]
-    public ActionResult<FirstPublishersResponse> GetFirstPublishers(
-        [FromQuery] DateOnly from,
-        [FromQuery] DateOnly to,
-        [FromQuery] string? entityId)
-    {
-        using var activity = _activitySource.StartActivity("GetFirstPublishers", ActivityKind.Internal);
-        activity?.SetTag("api.operation", "articles.first_publishers");
-
-        if (string.IsNullOrWhiteSpace(entityId))
-            return BadRequest(new { error = "An entity id is required." });
-
-        if (ValidateRange(from, to, entityId) is { } invalid)
-            return invalid;
-
-        var cacheKey = $"articles-first-publishers:{from:yyyy-MM-dd}:{to:yyyy-MM-dd}:{entityId}";
-        if (_cache.TryGetValue(cacheKey, out FirstPublishersResponse? cached) && cached is not null)
-        {
-            ApiMetrics.RecordCacheResult(activity, "articles.first_publishers", "hit");
-            return Ok(cached);
-        }
-        ApiMetrics.RecordCacheResult(activity, "articles.first_publishers", "miss");
-
-        try
-        {
-            var response = new FirstPublishersResponse
-            {
-                Publishers = _repository.GetPublisherFirstSeen(entityId, from, to)
-                    .Select(item => new FirstPublisherItem
-                    {
-                        Domain = item.Domain,
-                        FirstPublished = item.FirstPublished,
-                        ArticleCount = item.ArticleCount
-                    }).ToList()
-            };
-
-            _cache.Set(cacheKey, response, CacheDuration);
-            activity?.SetStatus(ActivityStatusCode.Ok);
-            return Ok(response);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error retrieving first publishers for {EntityId}", entityId);
-            activity?.SetStatus(ActivityStatusCode.Error, ex.GetType().Name);
-            return StatusCode(500, new { error = "Failed to retrieve first publishers." });
-        }
-    }
-
     private BadRequestObjectResult? ValidateRange(DateOnly from, DateOnly to, string? entityId)
     {
         if (from == default || to == default)

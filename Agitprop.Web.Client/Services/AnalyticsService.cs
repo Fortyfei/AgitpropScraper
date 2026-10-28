@@ -175,18 +175,6 @@ public class AnalyticsService
         }).ToList();
     }
 
-    public async Task<List<FirstPublisher>?> GetFirstPublishersAsync(string entityId, DateOnly from, DateOnly to)
-    {
-        var endpoint = $"api/articles/first-publishers?from={ToQueryDate(from)}&to={ToQueryDate(to)}&entityId={Uri.EscapeDataString(entityId)}";
-        var response = await TryGetAsync<FirstPublishersResponseDto>(endpoint);
-        return response?.Publishers.Select(publisher => new FirstPublisher
-        {
-            Domain = publisher.Domain,
-            FirstPublished = publisher.FirstPublished,
-            ArticleCount = publisher.ArticleCount
-        }).ToList();
-    }
-
     private static string FilterQuery(string? entityId, string? domain)
     {
         var query = string.Empty;
@@ -411,18 +399,6 @@ public class AnalyticsService
         public DateOnly Date { get; set; }
         public int Count { get; set; }
         public bool IsSpike { get; set; }
-    }
-
-    private sealed class FirstPublishersResponseDto
-    {
-        public List<FirstPublisherDto> Publishers { get; set; } = [];
-    }
-
-    private sealed class FirstPublisherDto
-    {
-        public string Domain { get; set; } = string.Empty;
-        public DateTime FirstPublished { get; set; }
-        public int ArticleCount { get; set; }
     }
 
     private sealed class EntitiesTimelineResponseDto

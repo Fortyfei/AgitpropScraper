@@ -44,7 +44,6 @@ public sealed class ArticleTimelineTests
             Assert.That(controller.GetFeed(default, from, null, null, null).Result, Is.TypeOf<BadRequestObjectResult>());
             Assert.That(controller.GetFeed(from, from.AddDays(400), null, null, null).Result, Is.TypeOf<BadRequestObjectResult>());
             Assert.That(controller.GetFeed(from, from, "not-a-guid", null, null).Result, Is.TypeOf<BadRequestObjectResult>());
-            Assert.That(controller.GetFirstPublishers(from, from, null).Result, Is.TypeOf<BadRequestObjectResult>());
             Assert.That(repository.Calls, Is.EqualTo(0));
         });
     }
@@ -88,10 +87,5 @@ public sealed class ArticleTimelineTests
             return Days(2, 3, 2, 3, 2, 3, 2, 3, 2, 20);
         }
 
-        public IReadOnlyList<PublisherFirstSeen> GetPublisherFirstSeen(string entityId, DateOnly from, DateOnly to)
-        {
-            Calls++;
-            return [];
-        }
     }
 }

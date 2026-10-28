@@ -16,8 +16,8 @@ WebAssembly render modes.
   bottom tab bar on narrow screens.
 - Dashboard and entity timeline charts, a top-sources donut chart, and an
   entity mention-count bar chart.
-- Entity detail pages include ranked co-mentions and a "who published first"
-  ranking; the Sources page includes a publisher-by-entity coverage matrix.
+- Entity detail pages include ranked co-mentions; the Sources page includes a
+  publisher-by-entity coverage matrix.
 - The Timeline page (`/timeline`) shows a clickable articles-per-day strip with
   spike days highlighted above a day-grouped article feed. The feed filters by
   publisher, entity and headline search; clicking a publisher or entity on an

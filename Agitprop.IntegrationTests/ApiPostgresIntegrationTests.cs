@@ -149,19 +149,6 @@ public class ApiPostgresIntegrationTests
         Assert.That(counts, Is.EqualTo(new[] { 0, 1, 1, 1, 1, 0 }));
     }
 
-    [Test]
-    public async Task FirstPublishers_RanksPublishersByEarliestArticle()
-    {
-        var result = await GetJsonAsync($"/api/articles/first-publishers?from=2026-01-01&to=2026-01-31&entityId={_entityId}");
-        var publishers = result.GetProperty("publishers");
-        Assert.Multiple(() =>
-        {
-            Assert.That(publishers[0].GetProperty("domain").GetString(), Is.EqualTo("integration.test"));
-            Assert.That(publishers[0].GetProperty("articleCount").GetInt32(), Is.EqualTo(3));
-            Assert.That(publishers[1].GetProperty("domain").GetString(), Is.EqualTo("publisher-two.test"));
-        });
-    }
-
     private async Task<JsonElement> GetJsonAsync(string url)
     {
         using var response = await _client!.GetAsync(url);
