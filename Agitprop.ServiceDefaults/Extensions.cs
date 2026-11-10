@@ -70,8 +70,7 @@ public static class Extensions
                        "Agitprop.NewsfeedJobConsumer",
                        "Agitprop.RssFeedReader",
                        "Agitprop.RespectfulPageRequester",
-                       "Agitprop.Web.Api",
-                       "MassTransit");
+                       "Agitprop.Web.Api");
         })
         .WithTracing(builder =>
         {
@@ -97,8 +96,7 @@ public static class Extensions
                        "Agitprop.Repository.TrendingRepository",
                        "Npgsql",
                        "Agitprop.Web.Api.Controllers.EntitiesController",
-                       "Agitprop.Web.Api.Controllers.ActivitiesController",
-                       "MassTransit");
+                       "Agitprop.Web.Api.Controllers.ActivitiesController");
         });
 
         builder.AddOpenTelemetryExporters();

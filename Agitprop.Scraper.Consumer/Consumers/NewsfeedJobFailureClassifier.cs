@@ -15,6 +15,28 @@ internal enum NewsfeedJobFailureKind
     Unknown
 }
 
+internal static class NewsfeedJobRetryPolicy
+{
+    private static readonly TimeSpan[] RetryIntervals =
+    {
+        TimeSpan.FromSeconds(1),
+        TimeSpan.FromSeconds(2),
+        TimeSpan.FromSeconds(5)
+    };
+
+    internal static TimeSpan? GetRetryDelay(int readCount, NewsfeedJobFailureKind failureKind)
+    {
+        if (failureKind != NewsfeedJobFailureKind.Transient ||
+            readCount < 1 ||
+            readCount > RetryIntervals.Length)
+        {
+            return null;
+        }
+
+        return RetryIntervals[readCount - 1];
+    }
+}
+
 internal static class NewsfeedJobFailureClassifier
 {
     private static readonly HashSet<string> TransientDatabaseSqlStates = new(StringComparer.Ordinal)

@@ -22,6 +22,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Agitprop.Testing.AppHost\Agitprop.Testing.AppHost.csproj" />
     <ProjectReference Include="..\Agitprop.Data\Agitprop.Data.csproj" />
+    <ProjectReference Include="..\Agitprop.Messaging\Agitprop.Messaging.csproj" />
   </ItemGroup>
 
   <ItemGroup>

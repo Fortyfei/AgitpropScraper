@@ -2,14 +2,14 @@
 
 ## Purpose
 
-The **MassTransit consumer service** that processes scraping jobs from the
-RabbitMQ queue. This is the core orchestration layer that ties together the
+The **PostgreSQL queue worker** that processes scraping jobs from the
+`newsfeed_job` PGMQ queue. This is the core orchestration layer that ties together the
 Spider, parsers, in-process NLP library, and the Newsfeed sink.
 
 ## Responsibilities
 
-1. **Message consumption** — consumes `ScrapingJobDescription` messages from
-   the RabbitMQ queue (via `NewsfeedJobConsumer` + `NewsfeedJobConsumerDefinition`).
+1. **Message consumption** — claims `NewsfeedJobDescrpition` messages using
+   PGMQ visibility timeouts, then acknowledges successful jobs.
 2. **Job building** — `INewsfeedPipeline` resolves the site's `INewsfeedSource`
    by host and builds the `ScrapingJob` (parsers, link parsers, paginator).
 3. **Crawling** — the pipeline calls `ISpider.CrawlAsync()` and returns discovered jobs.
@@ -22,35 +22,34 @@ Spider, parsers, in-process NLP library, and the Newsfeed sink.
 
 ## Startup Validation
 
-Requires two connection strings; throws `InvalidOperationException` if missing:
+Requires the PostgreSQL connection string; throws `InvalidOperationException` if missing:
 
 - `ConnectionStrings:newsfeed` (PostgreSQL)
-- `ConnectionStrings:messaging` (RabbitMQ AMQP)
 
 ## Key Files
 
 | File | Purpose |
 |------|---------|
-| `Program.cs` | Host setup: AddServiceDefaults, ConfigureInfrastructureWithBrowser(false), ConfigureMassTransit, AddNewsfeedSink |
-| `Extensions.cs` | `ConfigureMassTransit` |
-| `Consumers/NewsfeedJobConsumer.cs` | The MassTransit consumer implementation |
-| `Consumers/NewsfeedJobConsumerDefinition.cs` | Queue/concurrency configuration |
+| `Program.cs` | Host setup: AddServiceDefaults, ConfigureInfrastructureWithBrowser(false), ConfigurePgmq, AddNewsfeedSink |
+| `Extensions.cs` | `ConfigurePgmq` |
+| `Consumers/NewsfeedJobConsumer.cs` | Scrape job processor |
+| `Consumers/NewsfeedJobQueueWorker.cs` | PGMQ polling, retry, acknowledgement, and failed-queue handling |
 
-## DI Registration (Extensions.cs)
+## Queue Registration (Extensions.cs)
 
-### ConfigureMassTransit
+### ConfigurePgmq
 
-- `SetKebabCaseEndpointNameFormatter` for endpoint naming.
-- `SetInMemorySagaRepositoryProvider`.
-- Registers `NewsfeedJobConsumer` + `NewsfeedJobConsumerDefinition`.
-- RabbitMQ host from connection string.
-- Clear serialization + AddRawJsonSerializer; ConfigureEndpoints.
+- Registers the shared `IPgmqClient` using `ConnectionStrings:newsfeed`.
+- Registers the worker and scoped job processor.
+- Creates the PGMQ extension and `newsfeed_job` / `newsfeed_job_error` queues at startup.
+- The worker polls in batches up to `ConcurrencyLimit`, starts with a 120-second visibility timeout,
+  and extends the lease every 30 seconds while a job is being processed.
 
 ### Telemetry collection
 
-- The shared service defaults collect the consumer and MassTransit ActivitySource
-  and Meter, correlating broker spans with the scraper work and exporting them
-  through OTLP when configured.
+- The shared service defaults collect the consumer ActivitySource and Meter,
+  correlating queue processing with scraper work and exporting it through OTLP
+  when configured.
 - Consumer metrics report job counts, outcome, and duration with bounded
   job-type/handling tags, including a dedicated discovered-job publish failure
   counter and a skipped-job counter. They do not include URLs, exception
@@ -64,20 +63,23 @@ logs/spans omit query strings and fragments. EF Core spans provide query
 timings without SQL text or parameter values. Unsupported hosts, invalid URL
 schemes, and article asset URLs are logged and acknowledged without crawling;
 the same eligibility check filters discovered jobs before publication.
-Propagated failures are measured and passed to MassTransit retry/error handling.
+Propagated failures are measured and passed to the PGMQ retry/error handling.
+The consumer span includes visibility renewals and message acknowledgement or
+retry/error routing. Routine queue polling is excluded from OpenTelemetry traces
+to avoid standalone database spans; polling failures are logged and recorded as
+worker error spans.
 
 ## Configuration
 
-- MassTransit: `ConnectionStrings:messaging` → RabbitMQ AMQP
-- Database: `ConnectionStrings:newsfeed` → PostgreSQL
+- Queue and database: `ConnectionStrings:newsfeed` → PostgreSQL with PGMQ enabled
 - NLP model directory: `NLP__ModelDirectory` (defaults to `ner-model` beside the binaries)
 - The model provisioner downloads pinned assets on first use and verifies their
   SHA-256 hashes. A pre-provisioned model directory can be used for offline startup.
 
 ## Retry behavior
 
-The endpoint retries classified transient transport and database failures
-after 500 ms, 2 seconds, and 5 seconds. Permanent and unknown failures, as well
-as requested cancellations, are not retried. After all retries are exhausted,
-MassTransit moves the failed message to its error queue for the CLI `retry`
-command to requeue.
+The worker retries classified transient transport and database failures after
+1, 2, and 5 seconds (PGMQ delays have whole-second precision). Permanent and
+unknown failures are moved to `newsfeed_job_error`; requested cancellations are
+left unacknowledged so PGMQ makes them visible again after the visibility timeout.
+The CLI `retry` command moves failed messages back to the main queue.

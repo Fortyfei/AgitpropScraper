@@ -13,15 +13,10 @@ internal class Program
         var compose = builder.AddDockerComposeEnvironment("agitprop")
                              .WithDashboard(d => d.WithHostPort(18888));
 
-        var messaging = builder.AddRabbitMQ("messaging")
-                               .WithManagementPlugin(15672)
-                               .WithExternalHttpEndpoints()
-                            //    .WithDataVolume()
-                               .WithLifetime(ContainerLifetime.Persistent)
-                               .WithOtlpExporter();
-
         var postgres = builder.AddPostgres("postgres")
-                              .WithImageTag("17")
+                              .WithImageRegistry("ghcr.io")
+                              .WithImage("pgmq/pg17-pgmq")
+                              .WithImageTag("v1.13.1")
                               .WithDataVolume(isReadOnly: false)
                               .WithPgAdmin(pgAdmin => { pgAdmin.WithHostPort(5050); pgAdmin.WithImageTag("latest"); })
                               .WithEndpoint(scheme: "tcp", port: 5432, targetPort: 5432, isExternal: true)
@@ -33,15 +28,13 @@ internal class Program
         var consumer = builder.AddProject<Agitprop_Scraper_Consumer>("consumer")
                               .WaitFor(newsfeedDb)
                               .WithReference(newsfeedDb)
-                              .WaitFor(messaging)
-                              .WithReference(messaging)
                               .WithOtlpExporter()
                               .WithContainerRegistry(registry)
                               .WithEnvironmentAwareImagePush();
 
         var rssReader = builder.AddProject<Agitprop_Scraper_RssFeedReader>("rss-feed-reader")
-                               .WaitFor(messaging)
-                               .WithReference(messaging)
+                               .WaitFor(newsfeedDb)
+                               .WithReference(newsfeedDb)
                                .WaitFor(consumer)
                                .WithOtlpExporter()
                                .WithEnvironmentAwareImagePush();

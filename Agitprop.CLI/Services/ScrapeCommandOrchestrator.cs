@@ -15,17 +15,17 @@ namespace Agitprop.CLI.Services;
 
 public sealed class ScrapeCommandOrchestrator : IScrapeCommandOrchestrator
 {
-    private readonly IArticleJobPublisher _rabbitMqPublisher;
+    private readonly IArticleJobPublisher _pgmqPublisher;
     private readonly IArticleJobPublisher _noOpPublisher;
 
     public ScrapeCommandOrchestrator()
-        : this(new RabbitMqArticleJobPublisher(), new NoOpArticleJobPublisher())
+        : this(new PgmqArticleJobPublisher(), new NoOpArticleJobPublisher())
     {
     }
 
-    internal ScrapeCommandOrchestrator(IArticleJobPublisher rabbitMqPublisher, IArticleJobPublisher noOpPublisher)
+    internal ScrapeCommandOrchestrator(IArticleJobPublisher pgmqPublisher, IArticleJobPublisher noOpPublisher)
     {
-        _rabbitMqPublisher = rabbitMqPublisher;
+        _pgmqPublisher = pgmqPublisher;
         _noOpPublisher = noOpPublisher;
     }
 
@@ -55,13 +55,13 @@ public sealed class ScrapeCommandOrchestrator : IScrapeCommandOrchestrator
 
     public async Task<PublishExecutionResult> PublishArticlesAsync(PublishArticlesRequest request, CancellationToken cancellationToken = default)
     {
-        var publisher = request.IsPublishingEnabled ? _rabbitMqPublisher : _noOpPublisher;
+        var publisher = request.IsPublishingEnabled ? _pgmqPublisher : _noOpPublisher;
         return await publisher.PublishAsync(request, cancellationToken);
     }
 
     public async Task<RetryFailedFeedsExecutionResult> RetryFailedFeedsAsync(RetryFailedFeedsRequest request, CancellationToken cancellationToken = default)
     {
-        var publisher = request.IsRetryEnabled ? _rabbitMqPublisher : _noOpPublisher;
+        var publisher = request.IsRetryEnabled ? _pgmqPublisher : _noOpPublisher;
         return await publisher.RetryFailedFeedsAsync(request, cancellationToken);
     }
 

@@ -10,14 +10,14 @@ the system, plus a step-by-step runtime walkthrough.
 ```mermaid
 sequenceDiagram
     participant RSS as RssFeedReader (IHostedService)
-    participant MQ as RabbitMQ (MessageBroker)
+    participant DB as PostgreSQL + PGMQ
     participant CON as Consumer (NewsfeedJobConsumer)
 
     loop On interval (default 60 min)
         RSS->>RSS: Fetch RSS feeds (System.ServiceModel.Syndication)
         RSS->>RSS: Parse feeds → List<NewsfeedJobDescrpition>
-        RSS->>MQ: IPublishEndpoint.PublishBatch(jobs)
-        MQ-->>CON: Queue message delivered
+        RSS->>DB: SendBatchAsync(newsfeed_job, jobs)
+        DB-->>CON: read() claims visible jobs
     end
 ```
 
@@ -25,7 +25,7 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant MQ as RabbitMQ
+    participant MQ as PostgreSQL + PGMQ
     participant CON as NewsfeedJobConsumer
     participant FACT as ScrapingJobFactory
     participant SPIDER as Spider (ISpider)
@@ -33,7 +33,7 @@ sequenceDiagram
     participant BROWSER as Puppeteer (optional)
     participant HTTP as HttpStaticPageLoader
 
-    MQ->>CON: Job message delivered
+    MQ->>CON: read(newsfeed_job, vt) claims job
     CON->>FACT: GetArticleScrapingJob(source, url)
     FACT-->>CON: ScrapingJob (ContentParsers, LinkParsers, Paginator)
     CON->>SPIDER: CrawlAsync(job, sink, ct)
@@ -79,7 +79,7 @@ sequenceDiagram
     participant LINK as ILinkParser
     participant PAGINATOR as IPaginator
     participant CON as NewsfeedJobConsumer
-    participant MQ as RabbitMQ
+    participant MQ as PostgreSQL + PGMQ
 
     SPIDER->>SPIDER: ProcessPage(job, html)
     loop For each ILinkParser
@@ -89,7 +89,7 @@ sequenceDiagram
     SPIDER->>PAGINATOR: GetNextPageAsync(currentUrl, doc)
     PAGINATOR-->>SPIDER: next ScrapingJobDescription
     SPIDER-->>CON: return discovered jobs
-    CON->>MQ: PublishBatch(new jobs)
+    CON->>MQ: SendBatchAsync(newsfeed_job, new jobs)
 ```
 
 ## 5. In-Process NLP Pipeline
@@ -165,15 +165,15 @@ sequenceDiagram
     participant ORCH as ScrapeCommandOrchestrator
     participant RESOLVE as ArchiveCommandInputResolver
     participant PUBLISHER as IArticleJobPublisher
-    participant MQ as RabbitMQ
+    participant MQ as PostgreSQL + PGMQ
 
     CLI->>CLI: dotnet agitprop scrape-archive --date 2024-01-01
     CLI->>RESOLVE: Resolve(rawInput)
     RESOLVE-->>CLI: ArchiveCommandResolvedInput
     CLI->>ORCH: ScrapeArchiveAsync(resolved, ct)
     ORCH->>PUBLISHER: PublishAsync(articles, ct)
-    PUBLISHER->>MQ: PublishBatch(jobs)
-    MQ-->>PUBLISHER: ack
+    PUBLISHER->>MQ: SendBatchAsync(newsfeed_job, jobs)
+    MQ-->>PUBLISHER: message IDs
     PUBLISHER-->>ORCH: PublishExecutionResult
     ORCH-->>CLI: Console output (success/fail)
 ```
@@ -184,17 +184,15 @@ sequenceDiagram
 sequenceDiagram
     participant CLI as Agitprop.CLI (dotnet)
     participant ORCH as ScrapeCommandOrchestrator
-    participant PUBLISHER as IArticleJobPublisher (RabbitMqPublisher)
-    participant MQ as RabbitMQ (Error Queue)
-    participant TARGET as Target Queue
+    participant PUBLISHER as IArticleJobPublisher (PgmqArticleJobPublisher)
+    participant DB as PostgreSQL + PGMQ
 
-    CLI->>CLI: dotnet agitprop retry --connection <RabbitMQ-URI> --failed-queue errQueue --target-queue mainQueue --max 10
+    CLI->>CLI: dotnet agitprop retry --connection <PostgreSQL-connection-string> --failed-queue newsfeed_job_error --target-queue newsfeed_job --max 10
     CLI->>ORCH: RetryFailedFeedsAsync(request, ct)
     ORCH->>PUBLISHER: RetryFailedFeedsAsync(request, ct)
-    PUBLISHER->>MQ: Read failed messages (maxN)
-    MQ-->>PUBLISHER: messages
-    PUBLISHER->>TARGET: Republish to target queue
-    TARGET-->>MQ: ack
+    PUBLISHER->>DB: read(newsfeed_job_error)
+    DB-->>PUBLISHER: failed messages
+    PUBLISHER->>DB: send(target) + archive(source) in transaction
     PUBLISHER-->>ORCH: RetryFailedFeedsExecutionResult
     ORCH-->>CLI: Console summary (success/fail)
 ```
@@ -213,28 +211,26 @@ aspire start --apphost Agitprop.AppHost/Agitprop.AppHost.csproj
 2. Registers the container registry `ghcr.io/fortyfei/agitprop` (via `WithEnvironmentAwareImagePush`).
 3. Creates the docker-compose environment `agitprop` with:
    - **Dashboard** on `:18888`
-   - **RabbitMQ** (`messaging`) — mgmt `:15672`, AMQP `:5672`, OTLP
-   - **PostgreSQL** (`postgres`) — data volume, pgAdmin `:5050`, persistent lifetime, OTLP
+   - **PostgreSQL 17 + PGMQ** (`postgres`) — data volume, pgAdmin `:5050`, persistent lifetime, OTLP
    - **Database** `newsfeed` attached to PostgreSQL
    - **Consumer**, **RSS Feed Reader**, **Web API**, **Web Client** projects
 4. Each service waits only for its declared dependencies (see component table in architecture.md).
 
 ### Step 2: Service Startup Order
 
-1. **RabbitMQ** starts first (infrastructure).
-2. **PostgreSQL** + **Database** start next.
-3. **Consumer** waits for `newsfeedDb` and `messaging`, provisions or loads the Hungarian ONNX model, and registers MassTransit endpoints.
-4. **RSS Feed Reader** waits for `messaging` and `Consumer`. Registers as `IHostedService`.
+1. **PostgreSQL** + **Database** start first.
+2. **Consumer** waits for `newsfeedDb`, provisions or loads the Hungarian ONNX model, creates the PGMQ extension and queues, then starts its polling worker.
+3. **RSS Feed Reader** waits for `newsfeedDb` and `Consumer`. Registers as `IHostedService`.
 5. **Web API** waits for `newsfeedDb`. Applies migrations at startup when configured, then maps controllers.
 6. **Web Client** waits for backend (Web API). The Blazor host supports Interactive Server and WebAssembly rendering.
 
 ### Step 3: Runtime Operation
 
-1. **RSS Feed Reader** fetches feeds on interval → `IPublishEndpoint.PublishBatch`.
-2. **Consumer** consumes from queue → `ScrapingJobFactory.GetArticleScrapingJob` → `ISpider.CrawlAsync`.
+1. **RSS Feed Reader** fetches feeds on interval → `IPgmqClient.SendBatchAsync`.
+2. **Consumer** claims messages from `newsfeed_job` → `ScrapingJobFactory.GetArticleScrapingJob` → `ISpider.CrawlAsync`.
 3. **Spider** uses `IPageTransport.LoadAsync` → `HttpStaticPageLoader` (or `PuppeteerPageLoader` if browser mode).
 4. **BaseArticleContentParser** extracts date/title/lead/article via XPath fallback lists.
 5. **NewsfeedSink** calls the in-process `NamedEntityRecognizer`, then persists results to PostgreSQL via `AppDbContext.CreateMentionsAsync`.
 6. **NamedEntityRecognizer** runs the local ONNX NER model and returns a `NamedEntityCollection`.
 7. **Web API** serves entity browse/analytics from PostgreSQL (cached 15 min / 1 hour).
-8. **CLI** can re-queue failed messages via `retry` command.
+8. **CLI** can re-queue failed messages from `newsfeed_job_error` via the `retry` command.

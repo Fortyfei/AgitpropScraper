@@ -79,7 +79,7 @@ ingestion time is not stored.
 6. `AddCors()` — allows any origin/method/header.
 7. Applies EF migrations at startup.
 
-The API reads PostgreSQL only; RabbitMQ is not required for API startup.
+The API reads PostgreSQL application data only and does not access the PGMQ queue.
 
 ## DTOs (`DTOs/` folder)
 

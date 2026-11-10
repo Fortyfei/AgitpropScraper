@@ -9,7 +9,7 @@ consumer, RSS reader, Web API, and Web Client application processes. Each calls
 ## Responsibilities
 
 - **OpenTelemetry**: configures structured log export, HTTP/AspNetCore,
-  process/runtime, MassTransit, and Entity Framework Core instrumentation.
+  process/runtime, Npgsql, and Entity Framework Core instrumentation.
   Application-owned ActivitySources and Meters are registered centrally so
   traces and metrics work consistently in every service using these defaults.
 - **OTLP export**: enabled when `OTEL_EXPORTER_OTLP_ENDPOINT` is configured;
@@ -29,7 +29,7 @@ Keep these scopes distinct when changing retry behavior:
 | Direct page loading | `HttpStaticPageLoader` | `Retry:PageLoader` (3); retries exceptions and non-success responses |
 | Browser loading | Puppeteer page loaders | 3 retries for browser download and navigation; separately configurable per loader |
 | URL-existence checks, entity analysis and persistence | `NewsfeedSink` | `Retry:NewsfeedSink` (3) for each operation |
-| Message consumption | `NewsfeedJobConsumerDefinition` | 3 retries for classified transient transport and PostgreSQL failures, at 500 ms, 2 seconds, and 5 seconds |
+| Message consumption | PGMQ worker | 3 retries for classified transient transport and PostgreSQL failures, delayed by 1, 2, and 5 seconds |
 | Manual error recovery | CLI `retry` command | requeues messages; not an automatic retry policy |
 
 The direct `RespectfulPageRequester` constructs its own `HttpClient` and does
@@ -40,6 +40,7 @@ The local Polly policies share their retry count and delay implementation via
 `Agitprop.Infrastructure.RetryPolicyFactory`; their scope, triggers, and
 configuration keys remain owned by the calling component.
 
+PGMQ delay values are whole seconds, so the former 500 ms first retry is rounded to 1 second.
 The consumer classifies PostgreSQL connection failures (SQLSTATE class `08`)
 and selected transient states (`40001`, `40P01`, `53300`, `55P03`, and `57P01`
 through `57P03`) as retryable. Unique-constraint violations and other
