@@ -1,11 +1,10 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Agitprop.Core.Interfaces;
-using MassTransit;
+using Agitprop.Messaging;
 using Microsoft.Extensions.Logging;
-using Polly;
-using Polly.Registry;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using Agitprop.Sinks.Newsfeed;
@@ -16,9 +15,10 @@ namespace Agitprop.Scraper.Consumer.Consumers
     /// <summary>
     /// Consumes newsfeed job descriptions and processes them using a web scraping spider.
     /// </summary>
-    public class NewsfeedJobConsumer : IConsumer<NewsfeedJobDescrpition>
+    public class NewsfeedJobConsumer
     {
         private readonly INewsfeedPipeline _pipeline;
+        private readonly IPgmqClient _pgmqClient;
         private readonly ILogger<NewsfeedJobConsumer> _logger;
         private static readonly ActivitySource _activitySource = new("Agitprop.NewsfeedJobConsumer");
         private static readonly Meter _meter = new("Agitprop.NewsfeedJobConsumer");
@@ -44,9 +44,11 @@ namespace Agitprop.Scraper.Consumer.Consumers
 
         public NewsfeedJobConsumer(
             INewsfeedPipeline pipeline,
+            IPgmqClient pgmqClient,
             ILogger<NewsfeedJobConsumer> logger)
         {
             _pipeline = pipeline;
+            _pgmqClient = pgmqClient;
             _logger = logger;
         }
 
@@ -57,10 +59,12 @@ namespace Agitprop.Scraper.Consumer.Consumers
                 new KeyValuePair<string, object?>("handling", handling));
         }
 
-        public async Task Consume(ConsumeContext<NewsfeedJobDescrpition> context)
+        public async Task Consume(
+            PgmqMessage<NewsfeedJobDescrpition> queueMessage,
+            Activity? activity,
+            CancellationToken cancellationToken)
         {
-            using var activity = _activitySource.StartActivity("Consume", ActivityKind.Consumer);
-            var descriptor = context.Message;
+            var descriptor = queueMessage.Message;
             var safeUrl = Core.TelemetryUrl.RedactQueryAndFragment(descriptor.Url);
             var jobType = descriptor.Type.ToString();
             var stopwatch = Stopwatch.StartNew();
@@ -71,8 +75,7 @@ namespace Agitprop.Scraper.Consumer.Consumers
 
             using var scope = _logger.BeginScope(new Dictionary<string, object?>
             {
-                ["MessageId"] = context.MessageId,
-                ["CorrelationId"] = context.CorrelationId,
+                ["MessageId"] = queueMessage.MessageId,
                 ["JobType"] = jobType
             });
 
@@ -87,7 +90,7 @@ namespace Agitprop.Scraper.Consumer.Consumers
                     return;
                 }
 
-                var newJobs = await _pipeline.CrawlAsync(descriptor, cancellationToken: context.CancellationToken);
+                var newJobs = await _pipeline.CrawlAsync(descriptor, cancellationToken: cancellationToken);
 
                 _logger.LogInformation("Newsfeed job completed for {Url}; discovered {Count} jobs",
                     safeUrl, newJobs.Count);
@@ -109,7 +112,10 @@ namespace Agitprop.Scraper.Consumer.Consumers
                     publishActivity?.SetTag("publish.jobs.count", eligibleJobs.Count);
                     try
                     {
-                        await context.PublishBatch(eligibleJobs);
+                        await _pgmqClient.SendBatchAsync(
+                            PgmqQueueNames.NewsfeedJobs,
+                            eligibleJobs,
+                            cancellationToken);
                         _logger.LogDebug("Published {Count} new jobs from {Url}",
                             eligibleJobs.Count, safeUrl);
                         publishActivity?.SetStatus(ActivityStatusCode.Ok);
@@ -127,7 +133,7 @@ namespace Agitprop.Scraper.Consumer.Consumers
             }
             catch (Exception ex)
             {
-                var failureKind = NewsfeedJobFailureClassifier.Classify(ex, context.CancellationToken);
+                var failureKind = NewsfeedJobFailureClassifier.Classify(ex, cancellationToken);
                 if (failureKind == NewsfeedJobFailureKind.Cancelled)
                 {
                     outcome = "cancelled";

@@ -7,15 +7,15 @@ namespace Agitprop.CLI.Commands;
 public static class RetryCommand
 {
     private const string CommandName = "retry";
-    private const string DefaultFailedQueueName = "newsfeed-job_error";
-    private const string DefaultTargetQueueName = "newsfeed-job";
+    private const string DefaultFailedQueueName = "newsfeed_job_error";
+    private const string DefaultTargetQueueName = "newsfeed_job";
     private static readonly IScrapeCommandOrchestrator _orchestrator = new ScrapeCommandOrchestrator();
 
     internal static Command AddRetryCommand(this RootCommand rootCommand, ILoggerFactory loggerFactory)
     {
         var connectionOption = new Option<string>(
             ["--connection", "-c"],
-            "RabbitMQ connection string");
+            "PostgreSQL connection string");
         connectionOption.IsRequired = true;
 
         var failedQueueOption = new Option<string>(
@@ -33,7 +33,7 @@ public static class RetryCommand
             () => 0,
             "Maximum number of failed messages to requeue (0 = all available)");
 
-        var retryCommand = new Command(CommandName, "Requeue failed feed messages from RabbitMQ error queue")
+        var retryCommand = new Command(CommandName, "Requeue failed feed messages from the pgmq error queue")
         {
             connectionOption,
             failedQueueOption,
@@ -92,7 +92,7 @@ public static class RetryCommand
             if (!result.RetryEnabled)
             {
                 logger.LogWarning("CLI retry was disabled");
-                Console.WriteLine("Retry is disabled. Provide a valid RabbitMQ connection string.");
+                Console.WriteLine("Retry is disabled. Provide a valid PostgreSQL connection string.");
                 Environment.ExitCode = 1;
                 return;
             }

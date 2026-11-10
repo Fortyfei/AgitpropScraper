@@ -3,8 +3,8 @@
 ## Purpose
 
 An **ASP.NET Core hosted service** that periodically pulls RSS feeds from
-configured URLs and publishes `NewsfeedJobDescrpition` messages to
-**RabbitMQ** for downstream processing by the Consumer.
+configured URLs and publishes `NewsfeedJobDescrpition` messages to the
+**PGMQ queue in PostgreSQL** for downstream processing by the Consumer.
 
 The job contract is defined in the shared Core project, so the RSS reader does
 not depend on the Newsfeed sink project.
@@ -15,14 +15,13 @@ not depend on the Newsfeed sink project.
    each configured RSS feed using `System.ServiceModel.Syndication`.
 2. Parses feed items into `ScrapingJobDescription` objects with URL and
    `PageContentType = Article`.
-3. Publishes the batch of jobs to RabbitMQ via
-   `IPublishEndpoint.PublishBatch(jobs)`.
+3. Writes the batch of jobs to `newsfeed_job` via `IPgmqClient.SendBatchAsync`.
 
 ## Key Files
 
 | File | Purpose |
 |------|---------|
-| `Program.cs` | Host setup: `AddServiceDefaults()`, `AddHostedService<RssFeedReader>()`, MassTransit, OpenTelemetry |
+| `Program.cs` | Host setup: `AddServiceDefaults()`, `AddPgmqClient("newsfeed")`, `AddHostedService<RssFeedReader>()`, OpenTelemetry |
 | `RssFeedReader.cs` | Implements `IHostedService` — `StartAsync`, `ExecuteAsync`, `StopAsync` |
 
 ## Configuration
@@ -50,6 +49,6 @@ In `appsettings.json`:
 ## Startup
 
 Started by `Agitprop.AppHost` as project `rss-feed-reader`. It waits for
-RabbitMQ and for the consumer to start.
+PostgreSQL and for the consumer to start.
 
-Requires `ConnectionStrings:messaging` (RabbitMQ AMQP).
+Requires `ConnectionStrings:newsfeed` (PostgreSQL with PGMQ enabled).

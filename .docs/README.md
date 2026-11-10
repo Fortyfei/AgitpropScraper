@@ -2,7 +2,7 @@
 
 Internal developer documentation for the **AgitpropScraper** project: a distributed
 news-article scraping and named-entity analytics platform built on .NET 10, Aspire 13,
-MassTransit/RabbitMQ, PuppeteerSharp, PostgreSQL, and an in-process .NET Hungarian
+PGMQ/PostgreSQL, PuppeteerSharp, and an in-process .NET Hungarian
 NLP model using ONNX Runtime.
 
 ## Table of Contents
@@ -23,7 +23,7 @@ NLP model using ONNX Runtime.
 - [Infrastructure](components/03-infrastructure.md) — spiders, HTTP loaders, proxy pool.
 - [Infrastructure.Puppeteer](components/04-infrastructure-puppeteer.md) — PuppeteerSharp browser loaders.
 - [Sinks.Newsfeed](components/05-sinks-newsfeed.md) — site-specific parsers, paginators, EF Core sink.
-- [Scraper.Consumer](components/06-scraper-consumer.md) — MassTransit consumer that runs the spider.
+- [Scraper.Consumer](components/06-scraper-consumer.md) — PostgreSQL queue worker that runs the spider.
 - [Scraper.RssFeedReader](components/07-scraper-rssfeedreader.md) — RSS-to-queue producer.
 - [Scraper.NLPService](components/08-scraper-nlpservice.md) — in-process .NET / ONNX Hungarian NER library.
 - [Web.Api](components/09-web-api.md) — read-only analytics REST API.

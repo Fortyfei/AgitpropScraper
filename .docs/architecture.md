@@ -24,30 +24,27 @@ flowchart TB
     %% Infrastructure
     subgraph "Infra"
         REG1[ghcr registry auth]
-        RABBIT[RabbitMQ: mgmt 15672 / AMQP 5672 external]
-        PG[PostgreSQL: data volume, pgAdmin 5050, persistent lifetime]
+        PG[PostgreSQL 17 + PGMQ extension: data volume, pgAdmin 5050]
     end
 
     %% Services
     subgraph "Services"
-        CON[Consumer: in-process Hungarian NER, waits for newsfeedDb and messaging]
-        RSS[RSS Feed Reader: waits for messaging, Consumer]
+        CON[Consumer: in-process Hungarian NER, waits for newsfeedDb]
+        RSS[RSS Feed Reader: waits for newsfeedDb, Consumer]
         WEB_API[Web API: waits for newsfeedDb]
         WEB_CL[Web Client: waits for backend, external HTTP]
     end
 
     %% Connections
     REG -->|push| REG1
-    REG1 -->|pull| RABBIT
     REG1 -->|pull| PG
     REG1 -->|pull| CON
     REG1 -->|pull| RSS
     REG1 -->|pull| WEB_API
     REG1 -->|pull| WEB_CL
 
-    RABBIT -->|publish/subscribe| CON
-    RABBIT -->|publish/subscribe| RSS
-    PG -->|EF Core| CON
+    PG -->|PGMQ queue + EF Core| CON
+    PG -->|PGMQ queue| RSS
     PG -->|EF Core| WEB_API
 
     CON -.->|OTLP gRPC| DIAG
@@ -60,7 +57,6 @@ flowchart TB
     style WEB_API fill:#fff3e0,stroke:#f57c00,stroke-width:2px
     style WEB_CL fill:#fff3e0,stroke:#f57c00,stroke-width:2px
     style PG fill:#f3e5f5,stroke:#8e24aa,stroke-width:2px
-    style RABBIT fill:#fce4ec,stroke:#c2185b,stroke-width:2px
     style REG fill:#e0e0e0,stroke:#424242,stroke-width:1px
 ```
 
@@ -75,8 +71,8 @@ flowchart TB
 | 3 | **Agitprop.Core** | Class library (interfaces, models, message contract) | — |
 | 4 | **Agitprop.Infrastructure** | Class library (spider, HTTP loaders, proxy pool) | — |
 | 5 | **Agitprop.Infrastructure.Puppeteer** | Class library (browser loaders) | — |
-| 6 | **Agitprop.Scraper.Consumer** | Worker with in-process Hungarian NER | newsfeedDb, messaging |
-| 7 | **Agitprop.Scraper.RssFeedReader** | RSS-to-RabbitMQ worker | messaging, consumer |
+| 6 | **Agitprop.Scraper.Consumer** | Worker with in-process Hungarian NER | newsfeedDb |
+| 7 | **Agitprop.Scraper.RssFeedReader** | RSS-to-pgmq worker | newsfeedDb, consumer |
 | 8 | **Agitprop.Scraper.NLPService** | .NET class library (ONNX Runtime, huBERT NER) | — |
 | 9 | **Agitprop.Web.Api** | Read-only analytics API | newsfeedDb |
 | 10 | **Agitprop.Web.Client** | Blazor Web App (Interactive Server and WebAssembly) | backend (Web.Api) |
@@ -85,6 +81,7 @@ flowchart TB
 | 13 | **Agitprop.Sinks.Newsfeed** | `NewsfeedSink` + NLP wiring (uses Data) | — |
 | 13a | **Agitprop.Sources** | Per-site `INewsfeedSource`s, parsers, `NewsfeedPipeline` | — |
 | 13b | **Agitprop.Data** | EF Core context, migrations, repositories | — |
+| 13c | **Agitprop.Messaging** | Npgsql-backed PGMQ client | PostgreSQL |
 | 14 | **Agitprop.Sinks.Newsfeed_Test** | Parser fixture tests | — |
 | 15 | **Agitprop.UnitTests** | Unit tests | — |
 | 16 | **Agitprop.IntegrationTests** | API/PostgreSQL integration tests | Testing.AppHost |
@@ -93,10 +90,10 @@ flowchart TB
 
 The request flow follows these steps (see pipelines.md for sequence diagrams):
 
-1. **RSS Feed Reader** (`Agitprop.Scraper.RssFeedReader`) pulls RSS feeds on a timer and publishes
-   `NewsfeedJobDescrpition` messages to RabbitMQ (`IPublishEndpoint.PublishBatch`).
+1. **RSS Feed Reader** (`Agitprop.Scraper.RssFeedReader`) pulls RSS feeds on a timer and writes
+   `NewsfeedJobDescrpition` messages to the `newsfeed_job` PGMQ queue in PostgreSQL.
 
-2. **Consumer** (`Agitprop.Scraper.Consumer`) consumes jobs from the RabbitMQ queue. For each job
+2. **Consumer** (`Agitprop.Scraper.Consumer`) claims jobs using PGMQ's visibility timeout. For each job
    it builds a `ScrapingJob` (via `ScrapingJobFactory`) and calls `ISpider.CrawlAsync()`.
 
 3. **Spider** (`Agitprop.Infrastructure.Spider`) crawls the URL using `IPageTransport.LoadAsync()`.
@@ -134,4 +131,4 @@ Key registered services (via `ConfigureInfrastructureWithoutBrowser` / `Configur
 | `IBrowserPageLoader` | `PuppeteerPageLoader` / `PuppeteerPageLoaderWithProxies` | When browser mode + proxies |
 | `IPageTransport` | Factory combining `IStaticPageLoader` + `IBrowserPageLoader` + `ILogger` | Always |
 | `ISink` | `NewsfeedSink` | Always |
-| MassTransit endpoints | `NewsfeedJobConsumer` + saga repo (in-memory) | Always |
+| `IPgmqClient` | `PgmqClient` over Npgsql | Consumer, RSS reader, CLI |

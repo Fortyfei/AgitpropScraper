@@ -25,7 +25,7 @@ AppHost-managed services export traces, metrics, and structured logs through
 OTLP to the Aspire dashboard. Open the dashboard URL printed by `aspire start`
 (or the configured host port) and inspect a consumer trace from message
 consumption through scraping, NLP, and persistence. The shared service defaults
-enable HTTP/AspNetCore, process/runtime, MassTransit, and EF Core tracing.
+enable HTTP/AspNetCore, process/runtime, Npgsql, and EF Core tracing.
 Application-owned URL telemetry removes query strings and fragments; metric
 dimensions do not include URLs. EF Core tracing does not capture SQL text or
 parameter values. Automatic HttpClient span URL attributes retain the default
@@ -46,9 +46,8 @@ aspire start --apphost Agitprop.AppHost/Agitprop.AppHost.csproj
 ```
 
 **What starts:**
-- RabbitMQ (mgmt 15672, AMQP 5672)
-- PostgreSQL (pgAdmin 5050)
-- Consumer (runs spider + MassTransit)
+- PostgreSQL 17 with PGMQ (pgAdmin 5050)
+- Consumer (runs spider + pgmq worker)
 - RSS Feed Reader
 - Web API (Swagger on :5000)
 - Web Client (Blazor on :5001)
@@ -70,8 +69,7 @@ Required in `appsettings.Development.json` or user-secrets:
 ```json
 {
   "ConnectionStrings": {
-    "newsfeed": "Host=localhost;Port=5432;Database=newsfeed;Username=postgres;Password=postgres",
-    "messaging": "amqp://guest:guest@localhost:5672"
+    "newsfeed": "Host=localhost;Port=5432;Database=newsfeed;Username=postgres;Password=..."
   },
   "Proxy": {
     "UseProxies": false,
@@ -117,7 +115,7 @@ dotnet test Agitprop.Sinks.Newsfeed_Test/Agitprop.Sinks.Newsfeed_Test.csproj \
 ```
 
 The default fixture/unit test projects exclude the `[Explicit]` live-site parser checks and
-the model-backed corpus smoke test. Unit tests do not require Aspire, PostgreSQL, RabbitMQ,
+the model-backed corpus smoke test. Unit tests do not require Aspire, PostgreSQL,
 a browser, or the ONNX model. The Aspire integration project starts an isolated PostgreSQL
 container and API process, so it requires Docker.
 
@@ -147,7 +145,7 @@ dotnet ef migrations add <Name> \
 dotnet run --project Agitprop.CLI/Agitprop.CLI.csproj -- --help
 dotnet run --project Agitprop.CLI/Agitprop.CLI.csproj -- scrape-article --url <URL> --shorten
 dotnet run --project Agitprop.CLI/Agitprop.CLI.csproj -- scrape-archive --date 2024-01-01
-dotnet run --project Agitprop.CLI/Agitprop.CLI.csproj -- retry --connection <RabbitMQ-connection-string> --failed-queue <queue> --target-queue <queue> --max 10
+dotnet run --project Agitprop.CLI/Agitprop.CLI.csproj -- retry --connection "Host=localhost;Port=5432;Database=newsfeed;Username=postgres;Password=..." --failed-queue newsfeed_job_error --target-queue newsfeed_job --max 10
 ```
 
 ## 6. Adding a New Content Parser
@@ -174,8 +172,6 @@ dotnet run --project Agitprop.CLI/Agitprop.CLI.csproj -- retry --connection <Rab
 | Service | Port |
 |---------|------|
 | Aspire Dashboard | 18888 |
-| RabbitMQ Management | 15672 |
-| RabbitMQ AMQP | 5672 |
 | pgAdmin | 5050 |
 | PostgreSQL | 5432 |
 | Web API | 5000 (Swagger on /swagger) |

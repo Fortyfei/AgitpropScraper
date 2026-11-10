@@ -1,4 +1,4 @@
-using MassTransit;
+using Agitprop.Messaging;
 
 namespace Agitprop.Scraper.RssFeedReader;
 
@@ -14,22 +14,10 @@ public class Program
     public static void Main(string[] args)
     {
         var builder = Host.CreateApplicationBuilder(args);
+        builder.Configuration.AddUserSecrets<Program>();
         builder.AddServiceDefaults();
         builder.Services.AddHostedService<RssFeedReader>();
-        builder.Services.AddMassTransit(x =>
-        {
-            x.SetKebabCaseEndpointNameFormatter();
-            x.SetInMemorySagaRepositoryProvider();
-            x.UsingRabbitMq((context, cfg) =>
-            {
-                cfg.Host(builder.Configuration.GetConnectionString("messaging"));
-
-                cfg.ClearSerialization();
-                cfg.AddRawJsonSerializer();
-                cfg.ConfigureEndpoints(context);
-            });
-        });
-
+        builder.AddPgmqClient("newsfeed");
 
         var app = builder.Build();
         app.Run();

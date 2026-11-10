@@ -11,15 +11,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="MassTransit.RabbitMQ" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
-    <PackageReference Include="MassTransit" />
     <PackageReference Include="System.ServiceModel.Syndication" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Agitprop.Core\Agitprop.Core.csproj" />
     <ProjectReference Include="..\Agitprop.Infrastructure.Puppeteer\Agitprop.Infrastructure.Puppeteer.csproj" />
+    <ProjectReference Include="..\Agitprop.Messaging\Agitprop.Messaging.csproj" />
     <ProjectReference Include="..\Agitprop.ServiceDefaults\Agitprop.ServiceDefaults.csproj" />
     <ProjectReference Include="..\Agitprop.Sinks.Newsfeed\Agitprop.Sinks.Newsfeed.csproj" />
     <ProjectReference Include="..\Agitprop.Sources\Agitprop.Sources.csproj" />

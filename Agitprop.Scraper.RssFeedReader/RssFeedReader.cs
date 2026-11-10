@@ -3,7 +3,7 @@ using System.Text;
 using System.Xml;
 using System.Diagnostics.Metrics;
 using Agitprop.Core.Enums;
-using MassTransit;
+using Agitprop.Messaging;
 using System.Diagnostics;
 using Agitprop.Sinks.Newsfeed;
 
@@ -16,7 +16,7 @@ public class RssFeedReader : IHostedService, IDisposable
 {
     private readonly string[] _feeds;
     private readonly ILogger<RssFeedReader> _logger;
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IPgmqClient _pgmqClient;
     private readonly TimeSpan _interval;
     private static readonly ActivitySource _activitySource = new("Agitprop.RssFeedReader");
     private static readonly Meter _meter = new("Agitprop.RssFeedReader");
@@ -37,19 +37,23 @@ public class RssFeedReader : IHostedService, IDisposable
         "ms",
         "Time spent fetching and publishing RSS scraping jobs");
 
-    public RssFeedReader(IConfiguration configuration, ILogger<RssFeedReader> logger, IServiceScopeFactory scopeFactory)
+    public RssFeedReader(
+        IConfiguration configuration,
+        ILogger<RssFeedReader> logger,
+        IPgmqClient pgmqClient)
     {
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
         _logger = logger;
         _feeds = configuration.GetSection("Feeds").Get<string[]>() ?? throw new ArgumentException("Feeds are not defined");
-        _scopeFactory = scopeFactory;
+        _pgmqClient = pgmqClient;
         _interval = TimeSpan.FromMinutes(configuration.GetValue<double>("IntervalMinutes", 60));
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         using var activity = _activitySource.StartActivity("StartAsync");
+        await _pgmqClient.EnsureQueuesAsync(cancellationToken);
         _logger.LogInformation("Starting RSS Feed Reader. Interval: {Interval} minutes, Feeds: {FeedCount}", _interval.TotalMinutes, _feeds.Length);
         var timer = new Timer(async _ => await ExecuteTask(_), null,TimeSpan.Zero, _interval);
         return;
@@ -65,8 +69,6 @@ public class RssFeedReader : IHostedService, IDisposable
 
         try
         {
-            using var scope = _scopeFactory.CreateScope();
-            var publishEndpoint = scope.ServiceProvider.GetRequiredService<IPublishEndpoint>();
             var jobs = FetchScrapingJobs();
             if (jobs.Count == 0)
             {
@@ -76,7 +78,7 @@ public class RssFeedReader : IHostedService, IDisposable
             {
                 _logger.LogDebug("Publishing {JobCount} scraping jobs", jobs.Count);
                 publishAttempted = true;
-                await publishEndpoint.PublishBatch(jobs);
+                await _pgmqClient.SendBatchAsync(PgmqQueueNames.NewsfeedJobs, jobs);
                 _jobsPublished.Add(jobs.Count);
             }
 

@@ -13,14 +13,12 @@ Agitprop.AppHost/Agitprop.AppHost.csproj`.
   `WithEnvironmentAwareImagePush`.
 - Defines the Docker Compose environment with the Aspire dashboard on port `18888`.
 - Provisions all infrastructure resources:
-  - **RabbitMQ** (`messaging`): management plugin on `15672`, AMQP on `5672`
-    (external), with OTLP exporter.
-  - **PostgreSQL** (`postgres`): data volume, pgAdmin on `5050`, persistent
-    lifetime, OTLP exporter; attaches database `newsfeed`.
+  - **PostgreSQL 17 + PGMQ** (`postgres`): `ghcr.io/pgmq/pg17-pgmq:v1.13.1`,
+    data volume, pgAdmin on `5050`, persistent lifetime, OTLP exporter; attaches database `newsfeed`.
 - Adds all .NET projects to the application model:
-  - `consumer` — waits for and references `newsfeedDb` and `messaging`; runs Hungarian NER in-process.
-  - `rss-feed-reader` — waits for and references `messaging`, and waits for `consumer`.
-  - `backend` (Web.Api) — waits for and references `newsfeedDb`; it has no RabbitMQ dependency.
+  - `consumer` — waits for and references `newsfeedDb`; runs Hungarian NER in-process.
+  - `rss-feed-reader` — waits for and references `newsfeedDb`, and waits for `consumer`.
+  - `backend` (Web.Api) — waits for and references `newsfeedDb`; it does not access the queue.
   - `frontend` (Web.Client) — waits for `backend`, external HTTP endpoints.
 - AppHost-managed services use OTLP exporters. The containerized projects are
   configured for environment-aware image publishing.

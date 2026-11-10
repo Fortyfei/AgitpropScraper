@@ -23,19 +23,19 @@ public class Program
     {
         var builder = Host.CreateApplicationBuilder(args);
 
+        builder.Configuration.AddUserSecrets<Program>();
+
         // Add default service configurations.
         builder.AddServiceDefaults();
 
         // Configure infrastructure with browser support.
         builder.ConfigureInfrastructureWithBrowser(false);
 
-        // Configure MassTransit for message-based communication.
-        builder.ConfigureMassTransit();
+        builder.ConfigurePgmq();
 
         // Add the Newsfeed sink for processing scraped data.
         builder.AddNewsfeedSink();
         builder.AddNewsfeedSources();
-        builder.Configuration.AddUserSecrets<Program>();    
         
         var newsfeedConnectionString = builder.Configuration.GetConnectionString("newsfeed");
         if (string.IsNullOrWhiteSpace(newsfeedConnectionString))
@@ -43,14 +43,6 @@ public class Program
             throw new InvalidOperationException(
                 "Missing required configuration key 'ConnectionStrings:newsfeed'. " +
                 "Run this service through AppHost or set the ConnectionStrings__newsfeed environment variable.");
-        }
-
-        var messagingConnectionString = builder.Configuration.GetConnectionString("messaging");
-        if (string.IsNullOrWhiteSpace(messagingConnectionString))
-        {
-            throw new InvalidOperationException(
-                "Missing required configuration key 'ConnectionStrings:messaging'. " +
-                "Run this service through AppHost or set the ConnectionStrings__messaging environment variable.");
         }
 
         var app = builder.Build();

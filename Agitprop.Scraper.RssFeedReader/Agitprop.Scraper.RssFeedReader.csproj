@@ -9,13 +9,12 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" />
-    <PackageReference Include="MassTransit.RabbitMQ" />
-    <PackageReference Include="MassTransit" />
     <PackageReference Include="System.ServiceModel.Syndication" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Agitprop.Core\Agitprop.Core.csproj" />
+    <ProjectReference Include="..\Agitprop.Messaging\Agitprop.Messaging.csproj" />
     <ProjectReference Include="..\Agitprop.ServiceDefaults\Agitprop.ServiceDefaults.csproj" />
   </ItemGroup>
 </Project>

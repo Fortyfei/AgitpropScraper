@@ -13,7 +13,6 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" />
-    <PackageReference Include="RabbitMQ.Client" />
     <PackageReference Include="HtmlAgilityPack" />
     <PackageReference Include="Microsoft.Extensions.Http" />
     <PackageReference Include="PuppeteerSharp" />
@@ -21,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Agitprop.Core\Agitprop.Core.csproj" />
+    <ProjectReference Include="..\Agitprop.Messaging\Agitprop.Messaging.csproj" />
     <ProjectReference Include="..\Agitprop.Infrastructure\Agitprop.Infrastructure.csproj" />
     <ProjectReference Include="..\Agitprop.Infrastructure.Puppeteer\Agitprop.Infrastructure.Puppeteer.csproj" />
     <ProjectReference Include="..\Agitprop.Sinks.Newsfeed\Agitprop.Sinks.Newsfeed.csproj" />

@@ -1,12 +1,7 @@
-using System;
-
-using Agitprop.Consumer.Consumers;
+using Agitprop.Messaging;
 using Agitprop.Scraper.Consumer.Consumers;
-
-using MassTransit;
-
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+
 using Microsoft.Extensions.Hosting;
 
 namespace Agitprop.Scraper.Consumer;
@@ -17,31 +12,15 @@ namespace Agitprop.Scraper.Consumer;
 public static class Extensions
 {
     /// <summary>
-    /// Configures MassTransit for message-based communication in the application.
+    /// Configures the PostgreSQL-backed newsfeed job queue.
     /// </summary>
     /// <param name="builder">The host application builder.</param>
     /// <returns>The updated host application builder.</returns>
-    public static IHostApplicationBuilder ConfigureMassTransit(this IHostApplicationBuilder builder)
+    public static IHostApplicationBuilder ConfigurePgmq(this IHostApplicationBuilder builder)
     {
-        var connectionString = builder.Configuration.GetConnectionString("messaging");
-        builder.Services.AddMassTransit(x =>
-        {
-            x.SetKebabCaseEndpointNameFormatter();
-            x.SetInMemorySagaRepositoryProvider();
-            x.AddConsumer<NewsfeedJobConsumer, NewsfeedJobConsumerDefinition>();
-            x.UsingRabbitMq((context, cfg) =>
-            {
-                cfg.Host(connectionString, h =>
-                {
-                    h.Heartbeat(TimeSpan.FromSeconds(20));
-                });
-
-                cfg.ClearSerialization();
-                cfg.AddRawJsonSerializer();
-                cfg.ConfigureEndpoints(context);
-            });
-        });
-
+        builder.AddPgmqClient("newsfeed");
+        builder.Services.AddScoped<NewsfeedJobConsumer>();
+        builder.Services.AddHostedService<NewsfeedJobQueueWorker>();
         return builder;
     }
 

@@ -1,9 +1,14 @@
 using System.Net;
+using System.Diagnostics;
 using System.Text.Json;
 using Agitprop.Data;
 using Agitprop.Data.Models;
+using Agitprop.Messaging;
 using Aspire.Hosting.Testing;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
+using OpenTelemetry;
+using OpenTelemetry.Trace;
 using Projects;
 
 namespace Agitprop.IntegrationTests;
@@ -13,6 +18,7 @@ public class ApiPostgresIntegrationTests
 {
     private static readonly TimeSpan StartupTimeout = TimeSpan.FromMinutes(3);
     private IAsyncDisposable? _application;
+    private Aspire.Hosting.DistributedApplication? _distributedApplication;
     private HttpClient? _client;
     private Guid _entityId;
     private Guid _coMentionEntityId;
@@ -26,6 +32,7 @@ public class ApiPostgresIntegrationTests
         var application = await builder.BuildAsync(timeout.Token)
             .WaitAsync(timeout.Token);
         _application = application;
+        _distributedApplication = application;
 
         await application.StartAsync(timeout.Token)
             .WaitAsync(timeout.Token);
@@ -162,6 +169,103 @@ public class ApiPostgresIntegrationTests
         });
     }
 
+    [Test]
+    public async Task PgmqClient_SendsReadsMovesAndAcknowledgesMessages()
+    {
+        var connectionString = await _distributedApplication!.GetConnectionStringAsync(
+            "newsfeed",
+            CancellationToken.None)
+            ?? throw new InvalidOperationException("The newsfeed connection string was not available.");
+        await using var dataSource = NpgsqlDataSource.Create(connectionString);
+        var pgmqClient = new PgmqClient(dataSource);
+        var queueName = $"it_{Guid.NewGuid():N}";
+        var failedQueueName = $"{queueName}_error";
+        await pgmqClient.EnsureQueuesAsync(CancellationToken.None, queueName, failedQueueName);
+
+        using var producerActivity = new Activity("integration queue producer")
+            .SetIdFormat(ActivityIdFormat.W3C)
+            .Start();
+        var sentCount = await pgmqClient.SendBatchAsync(
+            queueName,
+            new[] { new QueueTestMessage("first"), new QueueTestMessage("second") });
+        var firstRead = await pgmqClient.ReadAsync<QueueTestMessage>(
+            queueName,
+            visibilityTimeoutSeconds: 60,
+            quantity: 1);
+        Assert.That(sentCount, Is.EqualTo(2));
+        Assert.That(firstRead, Has.Count.EqualTo(1));
+        Assert.That(firstRead[0].Headers?["traceparent"], Is.EqualTo(producerActivity.Id));
+
+        await pgmqClient.SetVisibilityTimeoutAsync(
+            queueName,
+            firstRead[0].MessageId,
+            delaySeconds: 0);
+        var retried = await pgmqClient.ReadAsync<QueueTestMessage>(
+            queueName,
+            visibilityTimeoutSeconds: 60,
+            quantity: 1);
+        Assert.That(retried, Has.Count.EqualTo(1));
+        Assert.That(retried[0].ReadCount, Is.EqualTo(2));
+
+        await pgmqClient.MoveAsync(
+            queueName,
+            failedQueueName,
+            retried[0].MessageId,
+            retried[0].Message);
+
+        var remaining = await pgmqClient.ReadAsync<QueueTestMessage>(
+            queueName,
+            visibilityTimeoutSeconds: 60,
+            quantity: 10);
+        var failed = await pgmqClient.ReadAsync<QueueTestMessage>(
+            failedQueueName,
+            visibilityTimeoutSeconds: 60,
+            quantity: 10);
+        Assert.Multiple(() =>
+        {
+            Assert.That(remaining, Has.Count.EqualTo(1));
+            Assert.That(remaining[0].Message.Value, Is.EqualTo("second"));
+            Assert.That(failed, Has.Count.EqualTo(1));
+            Assert.That(failed[0].Message.Value, Is.EqualTo("first"));
+        });
+
+        await pgmqClient.DeleteAsync(queueName, remaining[0].MessageId);
+        await pgmqClient.DeleteAsync(failedQueueName, failed[0].MessageId);
+    }
+
+    [Test]
+    public async Task PgmqPolling_SuppressesNpgsqlInstrumentationOnlyWithinScope()
+    {
+        var connectionString = await _distributedApplication!.GetConnectionStringAsync("newsfeed", CancellationToken.None)
+            ?? throw new InvalidOperationException("The newsfeed connection string was not available.");
+        await using var dataSource = NpgsqlDataSource.Create(connectionString);
+        var client = new PgmqClient(dataSource);
+        var queueName = $"it_{Guid.NewGuid():N}";
+        await client.EnsureQueuesAsync(CancellationToken.None, queueName);
+
+        var spans = new List<Activity>();
+        using var provider = Sdk.CreateTracerProviderBuilder()
+            .AddSource("Npgsql")
+            .AddProcessor(new RecordingActivityProcessor(spans))
+            .Build();
+
+        await client.ReadAsync<QueueTestMessage>(queueName, 60, 1);
+        using (SuppressInstrumentationScope.Begin())
+        {
+            await client.ReadAsync<QueueTestMessage>(queueName, 60, 1);
+        }
+        await client.ReadAsync<QueueTestMessage>(queueName, 60, 1);
+
+        var readSpans = spans.Where(span =>
+            span.GetTagItem("db.query.text") is string sql && sql.Contains("pgmq.read", StringComparison.Ordinal));
+        Assert.That(readSpans.Count(), Is.EqualTo(2));
+    }
+
+    private sealed class RecordingActivityProcessor(List<Activity> spans) : BaseProcessor<Activity>
+    {
+        public override void OnEnd(Activity data) => spans.Add(data);
+    }
+
     private async Task<JsonElement> GetJsonAsync(string url)
     {
         using var response = await _client!.GetAsync(url);
@@ -169,6 +273,8 @@ public class ApiPostgresIntegrationTests
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         return body.RootElement.Clone();
     }
+
+    private sealed record QueueTestMessage(string Value);
 
     private static async Task<(Guid EntityId, Guid CoMentionEntityId)> SeedDatabaseAsync(
         Aspire.Hosting.DistributedApplication application,

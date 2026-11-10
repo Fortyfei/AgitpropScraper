@@ -1,8 +1,8 @@
-using System.Text;
 using System.Text.Json;
 using Agitprop.Core.Enums;
+using Agitprop.Messaging;
 using Agitprop.Sinks.Newsfeed;
-using RabbitMQ.Client;
+using Npgsql;
 
 namespace Agitprop.CLI.Services;
 
@@ -13,11 +13,8 @@ public interface IArticleJobPublisher
     Task<RetryFailedFeedsExecutionResult> RetryFailedFeedsAsync(RetryFailedFeedsRequest request, CancellationToken cancellationToken = default);
 }
 
-public sealed class RabbitMqArticleJobPublisher : IArticleJobPublisher
+public sealed class PgmqArticleJobPublisher : IArticleJobPublisher
 {
-    private const string QueueName = "newsfeed-job";
-    private const string FailedQueueName = "newsfeed-job_error";
-
     public async Task<PublishExecutionResult> PublishAsync(PublishArticlesRequest request, CancellationToken cancellationToken = default)
     {
         if (!request.IsPublishingEnabled)
@@ -29,42 +26,18 @@ public sealed class RabbitMqArticleJobPublisher : IArticleJobPublisher
 
         try
         {
-            var factory = new ConnectionFactory
+            await using var dataSource = NpgsqlDataSource.Create(request.ConnectionString!);
+            var pgmqClient = new PgmqClient(dataSource);
+            await pgmqClient.EnsureQueuesAsync(cancellationToken);
+            var jobs = request.Articles.Select(article => new NewsfeedJobDescrpition
             {
-                Uri = new Uri(request.ConnectionString!)
-            };
-
-            using var connection = await factory.CreateConnectionAsync(cancellationToken);
-            using var channel = await connection.CreateChannelAsync(cancellationToken: cancellationToken);
-
-            await channel.QueueDeclareAsync(
-                queue: QueueName,
-                durable: true,
-                exclusive: false,
-                autoDelete: false,
-                arguments: null,
-                cancellationToken: cancellationToken);
-
-            foreach (var article in request.Articles)
-            {
-                var job = new NewsfeedJobDescrpition
-                {
-                    Url = article.Url,
-                    Type = PageContentType.Article
-                };
-
-                var message = JsonSerializer.Serialize(job);
-                var body = Encoding.UTF8.GetBytes(message);
-
-                await channel.BasicPublishAsync(
-                    exchange: string.Empty,
-                    routingKey: QueueName,
-                    mandatory: true,
-                    body: body,
-                    cancellationToken: cancellationToken);
-
-                publishedCount++;
-            }
+                Url = article.Url,
+                Type = PageContentType.Article
+            }).ToList();
+            publishedCount = await pgmqClient.SendBatchAsync(
+                PgmqQueueNames.NewsfeedJobs,
+                jobs,
+                cancellationToken);
 
             return new PublishExecutionResult(true, publishedCount, null, true);
         }
@@ -81,77 +54,51 @@ public sealed class RabbitMqArticleJobPublisher : IArticleJobPublisher
             return new RetryFailedFeedsExecutionResult(true, 0, 0, null, false);
         }
 
-        var failedQueueName = string.IsNullOrWhiteSpace(request.FailedQueueName) ? FailedQueueName : request.FailedQueueName;
-        var targetQueueName = string.IsNullOrWhiteSpace(request.TargetQueueName) ? QueueName : request.TargetQueueName;
+        var failedQueueName = string.IsNullOrWhiteSpace(request.FailedQueueName)
+            ? PgmqQueueNames.FailedNewsfeedJobs
+            : request.FailedQueueName;
+        var targetQueueName = string.IsNullOrWhiteSpace(request.TargetQueueName)
+            ? PgmqQueueNames.NewsfeedJobs
+            : request.TargetQueueName;
 
         var requeuedCount = 0;
         var scannedCount = 0;
 
         try
         {
-            var factory = new ConnectionFactory
-            {
-                Uri = new Uri(request.ConnectionString!)
-            };
-
-            using var connection = await factory.CreateConnectionAsync(cancellationToken);
-            using var channel = await connection.CreateChannelAsync(cancellationToken: cancellationToken);
-
-            await channel.QueueDeclareAsync(
-                queue: failedQueueName,
-                durable: true,
-                exclusive: false,
-                autoDelete: false,
-                arguments: null,
-                cancellationToken: cancellationToken);
-
-            await channel.QueueDeclareAsync(
-                queue: targetQueueName,
-                durable: true,
-                exclusive: false,
-                autoDelete: false,
-                arguments: null,
-                cancellationToken: cancellationToken);
+            await using var dataSource = NpgsqlDataSource.Create(request.ConnectionString!);
+            var pgmqClient = new PgmqClient(dataSource);
+            await pgmqClient.EnsureQueuesAsync(
+                cancellationToken,
+                failedQueueName,
+                targetQueueName);
 
             while (request.MaxMessages == 0 || scannedCount < request.MaxMessages)
             {
-                var failedMessage = await channel.BasicGetAsync(
-                    queue: failedQueueName,
-                    autoAck: false,
+                var quantity = request.MaxMessages == 0
+                    ? 50
+                    : Math.Min(50, request.MaxMessages - scannedCount);
+                var failedMessages = await pgmqClient.ReadAsync<JsonElement>(
+                    failedQueueName,
+                    visibilityTimeoutSeconds: 60,
+                    quantity: quantity,
                     cancellationToken: cancellationToken);
-
-                if (failedMessage is null)
+                if (failedMessages.Count == 0)
                 {
                     break;
                 }
 
-                scannedCount++;
-
-                try
+                foreach (var failedMessage in failedMessages)
                 {
-                    await channel.BasicPublishAsync(
-                        exchange: string.Empty,
-                        routingKey: targetQueueName,
-                        mandatory: true,
-                        body: failedMessage.Body,
+                    scannedCount++;
+                    await pgmqClient.MoveAsync(
+                        failedQueueName,
+                        targetQueueName,
+                        failedMessage.MessageId,
+                        failedMessage.Message,
+                        headers: failedMessage.Headers,
                         cancellationToken: cancellationToken);
-
-                    await channel.BasicAckAsync(
-                        deliveryTag: failedMessage.DeliveryTag,
-                        multiple: false,
-                        cancellationToken: cancellationToken);
-
                     requeuedCount++;
-                }
-                catch
-                {
-                    await channel.BasicNackAsync(
-                        deliveryTag: failedMessage.DeliveryTag,
-                        multiple: false,
-                        requeue: true,
-                        cancellationToken: cancellationToken);
-
-                    throw;
                 }
             }
 

@@ -7,6 +7,7 @@
   <Project Path="Agitprop.Data/Agitprop.Data.csproj" />
   <Project Path="Agitprop.Infrastructure.Puppeteer/Agitprop.Infrastructure.Puppeteer.csproj" />
   <Project Path="Agitprop.Infrastructure/Agitprop.Infrastructure.csproj" />
+  <Project Path="Agitprop.Messaging/Agitprop.Messaging.csproj" />
   <Project Path="Agitprop.Scraper.Consumer/Agitprop.Scraper.Consumer.csproj" />
   <Project Path="Agitprop.Scraper.NLPService/Agitprop.Scraper.NLPService.csproj" />
   <Project Path="Agitprop.Scraper.RssFeedReader/Agitprop.Scraper.RssFeedReader.csproj" />

@@ -5,10 +5,9 @@
 The canonical resource graph is defined in
 [`Agitprop.AppHost/AppHost.cs`](../Agitprop.AppHost/AppHost.cs):
 
-- RabbitMQ and PostgreSQL are the shared infrastructure resources.
-- The consumer waits for and references both the `newsfeed` database and RabbitMQ.
-- The RSS Feed Reader references RabbitMQ and waits for the consumer.
-- The Web API waits for and references PostgreSQL only; it does not use RabbitMQ.
+- PostgreSQL 17 with the PGMQ extension is the shared infrastructure and queue store.
+- The consumer and RSS Feed Reader both reference the `newsfeed` database; the reader also waits for the consumer.
+- The Web API references PostgreSQL for application data and does not access the queue.
 - The Web Client waits for and references the Web API.
 - AppHost-managed services export OTLP telemetry to the Aspire dashboard.
 
@@ -18,7 +17,7 @@ The project provides one canonical AppHost for the full distributed application:
 
 | Project | Use Case | What's included |
 |---------|----------|-----------------|
-| `Agitprop.AppHost` | Full distributed app | postgres + newsfeedDb + consumer (in-process NER) + rss-reader + backend + frontend + rabbitmq + dashboard |
+| `Agitprop.AppHost` | Full distributed app | pgmq-enabled postgres + newsfeedDb + consumer (in-process NER) + rss-reader + backend + frontend + dashboard |
 
 ### Run the application:
 
@@ -116,14 +115,14 @@ aspire update --self
 - [ ] `ASPNETCORE_ENVIRONMENT=Production`
 - [ ] Connection strings set via environment variables (not appsettings)
 - [ ] `ApplyMigrationsAtStartup=false` (run migrations manually)
+- [ ] PGMQ extension is installed/enabled and the application role can create the two queues on first startup
 - [ ] GHCR credentials configured for image pull
 - [ ] OTLP collector endpoint configured (`OTEL_EXPORTER_OTLP_ENDPOINT`)
-- [ ] RabbitMQ credentials rotated from `guest:guest`
 - [ ] PostgreSQL credentials rotated from defaults
 - [ ] Proxy providers configured (if using `UseProxies=true`)
 - [ ] Health checks accessible for orchestration (k8s liveness/readiness)
 - [ ] Persistent volumes for PostgreSQL data
-- [ ] Network policies allow RabbitMQ AMQP traffic between services
+- [ ] Network policies allow PostgreSQL traffic between services
 
 ## 7. Kubernetes Deployment (Future)
 
@@ -153,5 +152,4 @@ az containerapp up \
 | Consumer | Aspire built-in | `/health` |
 | Web API | Aspire built-in | `/health` |
 | Web Client | Aspire built-in | `/health` |
-| RabbitMQ | Management plugin | `http://localhost:15672` |
 | PostgreSQL | pgAdmin | `http://localhost:5050` |

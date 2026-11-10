@@ -39,7 +39,7 @@ public static class ScrapeArchiveCommand
 
         var connectionOption = new Option<string>(
             ["--connection", "-c"],
-            "RabbitMQ connection string for sending scraping jobs to queue (publishing is disabled when omitted)");
+            "PostgreSQL connection string for sending scraping jobs to pgmq (publishing is disabled when omitted)");
 
         var verboseOption = new Option<bool>(
             ["--verbose", "-v"],

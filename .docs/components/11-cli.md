@@ -11,7 +11,7 @@ manual scraping, archive crawling, and retry of failed messages.
 |---------|-------------|
 | `scrape-article` | Scrape a single article and print to console. |
 | `scrape-archive` | Scrape archive pages and list article URLs. |
-| `retry` | Re-queue failed feed messages from RabbitMQ error queue. |
+| `retry` | Re-queue failed feed messages from the PGMQ error queue. |
 
 The root command initializes structured JSON console logging and registers the
 three commands with a shared logger factory.
@@ -31,7 +31,7 @@ three commands with a shared logger factory.
 | File | Purpose |
 |------|---------|
 | `ScrapeCommandOrchestrator.cs` | Implements `IScrapeCommandOrchestrator` — orchestrates scraping and retry via `IArticleJobPublisher`. |
-| `IArticleJobPublisher.cs` | Interface + implementations: `RabbitMqPublisher` and `NoOpPublisher`. Methods: `PublishAsync`, `RetryFailedFeedsAsync`. |
+| `IArticleJobPublisher.cs` | Interface + implementations: `PgmqArticleJobPublisher` and `NoOpPublisher`. Methods: `PublishAsync`, `RetryFailedFeedsAsync`. |
 | `ArchiveCommandInputResolver.cs` | Resolves raw CLI input (dates, sites, verbosity) into `ArchiveCommandResolvedInput`. |
 | `IScrapeCommandOrchestrator.cs` | Interface definition |
 
@@ -41,5 +41,5 @@ three commands with a shared logger factory.
 dotnet run --project Agitprop.CLI/Agitprop.CLI.csproj -- --help
 dotnet run --project Agitprop.CLI/Agitprop.CLI.csproj -- scrape-article --url <URL> --shorten
 dotnet run --project Agitprop.CLI/Agitprop.CLI.csproj -- scrape-archive --date 2024-01-01
-dotnet run --project Agitprop.CLI/Agitprop.CLI.csproj -- retry --connection <RabbitMQ-connection-string> --failed-queue <queue> --target-queue <queue> --max 10
+dotnet run --project Agitprop.CLI/Agitprop.CLI.csproj -- retry --connection "Host=localhost;Port=5432;Database=newsfeed;Username=postgres;Password=..." --failed-queue newsfeed_job_error --target-queue newsfeed_job --max 10
 ```
