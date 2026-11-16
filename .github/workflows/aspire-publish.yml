@@ -59,11 +59,15 @@ jobs:
       - name: Generate deployment artifacts
         run: aspire publish --output-path artifacts --non-interactive
 
+      - name: Copy the database bootstrap script into the bundle
+        run: cp -r Agitprop.AppHost/postgres-init artifacts/postgres-init
+
       - name: Pin the images to this commit
         run: |
           sed -i "s|^CONSUMER_IMAGE=.*|CONSUMER_IMAGE=ghcr.io/fortyfei/agitprop/consumer:${GITHUB_SHA}|" artifacts/.env
           sed -i "s|^RSS_FEED_READER_IMAGE=.*|RSS_FEED_READER_IMAGE=ghcr.io/fortyfei/agitprop/rss-feed-reader:${GITHUB_SHA}|" artifacts/.env
           sed -i "s|^WEB_IMAGE=.*|WEB_IMAGE=ghcr.io/fortyfei/agitprop/web:${GITHUB_SHA}|" artifacts/.env
+          sed -i "s|^POSTGRES_BINDMOUNT_0=.*|POSTGRES_BINDMOUNT_0=./postgres-init|" artifacts/.env
 
       - name: Show generated files
         run: ls -la artifacts

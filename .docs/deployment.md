@@ -205,10 +205,25 @@ The deployment bundle is produced by the CI `publish-deployment` job
 ```bash
 # on the VPS
 unzip agitprop-deploy.zip -d agitprop && cd agitprop
-$EDITOR .env                  # fill POSTGRES_PASSWORD and TUNNEL_TOKEN
+$EDITOR .env                  # fill POSTGRES_PASSWORD, APP_DB_PASSWORD and TUNNEL_TOKEN
+chmod 600 .env
 docker compose pull
 docker compose up -d
 ```
+
+`.env` carries four values: `POSTGRES_PASSWORD` (the container superuser, used
+only for administration), `APP_DB_PASSWORD` (the role the application logs in
+with), `TUNNEL_TOKEN`, and `POSTGRES_BINDMOUNT_0`, which the CI fills in with the
+bundle's own `postgres-init` folder.
+
+On the first start of an empty data directory PostgreSQL runs
+`postgres-init/01-agitprop-role.sql`. It creates the `agitprop` role, the
+`newsfeed` database, and the grants the app needs to create and use `pgmq`
+queues. The application never runs as the superuser, so a compromised query
+cannot reach `COPY ... FROM PROGRAM` and run programs on the database host. The
+script runs **once per data volume** — an existing volume keeps its roles, so
+create the role by hand (the SQL ships in the bundle) or start from a fresh
+volume.
 
 Published stacks apply the EF Core migrations on boot: the web container runs with
 `ApplyMigrationsAtStartup=true`, and migrating an up-to-date database is a no-op,
@@ -268,8 +283,9 @@ docker compose exec web bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080' && echo listen
 
 - **Host**: `ufw` allowing only `22`; SSH key-only (`PasswordAuthentication no`,
   `PermitRootLogin no`), fail2ban, `unattended-upgrades`. 2 GB swap.
-- **Database**: no published port; the password comes from `POSTGRES_PASSWORD`
-  in `.env` (`chmod 600`). Reach it with `docker compose exec postgres psql`.
+- **Database**: no published port; passwords come from `.env` (`chmod 600`). The
+  app logs in as `agitprop`, not as the superuser; `docker compose exec postgres
+  psql -U postgres newsfeed` stays available for administration.
 - **Data**: two named volumes survive container recreates. `agitprop-postgres-data`
   is pinned by name so that editing the AppHost cannot silently create a second,
   empty database volume and look like data loss. `agitprop-ner-model` holds the
