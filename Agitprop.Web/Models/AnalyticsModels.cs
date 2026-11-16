@@ -127,10 +127,3 @@ public class DailyCount
     public int Count { get; set; }
     public bool IsSpike { get; set; }
 }
-
-public class FirstPublisher
-{
-    public string Domain { get; set; } = string.Empty;
-    public DateTime FirstPublished { get; set; }
-    public int ArticleCount { get; set; }
-}

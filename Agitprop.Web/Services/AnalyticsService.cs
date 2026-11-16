@@ -364,34 +364,6 @@ public class AnalyticsService
             }));
     }
 
-    public Task<List<FirstPublisher>?> GetFirstPublishersAsync(string entityId, DateOnly from, DateOnly to)
-    {
-        if (string.IsNullOrWhiteSpace(entityId))
-        {
-            throw new ArgumentException("An entity id is required.", nameof(entityId));
-        }
-
-        EnsureFeedRange(from, to, entityId);
-
-        return Task.FromResult(CachedQuery(
-            "articles.first_publishers",
-            $"articles-first-publishers:{from:yyyy-MM-dd}:{to:yyyy-MM-dd}:{entityId}",
-            FeedCacheDuration,
-            provider =>
-            {
-                var repository = provider.GetRequiredService<IArticleFeedRepository>();
-
-                return repository.GetPublisherFirstSeen(entityId, from, to)
-                    .Select(item => new FirstPublisher
-                    {
-                        Domain = item.Domain,
-                        FirstPublished = item.FirstPublished,
-                        ArticleCount = item.ArticleCount
-                    })
-                    .ToList();
-            }));
-    }
-
     public Task<Dictionary<string, List<TimelinePoint>>> GetEntitiesTimelineAsync(
         DateOnly from,
         DateOnly to,

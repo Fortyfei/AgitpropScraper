@@ -39,7 +39,6 @@ public sealed class ArticleTimelineTests
             Assert.Throws<ArgumentException>(() => service.GetArticleFeedAsync(default, from, null, null, null, 0, 25));
             Assert.Throws<ArgumentException>(() => service.GetArticleFeedAsync(from, from.AddDays(400), null, null, null, 0, 25));
             Assert.Throws<ArgumentException>(() => service.GetArticleFeedAsync(from, from, "not-a-guid", null, null, 0, 25));
-            Assert.Throws<ArgumentException>(() => service.GetFirstPublishersAsync(null!, from, from));
             Assert.That(repository.Calls, Is.EqualTo(0));
         });
     }
