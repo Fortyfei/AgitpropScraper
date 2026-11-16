@@ -153,24 +153,42 @@ internal abstract class BaseArticleContentParser : IContentParser
 
     private static bool TryParseDateString(string dateText, out DateTime date)
     {
+        date = default;
+        if (string.IsNullOrWhiteSpace(dateText))
+        {
+            return false;
+        }
+
+        var value = dateText.Trim();
+
+        // The value states its own offset; honour it and normalise to UTC.
+        if (SourceTimeZone.HasExplicitOffset(value)
+            && DateTimeOffset.TryParse(
+                value,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.AssumeUniversal,
+                out var withOffset))
+        {
+            date = withOffset.UtcDateTime;
+            return true;
+        }
+
+        // Everything else is a wall-clock time in the outlet's timezone, never the host's.
         if (DateTime.TryParseExact(
-            dateText,
+            value,
             ["yyyy. MM. dd.", "yyyy. M. d."],
             CultureInfo.InvariantCulture,
             DateTimeStyles.AllowWhiteSpaces,
-            out date))
+            out var hungarianDate))
         {
+            date = SourceTimeZone.ToUtc(hungarianDate);
             return true;
         }
 
-        var styles = DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.AssumeLocal;
-        if (DateTime.TryParse(dateText, CultureInfo.InvariantCulture, styles, out date))
+        if (DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out var parsed)
+            || DateTime.TryParse(value, new CultureInfo("hu-HU"), DateTimeStyles.AllowWhiteSpaces, out parsed))
         {
-            return true;
-        }
-
-        if (DateTime.TryParse(dateText, new CultureInfo("hu-HU"), styles, out date))
-        {
+            date = SourceTimeZone.ToUtc(parsed);
             return true;
         }
 
