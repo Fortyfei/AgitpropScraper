@@ -3,8 +3,9 @@ name: Build and Push Images
 on:
   push:
     branches: [main]
+  # Any base branch, so stacked pull requests are verified too. The publish and push
+  # jobs are gated on the push event, so this only adds the test jobs.
   pull_request:
-    branches: [main]
 
 jobs:
   test:
