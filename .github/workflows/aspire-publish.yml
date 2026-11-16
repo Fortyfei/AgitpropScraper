@@ -7,6 +7,10 @@ on:
   # jobs are gated on the push event, so this only adds the test jobs.
   pull_request:
 
+env:
+  # Keep in sync with Aspire.AppHost.Sdk in Agitprop.AppHost/Agitprop.AppHost.csproj.
+  ASPIRE_CLI_VERSION: 13.6.5
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -53,8 +57,8 @@ jobs:
 
       - name: Install Aspire CLI
         run: |
-          curl -sSL https://aspire.dev/install.sh | bash
-          echo "$HOME/.aspire/bin" >> $GITHUB_PATH
+          dotnet tool install --global Aspire.Cli --version ${{ env.ASPIRE_CLI_VERSION }}
+          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
 
       - name: Generate deployment artifacts
         run: aspire publish --output-path artifacts --non-interactive
@@ -97,8 +101,8 @@ jobs:
 
       - name: Install Aspire CLI
         run: |
-          curl -sSL https://aspire.dev/install.sh | bash
-          echo "$HOME/.aspire/bin" >> $GITHUB_PATH
+          dotnet tool install --global Aspire.Cli --version ${{ env.ASPIRE_CLI_VERSION }}
+          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
 
       - name: Output Aspire CLI version
         run: aspire --version
