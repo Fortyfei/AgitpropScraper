@@ -268,6 +268,24 @@ $EDITOR .env && docker compose pull && docker compose up -d
 Image tags are commit SHAs, never `latest`, so the only thing a rollback needs is
 the SHA that was running. `git log` names it; the images stay in the registry.
 
+Before the first `docker compose up`, check that no value is still empty — the
+postgres image fails late and unhelpfully otherwise:
+
+```bash
+grep -E '^(POSTGRES_PASSWORD|APP_DB_PASSWORD|TUNNEL_TOKEN|CONSUMER_IMAGE|RSS_FEED_READER_IMAGE|WEB_IMAGE|POSTGRES_BINDMOUNT_0)=$' .env \
+  && echo 'fill these values in .env'
+```
+
+#### Logs and telemetry
+
+The published stack exports **no telemetry**: the Aspire dashboard is a local
+development aid and is excluded from publish mode, and the OTLP exporter is only
+registered when `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Everything a service
+writes goes to stdout and is read with `docker compose logs -f <service>`. If you
+ever want traces and metrics, the services already emit them — add a collector to
+the stack and set `OTEL_EXPORTER_OTLP_ENDPOINT` for the services that should
+report to it.
+
 `HealthEndpoints__Enabled` is `true` in the published stack, so `/health` and
 `/alive` exist in production for an uptime monitor; block those paths at the
 Cloudflare edge so they are not public.
