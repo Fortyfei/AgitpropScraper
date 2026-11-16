@@ -53,13 +53,17 @@ All extend the abstract `BaseArticleContentParser : IContentParser`.
   primary selectors do not match.
 - Publication times are normalised to UTC in `TryParseDateString`. Values that
   state an offset (`Z`, `+01:00`, `+0100`) are honoured as written; offset-less
-  values are read as Budapest wall-clock time through `SourceTimeZone`
+  values are read as Budapest wall-clock time through `ReportingTimeZone`
   (`Europe/Budapest`) and converted to UTC, including the DST gap and overlap.
   The host machine's timezone never influences the result, so a UTC container
   stores the same instant as a developer machine in Budapest.
 - Index uses its `i:publication` date metadata when `article:published_time`
   is unavailable; the bare Hungarian date is read as Budapest midnight, which
   lands on the previous day in UTC.
+- Day buckets and date-range filters use the same calendar: repositories turn an
+  inclusive `DateOnly` range into UTC bounds with `ReportingTimeZone.ToUtcRange`
+  and group by `ReportingTimeZone.ToDay`, so an article published at 23:30 UTC
+  belongs to the next reporting day.
 - The Index parser excludes scripts/styles, the Google preference banner,
   social/footer widgets, microsite ad blocks, and related-post lists from the
   text sent to entity recognition, while retaining article image captions.

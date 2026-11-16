@@ -251,6 +251,64 @@ public class AnalyticsPostgresIntegrationTests
     }
 
     [Test]
+    public async Task PublicationDay_FollowsTheReportingCalendarNotUtc()
+    {
+        var service = CreateAnalyticsService();
+        var articleId = Guid.NewGuid();
+        // 2026-02-10 23:30 UTC is 2026-02-11 00:30 in Budapest, so it belongs to the 11th.
+        var published = new DateTime(2026, 2, 10, 23, 30, 0, DateTimeKind.Utc);
+
+        await using (var db = CreateDbContext())
+        {
+            var article = new PostgresArticle
+            {
+                Id = articleId,
+                Title = "Boundary article",
+                Url = $"https://bucket-boundary.test/{articleId:N}",
+                PublishedTime = published
+            };
+            db.Articles.Add(article);
+            db.Mentions.Add(new PostgresMention { ArticleId = articleId, EntityId = _entityId });
+            await db.SaveChangesAsync();
+        }
+
+        try
+        {
+            var counts = (await service.GetDailyArticleCountsAsync(
+                new DateOnly(2026, 2, 10), new DateOnly(2026, 2, 11), null, null))!;
+
+            var tenth = (await service.GetArticleFeedAsync(
+                new DateOnly(2026, 2, 10), new DateOnly(2026, 2, 10), null, null, null, 0, 25))!;
+            var eleventh = (await service.GetArticleFeedAsync(
+                new DateOnly(2026, 2, 11), new DateOnly(2026, 2, 11), null, null, null, 0, 25))!;
+
+            var timeline = await service.GetEntitiesTimelineAsync(
+                new DateOnly(2026, 2, 10), new DateOnly(2026, 2, 11), [_entityId.ToString()]);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(counts.Select(day => day.Count), Is.EqualTo(new[] { 0, 1 }),
+                    "the daily buckets must use the reporting calendar");
+                Assert.That(tenth.TotalCount, Is.EqualTo(0), "the 10th is the wrong reporting day");
+                Assert.That(eleventh.TotalCount, Is.EqualTo(1));
+                Assert.That(eleventh.Items.Single().Id, Is.EqualTo(articleId.ToString()));
+                Assert.That(timeline[_entityId.ToString()].Select(point => point.Count), Is.EqualTo(new[] { 0, 1 }),
+                    "the entity timeline must bucket the same way");
+            });
+        }
+        finally
+        {
+            await using var db = CreateDbContext();
+            var article = await db.Articles.SingleOrDefaultAsync(item => item.Id == articleId);
+            if (article is not null)
+            {
+                db.Articles.Remove(article);
+                await db.SaveChangesAsync();
+            }
+        }
+    }
+
+    [Test]
     public async Task PgmqPolling_SuppressesNpgsqlInstrumentationOnlyWithinScope()
     {
         await using var dataSource = NpgsqlDataSource.Create(_connectionString!);
@@ -292,6 +350,15 @@ public class AnalyticsPostgresIntegrationTests
             host.Services.GetRequiredService<IServiceScopeFactory>(),
             host.Services.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>(),
             NullLogger<AnalyticsService>.Instance);
+    }
+
+    private AppDbContext CreateDbContext()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseNpgsql(_connectionString)
+            .Options;
+
+        return new AppDbContext(options);
     }
 
     private sealed class RecordingActivityProcessor(List<Activity> spans) : BaseProcessor<Activity>

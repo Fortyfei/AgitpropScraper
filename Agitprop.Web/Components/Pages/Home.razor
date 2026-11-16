@@ -306,7 +306,7 @@
 
     private (DateOnly From, DateOnly To) GetSelectedRange()
     {
-        var to = DateOnly.FromDateTime(DateTime.UtcNow);
+        var to = ReportingTimeZone.Today();
         var from = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-SelectedTimeframe.Days));
         return (from, to);
     }

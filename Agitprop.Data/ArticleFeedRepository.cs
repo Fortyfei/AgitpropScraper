@@ -1,3 +1,4 @@
+using Agitprop.Core;
 using Microsoft.EntityFrameworkCore;
 
 using Agitprop.Core.Interfaces;
@@ -87,7 +88,7 @@ public class ArticleFeedRepository : IArticleFeedRepository
             .Select(article => new { article.Url, article.PublishedTime })
             .ToList()
             .Where(article => string.IsNullOrWhiteSpace(domain) || MatchesDomain(article.Url, domain))
-            .GroupBy(article => DateOnly.FromDateTime(article.PublishedTime))
+            .GroupBy(article => ReportingTimeZone.ToDay(article.PublishedTime))
             .ToDictionary(group => group.Key, group => group.Count());
 
         var days = new List<DailyArticleCount>();
@@ -111,8 +112,7 @@ public class ArticleFeedRepository : IArticleFeedRepository
 
     private IQueryable<PostgresArticle> BuildQuery(DateOnly startDate, DateOnly endDate, string? entityId, string? domain)
     {
-        var from = DateTime.SpecifyKind(startDate.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
-        var to = DateTime.SpecifyKind(endDate.ToDateTime(TimeOnly.MaxValue), DateTimeKind.Utc);
+        var (from, to) = ReportingTimeZone.ToUtcRange(startDate, endDate);
 
         var query = _dbContext.Articles
             .AsNoTracking()
