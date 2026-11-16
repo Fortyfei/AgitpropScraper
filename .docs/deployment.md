@@ -46,10 +46,14 @@ echo $GITHUB_TOKEN | docker login ghcr.io -u fortyfei --password-stdin
 aspire do push
 ```
 
-### Build a single service image:
+### Build the images
+
+Aspire generates a Dockerfile per service at build time, so a manual
+`docker build` has nothing to build from in this repository:
 
 ```bash
-docker build -t agitprop/consumer:latest -f Agitprop.Scraper.Consumer/Dockerfile .
+aspire do build     # build every service image
+aspire do push      # build and push to the registry configured above
 ```
 
 ## 4. CI/CD Pipeline
@@ -117,7 +121,7 @@ aspire update --self
       up-to-date database is a no-op, so the web container migrates on every start
 - [ ] PGMQ extension is installed/enabled and the application role can create the two queues on first startup
 - [ ] GHCR credentials configured for image pull
-- [ ] OTLP collector endpoint configured (`OTEL_EXPORTER_OTLP_ENDPOINT`)
+- [ ] Telemetry: the published stack exports nothing by default; set `OTEL_EXPORTER_OTLP_ENDPOINT` only if a collector is part of the deployment
 - [ ] PostgreSQL credentials rotated from defaults
 - [ ] Proxy providers configured (if using `UseProxies=true`)
 - [ ] Health checks accessible for orchestration (k8s liveness/readiness)
@@ -268,16 +272,37 @@ $EDITOR .env && docker compose pull && docker compose up -d
 Image tags are commit SHAs, never `latest`, so the only thing a rollback needs is
 the SHA that was running. `git log` names it; the images stay in the registry.
 
+Before the first `docker compose up`, check that no value is still empty — the
+postgres image fails late and unhelpfully otherwise:
+
+```bash
+grep -E '^(POSTGRES_PASSWORD|APP_DB_PASSWORD|TUNNEL_TOKEN|CONSUMER_IMAGE|RSS_FEED_READER_IMAGE|WEB_IMAGE|POSTGRES_BINDMOUNT_0)=$' .env \
+  && echo 'fill these values in .env'
+```
+
+#### Logs and telemetry
+
+The published stack exports **no telemetry**: the Aspire dashboard is a local
+development aid and is excluded from publish mode, and the OTLP exporter is only
+registered when `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Everything a service
+writes goes to stdout and is read with `docker compose logs -f <service>`. If you
+ever want traces and metrics, the services already emit them — add a collector to
+the stack and set `OTEL_EXPORTER_OTLP_ENDPOINT` for the services that should
+report to it.
+
 `HealthEndpoints__Enabled` is `true` in the published stack, so `/health` and
 `/alive` exist in production for an uptime monitor; block those paths at the
 Cloudflare edge so they are not public.
 
 ```bash
 # health of the containers themselves
-docker compose ps                 # web and postgres report healthy
-curl -fsS http://127.0.0.1:8080  # only from inside the compose network
+docker compose ps                                            # web and postgres report healthy
+docker compose exec postgres pg_isready -U postgres -d newsfeed
 docker compose exec web bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080' && echo listening
 ```
+
+There is no published port to curl: the web app is reachable only through the
+tunnel and from inside the compose network.
 
 ### 10.4 Hardening checklist
 
@@ -301,14 +326,14 @@ docker compose exec web bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080' && echo listen
 - **Containers**: every published service runs with
   `restart: unless-stopped` and `security_opt: no-new-privileges:true`; the
   generated images run as the non-root `app` user.
-- **Optional extra hardening**: set `read_only: true` plus a `tmpfs: /tmp` on the
-  services, and a memory limit (`deploy.resources.limits.memory`) on `consumer`.
-  If you make the consumer read-only, point `NLP__ModelDirectory` at a named
-  volume first, because the ONNX model is downloaded on first start.
+- **Optional extra hardening**: add `read_only: true` plus a `tmpfs: /tmp` to the
+  services. Memory limits are already in place (`deploy.resources.limits.memory`:
+  postgres `1G`, consumer `1200M`, web `512M`, rss-feed-reader `256M`, cloudflared
+  `128M`), and the NER model already lives on the `agitprop-ner-model` volume.
 - **Backups**: nightly `pg_dump` (see Operations) with rotation, and one
   restore rehearsal.
-- **Image tags**: the CI bundle currently deploys `:latest`; pin the tag to a
-  commit SHA before relying on rollbacks.
+- **Image tags**: the CI bundle pins every image to the commit it was built from,
+  so a rollback means pointing `.env` at an older SHA.
 
 ### 10.5 Local development still uses the dashboard
 
