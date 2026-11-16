@@ -100,7 +100,9 @@ public class ContentParserOfflineTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(result.PublishDate.Date, Is.EqualTo(new DateTime(2026, 10, 25)));
+            // The outlet publishes a bare date, which is read as Budapest midnight (CEST, UTC+2)
+            // and therefore falls on the previous day in UTC.
+            Assert.That(result.PublishDate, Is.EqualTo(new DateTime(2026, 10, 24, 22, 0, 0, DateTimeKind.Utc)));
             Assert.That(result.Title, Is.EqualTo("Index article title"));
             Assert.That(result.Text, Is.EqualTo("Index article title Index article text."));
         });
