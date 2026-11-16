@@ -8,6 +8,9 @@ namespace Agitprop.Data;
 
 public static class DataExtensions
 {
+    private const string ConnectionName = "newsfeed";
+    private const string PostgresRegistrationKey = "Agitprop.Data.PostgresRegistration";
+
     /// <summary>
     /// Adds the Newsfeed database services to the application builder.
     /// </summary>
@@ -34,12 +37,14 @@ public static class DataExtensions
 
     private static IHostApplicationBuilder AddPostgresConnection(this IHostApplicationBuilder builder)
     {
-        var conn = builder.Configuration.GetConnectionString("newsfeed");
-        builder.Services.AddDbContext<AppDbContext>(opts =>
+        if (builder.Properties.ContainsKey(PostgresRegistrationKey))
         {
-            opts.UseNpgsql(conn, o => o.EnableRetryOnFailure());
-            if (builder.Environment.IsDevelopment()) opts.EnableSensitiveDataLogging();
-        });
+            return builder;
+        }
+
+        builder.AddNpgsqlDbContext<AppDbContext>(ConnectionName);
+        builder.Properties[PostgresRegistrationKey] = PostgresRegistrationKey;
+
         return builder;
     }
 }

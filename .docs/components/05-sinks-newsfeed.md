@@ -97,8 +97,8 @@ propagate for retry/error handling.
 - `ContentParserOnlineTests.cs` — explicit, opt-in checks against live sites whose content can change.
 
 `Agitprop.UnitTests` contains service-free tests for crawl orchestration, sink behavior, job
-creation, and the NLP HTTP client. `Agitprop.IntegrationTests` uses a dedicated Aspire AppHost
-to test the Web API against an isolated PostgreSQL instance; it requires Docker.
+creation, and the dashboard query service. `Agitprop.IntegrationTests` uses a dedicated Aspire AppHost
+to test the analytics queries against an isolated PostgreSQL instance; it requires Docker.
 
 ### Running tests:
 

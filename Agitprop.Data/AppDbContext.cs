@@ -12,10 +12,6 @@ public class AppDbContext : DbContext
   public DbSet<PostgresEntity> Entities => Set<PostgresEntity>();
   public DbSet<PostgresMention> Mentions => Set<PostgresMention>();
 
-  protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-  {
-    optionsBuilder.EnableSensitiveDataLogging();
-  }
   protected override void OnModelCreating(ModelBuilder modelBuilder)
   {
     modelBuilder.Entity<PostgresArticle>(entity =>

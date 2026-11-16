@@ -8,9 +8,10 @@ var postgres = builder.AddPostgres("postgres")
     .WithImageTag("v1.13.1");
 var newsfeed = postgres.AddDatabase("newsfeed");
 
-builder.AddProject<Agitprop_Web_Api>("backend")
+builder.AddProject<Agitprop_Web>("web")
     .WaitFor(newsfeed)
     .WithReference(newsfeed)
-    .WithEnvironment("ApplyMigrationsAtStartup", "true");
+    .WithEnvironment("ApplyMigrationsAtStartup", "true")
+    .WithEnvironment("HealthEndpoints__Enabled", "true");
 
 builder.Build().Run();

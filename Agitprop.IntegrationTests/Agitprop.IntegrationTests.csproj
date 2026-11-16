@@ -23,6 +23,11 @@
     <ProjectReference Include="..\Agitprop.Testing.AppHost\Agitprop.Testing.AppHost.csproj" />
     <ProjectReference Include="..\Agitprop.Data\Agitprop.Data.csproj" />
     <ProjectReference Include="..\Agitprop.Messaging\Agitprop.Messaging.csproj" />
+    <ProjectReference Include="..\Agitprop.Web\Agitprop.Web.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
   <ItemGroup>

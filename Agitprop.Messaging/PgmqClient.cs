@@ -352,14 +352,8 @@ public static class PgmqServiceCollectionExtensions
         this IHostApplicationBuilder builder,
         string connectionStringName)
     {
-        var connectionString = builder.Configuration.GetConnectionString(connectionStringName);
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            throw new InvalidOperationException(
-                $"Missing required configuration key 'ConnectionStrings:{connectionStringName}'.");
-        }
+        builder.AddNpgsqlDataSource(connectionStringName);
 
-        builder.Services.AddSingleton<NpgsqlDataSource>(_ => NpgsqlDataSource.Create(connectionString));
         builder.Services.AddSingleton<IPgmqClient, PgmqClient>();
         return builder;
     }

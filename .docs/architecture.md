@@ -31,8 +31,7 @@ flowchart TB
     subgraph "Services"
         CON[Consumer: in-process Hungarian NER, waits for newsfeedDb]
         RSS[RSS Feed Reader: waits for newsfeedDb, Consumer]
-        WEB_API[Web API: waits for newsfeedDb]
-        WEB_CL[Web Client: waits for backend, external HTTP]
+        WEB[Web app: Blazor Server, owns repositories and migrations, external HTTP]
     end
 
     %% Connections
@@ -40,22 +39,19 @@ flowchart TB
     REG1 -->|pull| PG
     REG1 -->|pull| CON
     REG1 -->|pull| RSS
-    REG1 -->|pull| WEB_API
-    REG1 -->|pull| WEB_CL
+    REG1 -->|pull| WEB
 
     PG -->|PGMQ queue + EF Core| CON
     PG -->|PGMQ queue| RSS
-    PG -->|EF Core| WEB_API
+    PG -->|EF Core| WEB
 
     CON -.->|OTLP gRPC| DIAG
     RSS -.->|OTLP gRPC| DIAG
-    WEB_API -.->|OTLP gRPC| DIAG
-    WEB_CL -.->|HTTP| DIAG
+    WEB -.->|OTLP gRPC| DIAG
 
     style CON fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
     style RSS fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-    style WEB_API fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-    style WEB_CL fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    style WEB fill:#fff3e0,stroke:#f57c00,stroke-width:2px
     style PG fill:#f3e5f5,stroke:#8e24aa,stroke-width:2px
     style REG fill:#e0e0e0,stroke:#424242,stroke-width:1px
 ```
@@ -74,17 +70,16 @@ flowchart TB
 | 6 | **Agitprop.Scraper.Consumer** | Worker with in-process Hungarian NER | newsfeedDb |
 | 7 | **Agitprop.Scraper.RssFeedReader** | RSS-to-pgmq worker | newsfeedDb, consumer |
 | 8 | **Agitprop.Scraper.NLPService** | .NET class library (ONNX Runtime, huBERT NER) | — |
-| 9 | **Agitprop.Web.Api** | Read-only analytics API | newsfeedDb |
-| 10 | **Agitprop.Web.Client** | Blazor Web App (Interactive Server and WebAssembly) | backend (Web.Api) |
-| 11 | **Agitprop.CLI** | System.CommandLine operator tool | — |
-| 12 | **Agitprop.ServiceDefaults** | Shared library (OTel, health checks, HTTP resilience) | — |
-| 13 | **Agitprop.Sinks.Newsfeed** | `NewsfeedSink` + NLP wiring (uses Data) | — |
-| 13a | **Agitprop.Sources** | Per-site `INewsfeedSource`s, parsers, `NewsfeedPipeline` | — |
-| 13b | **Agitprop.Data** | EF Core context, migrations, repositories | — |
-| 13c | **Agitprop.Messaging** | Npgsql-backed PGMQ client | PostgreSQL |
-| 14 | **Agitprop.Sinks.Newsfeed_Test** | Parser fixture tests | — |
-| 15 | **Agitprop.UnitTests** | Unit tests | — |
-| 16 | **Agitprop.IntegrationTests** | API/PostgreSQL integration tests | Testing.AppHost |
+| 9 | **Agitprop.Web** | Blazor Web App (Interactive Server); owns the analytics queries, repositories, and migrations | newsfeedDb |
+| 10 | **Agitprop.CLI** | System.CommandLine operator tool | — |
+| 11 | **Agitprop.ServiceDefaults** | Shared library (OTel, health checks, HTTP resilience) | — |
+| 12 | **Agitprop.Sinks.Newsfeed** | `NewsfeedSink` + NLP wiring (uses Data) | — |
+| 12a | **Agitprop.Sources** | Per-site `INewsfeedSource`s, parsers, `NewsfeedPipeline` | — |
+| 12b | **Agitprop.Data** | EF Core context, migrations, repositories | — |
+| 12c | **Agitprop.Messaging** | Npgsql-backed PGMQ client | PostgreSQL |
+| 13 | **Agitprop.Sinks.Newsfeed_Test** | Parser fixture tests | — |
+| 14 | **Agitprop.UnitTests** | Unit tests | — |
+| 15 | **Agitprop.IntegrationTests** | Analytics/PostgreSQL integration tests | Testing.AppHost |
 
 ## 2. Runtime Topology Walkthrough
 
@@ -109,8 +104,9 @@ The request flow follows these steps (see pipelines.md for sequence diagrams):
    on first use, or loaded from a pre-provisioned directory. Results are stored
    in PostgreSQL.
 
-6. **Web API** (`Agitprop.Web.Api`) serves entity browse and analytics endpoints (cached, 15‑min
-   cache for browse, 1‑hour for entity details). Blazor client consumes these endpoints.
+6. **Web app** (`Agitprop.Web`) is a Blazor Server host that answers the dashboard
+   queries straight from the repositories through `AnalyticsService` (cached, 15‑min for
+   list queries, 1‑hour for entity details) and applies EF Core migrations on startup.
 
 7. **CLI** (`Agitprop.CLI`) provides manual operations: `scrape-article`, `scrape-archive`,
    `retry`.

@@ -36,6 +36,43 @@ jobs:
       - name: Run Aspire integration tests
         run: dotnet test Agitprop.IntegrationTests/Agitprop.IntegrationTests.csproj --configuration Release
 
+  publish-deployment:
+    if: github.event_name == 'push'
+    needs: [test, integration-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install Aspire CLI
+        run: |
+          curl -sSL https://aspire.dev/install.sh | bash
+          echo "$HOME/.aspire/bin" >> $GITHUB_PATH
+
+      - name: Generate deployment artifacts
+        run: aspire publish --output-path artifacts --non-interactive
+
+      - name: Fill image names and ports
+        run: |
+          sed -i 's|^CONSUMER_IMAGE=.*|CONSUMER_IMAGE=ghcr.io/fortyfei/agitprop/consumer:latest|' artifacts/.env
+          sed -i 's|^RSS_FEED_READER_IMAGE=.*|RSS_FEED_READER_IMAGE=ghcr.io/fortyfei/agitprop/rss-feed-reader:latest|' artifacts/.env
+          sed -i 's|^WEB_IMAGE=.*|WEB_IMAGE=ghcr.io/fortyfei/agitprop/web:latest|' artifacts/.env
+          sed -i 's|^WEB_PORT=.*|WEB_PORT=8080|' artifacts/.env
+
+      - name: Show generated files
+        run: ls -la artifacts
+
+      - name: Upload deployment artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: agitprop-deploy
+          path: artifacts
+          if-no-files-found: error
+
   build-and-push:
     if: github.event_name == 'push'
     needs: [test, integration-tests]

@@ -24,5 +24,18 @@ public static class Extensions
                 await Task.CompletedTask;
             });
         }
+
+        /// <summary>
+        /// Applies the hardening every published service shares: restart on failure and no
+        /// privilege escalation inside the container. Only has an effect when publishing.
+        /// </summary>
+        internal IResourceBuilder<T> HardenComposeService()
+        {
+            return builder.PublishAsDockerComposeService((_, service) =>
+            {
+                service.Restart = "unless-stopped";
+                service.SecurityOpt = ["no-new-privileges:true"];
+            });
+        }
     }
 }

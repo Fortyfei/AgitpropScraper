@@ -3,13 +3,16 @@
 ## Purpose
 
 A shared class library that provides **common service configuration** for the
-consumer, RSS reader, Web API, and Web Client application processes. Each calls
+consumer, RSS reader, and web application processes. Each calls
 `builder.AddServiceDefaults()` at startup. This is a thin configuration layer.
 
 ## Responsibilities
 
 - **OpenTelemetry**: configures structured log export, HTTP/AspNetCore,
-  process/runtime, Npgsql, and Entity Framework Core instrumentation.
+  process/runtime, Npgsql, and Entity Framework Core instrumentation. Blazor's own
+  `Route`/`Event` activities, the SignalR `ComponentHub` activities, and static-file
+  requests are excluded so a user interaction stays a single trace instead of
+  producing unrelated single-span traces.
   Application-owned ActivitySources and Meters are registered centrally so
   traces and metrics work consistently in every service using these defaults.
 - **OTLP export**: enabled when `OTEL_EXPORTER_OTLP_ENDPOINT` is configured;
@@ -34,7 +37,7 @@ Keep these scopes distinct when changing retry behavior:
 
 The direct `RespectfulPageRequester` constructs its own `HttpClient` and does
 not receive the `IHttpClientFactory` resilience handler. Factory-created
-clients, such as the Web Client API client and proxy-provider clients, do.
+clients, such as the proxy-provider clients, do.
 
 The local Polly policies share their retry count and delay implementation via
 `Agitprop.Infrastructure.RetryPolicyFactory`; their scope, triggers, and
@@ -58,11 +61,11 @@ builder.AddServiceDefaults();
 ```
 
 Called by: `Agitprop.Scraper.Consumer`, `Agitprop.Scraper.RssFeedReader`,
-`Agitprop.Web.Api`, and `Agitprop.Web.Client`.
+and `Agitprop.Web`.
 
 The scraping pipeline emits bounded metrics for consumed/completed/failed
 jobs, scrape duration and outcomes, processed pages, RSS items/jobs, feed and
-publish failures, and API cache hits/misses. URLs are not metric dimensions.
+publish failures, and dashboard query cache hits/misses. URLs are not metric dimensions.
 Application-owned URL fields in logs and spans omit query strings and
 fragments. Automatic HttpClient instrumentation retains its own URL
 attributes. EF Core spans do not include SQL text or query parameter values.

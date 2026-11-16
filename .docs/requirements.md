@@ -39,7 +39,7 @@
 
 - Documentation lives under `.docs/` only; all other `.md` files at repo root are moved or deleted.
 - Mermaid diagrams for every pipeline and component interaction.
-- The consumer, RSS reader, and Web API use the PostgreSQL `newsfeed` connection; the queue is stored in that database using PGMQ.
-- EF Core migrations are applied by the Web API startup path when
+- The consumer, RSS reader, and web app use the PostgreSQL `newsfeed` connection; the queue is stored in that database using PGMQ.
+- EF Core migrations are applied by the web app startup path when
   `ASPNETCORE_ENVIRONMENT=Development` or `ApplyMigrationsAtStartup=true`.
 - The CLI uses System.CommandLine with three commands: `scrape-article`, `scrape-archive`, `retry`.

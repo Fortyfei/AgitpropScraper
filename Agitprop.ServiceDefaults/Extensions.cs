@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
@@ -70,12 +72,20 @@ public static class Extensions
                        "Agitprop.NewsfeedJobConsumer",
                        "Agitprop.RssFeedReader",
                        "Agitprop.RespectfulPageRequester",
-                       "Agitprop.Web.Api");
+                       "Agitprop.Web");
         })
         .WithTracing(builder =>
         {
             builder.AddHttpClientInstrumentation()
-                   .AddAspNetCoreInstrumentation()
+                   // Blazor's own routing, event and circuit activities would each start their own
+                   // trace. The web app groups a user interaction with Agitprop.Web.Journey instead,
+                   // so every query of one interaction lands in one trace.
+                   .AddAspNetCoreInstrumentation(options =>
+                   {
+                       options.EnableRazorComponentsSupport = false;
+                       options.EnableAspNetCoreSignalRSupport = false;
+                       options.Filter = context => !IsStaticAssetRequest(context.Request.Path);
+                   })
                    .AddEntityFrameworkCoreInstrumentation()
                    .AddSource(
                        "Agitprop.Spider",
@@ -95,13 +105,32 @@ public static class Extensions
                        "Agitprop.Repository.EntityRepository",
                        "Agitprop.Repository.TrendingRepository",
                        "Npgsql",
-                       "Agitprop.Web.Api.Controllers.EntitiesController",
-                       "Agitprop.Web.Api.Controllers.ActivitiesController");
+                       "Agitprop.Web.AnalyticsService",
+                       "Agitprop.Web.Journey");
         });
 
         builder.AddOpenTelemetryExporters();
 
         return builder;
+    }
+
+    /// <summary>
+    /// Static files and the Blazor circuit handshake are not user journeys; tracing them only
+    /// adds single-span traces next to the real one.
+    /// </summary>
+    private static bool IsStaticAssetRequest(PathString path)
+    {
+        var value = path.Value ?? string.Empty;
+
+        return value.StartsWith("/_blazor", StringComparison.OrdinalIgnoreCase)
+            || value.StartsWith("/_framework/", StringComparison.OrdinalIgnoreCase)
+            || value.StartsWith("/_content/", StringComparison.OrdinalIgnoreCase)
+            || value.StartsWith("/lib/", StringComparison.OrdinalIgnoreCase)
+            || value.EndsWith(".css", StringComparison.OrdinalIgnoreCase)
+            || value.EndsWith(".js", StringComparison.OrdinalIgnoreCase)
+            || value.EndsWith(".map", StringComparison.OrdinalIgnoreCase)
+            || value.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
+            || value.EndsWith(".ico", StringComparison.OrdinalIgnoreCase);
     }
 
     private static IHostApplicationBuilder AddOpenTelemetryExporters(this IHostApplicationBuilder builder)
@@ -134,9 +163,12 @@ public static class Extensions
 
     public static WebApplication MapDefaultEndpoints(this WebApplication app)
     {
-        // Adding health checks endpoints to applications in non-development environments has security implications.
-        // See https://aka.ms/dotnet/aspire/healthchecks for details before enabling these endpoints in non-development environments.
-        if (app.Environment.IsDevelopment())
+        // Health endpoints are Development-only unless explicitly enabled, because exposing them
+        // in production has security implications. See https://aka.ms/dotnet/aspire/healthchecks.
+        var exposeHealthEndpoints = app.Environment.IsDevelopment()
+            || app.Configuration.GetValue<bool>("HealthEndpoints:Enabled");
+
+        if (exposeHealthEndpoints)
         {
             // All health checks must pass for app to be considered ready to accept traffic after starting
             app.MapHealthChecks("/health");

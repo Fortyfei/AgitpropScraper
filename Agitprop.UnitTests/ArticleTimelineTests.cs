@@ -1,9 +1,4 @@
-using Agitprop.Core.Interfaces;
 using Agitprop.Core.Models;
-using Agitprop.Web.Api.Controllers;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Agitprop.UnitTests;
 
@@ -32,66 +27,51 @@ public sealed class ArticleTimelineTests
     }
 
     [Test]
-    public void ArticlesController_RejectsInvalidRequestsWithoutQueryingTheRepository()
+    public void GetArticleFeedAsync_RejectsInvalidRequestsWithoutQueryingTheRepository()
     {
-        var repository = new RecordingFeedRepository();
-        var controller = new ArticlesController(NullLogger<ArticlesController>.Instance, repository, new MemoryCache(new MemoryCacheOptions()));
+        var repository = new FakeArticleFeedRepository();
+        var service = AnalyticsTestHost.Create(articleFeedRepository: repository);
         var from = new DateOnly(2026, 1, 1);
 
         Assert.Multiple(() =>
         {
-            Assert.That(controller.GetFeed(from.AddDays(1), from, null, null, null).Result, Is.TypeOf<BadRequestObjectResult>());
-            Assert.That(controller.GetFeed(default, from, null, null, null).Result, Is.TypeOf<BadRequestObjectResult>());
-            Assert.That(controller.GetFeed(from, from.AddDays(400), null, null, null).Result, Is.TypeOf<BadRequestObjectResult>());
-            Assert.That(controller.GetFeed(from, from, "not-a-guid", null, null).Result, Is.TypeOf<BadRequestObjectResult>());
-            Assert.That(controller.GetFirstPublishers(from, from, null).Result, Is.TypeOf<BadRequestObjectResult>());
+            Assert.Throws<ArgumentException>(() => service.GetArticleFeedAsync(from.AddDays(1), from, null, null, null, 0, 25));
+            Assert.Throws<ArgumentException>(() => service.GetArticleFeedAsync(default, from, null, null, null, 0, 25));
+            Assert.Throws<ArgumentException>(() => service.GetArticleFeedAsync(from, from.AddDays(400), null, null, null, 0, 25));
+            Assert.Throws<ArgumentException>(() => service.GetArticleFeedAsync(from, from, "not-a-guid", null, null, 0, 25));
+            Assert.Throws<ArgumentException>(() => service.GetFirstPublishersAsync(null!, from, from));
             Assert.That(repository.Calls, Is.EqualTo(0));
         });
     }
 
     [Test]
-    public void ArticlesController_ClampsPageSizeAndMarksSpikes()
+    public async Task GetArticleFeedAsync_ClampsPageAndPageSize()
     {
-        var repository = new RecordingFeedRepository();
-        var controller = new ArticlesController(NullLogger<ArticlesController>.Instance, repository, new MemoryCache(new MemoryCacheOptions()));
+        var repository = new FakeArticleFeedRepository();
+        var service = AnalyticsTestHost.Create(articleFeedRepository: repository);
         var from = new DateOnly(2026, 1, 1);
 
-        controller.GetFeed(from, from.AddDays(1), null, null, null, page: -3, pageSize: 5000);
-        var daily = (OkObjectResult)controller.GetDailyCounts(from, from.AddDays(9), null, null).Result!;
+        await service.GetArticleFeedAsync(from, from.AddDays(1), null, null, null, page: -3, pageSize: 5000);
 
         Assert.Multiple(() =>
         {
             Assert.That(repository.LastPage, Is.EqualTo(0));
             Assert.That(repository.LastPageSize, Is.EqualTo(100));
-            Assert.That(daily.Value, Is.Not.Null);
         });
     }
 
-    private sealed class RecordingFeedRepository : IArticleFeedRepository
+    [Test]
+    public async Task GetDailyArticleCountsAsync_MarksSpikes()
     {
-        public int Calls { get; private set; }
-        public int LastPage { get; private set; }
-        public int LastPageSize { get; private set; }
+        var service = AnalyticsTestHost.Create(articleFeedRepository: new FakeArticleFeedRepository());
+        var from = new DateOnly(2026, 1, 1);
 
-        public ArticleFeedPage GetArticleFeed(
-            DateOnly from, DateOnly to, string? entityId, string? domain, string? search, int page, int pageSize)
-        {
-            Calls++;
-            LastPage = page;
-            LastPageSize = pageSize;
-            return new ArticleFeedPage([], 0);
-        }
+        var days = (await service.GetDailyArticleCountsAsync(from, from.AddDays(9), null, null))!;
 
-        public IReadOnlyList<DailyArticleCount> GetDailyArticleCounts(DateOnly from, DateOnly to, string? entityId, string? domain)
+        Assert.Multiple(() =>
         {
-            Calls++;
-            return Days(2, 3, 2, 3, 2, 3, 2, 3, 2, 20);
-        }
-
-        public IReadOnlyList<PublisherFirstSeen> GetPublisherFirstSeen(string entityId, DateOnly from, DateOnly to)
-        {
-            Calls++;
-            return [];
-        }
+            Assert.That(days, Has.Count.EqualTo(10));
+            Assert.That(days.Where(day => day.IsSpike).Select(day => day.Count), Is.EqualTo(new[] { 20 }));
+        });
     }
 }
