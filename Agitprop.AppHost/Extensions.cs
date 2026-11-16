@@ -1,6 +1,7 @@
 using System;
 
 using Aspire.Hosting.Docker.Resources.ServiceNodes;
+using Aspire.Hosting.Docker.Resources.ServiceNodes.Swarm;
 
 namespace Agitprop.AppHost;
 
@@ -75,6 +76,32 @@ public static class Extensions
                     dependency.Condition = "service_healthy";
                 }
             });
+        }
+
+        /// <summary>
+        /// Caps the memory a published container may use, so one runaway worker cannot push the
+        /// host into the OOM killer and take the database down with it.
+        /// </summary>
+        internal IResourceBuilder<T> LimitComposeMemory(string memory)
+        {
+            return builder.PublishAsDockerComposeService((_, service) =>
+            {
+                service.Deploy ??= new Deploy();
+                service.Deploy.Resources ??= new Resources();
+                service.Deploy.Resources.Limits = new ResourceSpec { Memory = memory };
+            });
+        }
+
+        /// <summary>
+        /// Mounts a named volume into a published project. The container-only volume overloads do
+        /// not apply to projects, which become containers only when publishing.
+        /// </summary>
+        internal IResourceBuilder<T> WithPublishedVolume(string name, string target)
+        {
+            builder.Resource.Annotations.Add(
+                new ContainerMountAnnotation(name, target, ContainerMountType.Volume, isReadOnly: false));
+
+            return builder;
         }
     }
 

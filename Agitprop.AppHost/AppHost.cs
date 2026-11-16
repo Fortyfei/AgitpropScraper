@@ -6,6 +6,11 @@ internal class Program
 {
     private const int WebPort = 8080;
 
+    // The published .NET images run as $APP_UID and /app belongs to that user.
+    private const int AppImageUserId = 1654;
+
+    private const string ModelDirectory = "ner-model";
+
     private static void Main(string[] args)
     {
         var builder = DistributedApplication.CreateBuilder(args);
@@ -31,10 +36,13 @@ internal class Program
                               .WithImageRegistry("ghcr.io")
                               .WithImage("pgmq/pg17-pgmq")
                               .WithImageTag("v1.13.1")
-                              .WithDataVolume(isReadOnly: false)
+                              // Pin the name: the generated one carries an AppHost hash, so any
+                              // model edit would otherwise leave the data behind in a new volume.
+                              .WithDataVolume("agitprop-postgres-data")
                               .WithLifetime(ContainerLifetime.Persistent)
                               .WithOtlpExporter()
                               .WithComposeHealthCheck("CMD-SHELL", "pg_isready -U postgres -d newsfeed")
+                              .LimitComposeMemory("1G")
                               .HardenComposeService();
 
         if (!publishMode)
@@ -57,6 +65,7 @@ internal class Program
                               .WithOtlpExporter()
                               .WithContainerRegistry(registry)
                               .WithEnvironmentAwareImagePush()
+                              .LimitComposeMemory("1200M")
                               .HardenComposeService();
 
         var rssReader = builder.AddProject<Agitprop_Scraper_RssFeedReader>("rss-feed-reader")
@@ -66,6 +75,7 @@ internal class Program
                                .WithOtlpExporter()
                                .WithContainerRegistry(registry)
                                .WithEnvironmentAwareImagePush()
+                               .LimitComposeMemory("256M")
                                .HardenComposeService();
 
         var web = builder.AddProject<Agitprop_Web>("web")
@@ -74,11 +84,30 @@ internal class Program
                          .WithOtlpExporter()
                          .WithContainerRegistry(registry)
                          .WithEnvironmentAwareImagePush()
+                         .LimitComposeMemory("512M")
                          .HardenComposeService();
 
         if (publishMode)
         {
             consumer.WaitForHealthyDependency("postgres");
+
+            // The NER model is ~440 MB and is checksum-verified on every start, so it belongs on a
+            // volume: a container recreate would otherwise download it again, and an unreachable
+            // Hugging Face would leave the worker in a crash loop. A fresh Docker volume belongs to
+            // root, while the app runs as $APP_UID, so a one-shot container hands the volume over
+            // before the consumer starts.
+            var modelVolume = "agitprop-ner-model";
+            var modelPath = $"/app/{ModelDirectory}";
+
+            var modelOwnership = builder.AddContainer("model-ownership", "mcr.microsoft.com/dotnet/runtime-deps", "10.0")
+                                        .WithEntrypoint("sh")
+                                        .WithArgs("-c", $"chown {AppImageUserId}:{AppImageUserId} /model")
+                                        .WithVolume(modelVolume, "/model");
+
+            consumer.WaitForCompletion(modelOwnership)
+                    .WithPublishedVolume(modelVolume, modelPath)
+                    .WithEnvironment("NLP__ModelDirectory", modelPath);
+
             rssReader.WaitForHealthyDependency("postgres");
 
             // One fixed container port, because the Cloudflare public hostname targets
@@ -104,6 +133,7 @@ internal class Program
                    .WithReference(web)
                    .WaitFor(web)
                    .WaitForHealthyDependency("web")
+                   .LimitComposeMemory("128M")
                    .HardenComposeService();
         }
         else
