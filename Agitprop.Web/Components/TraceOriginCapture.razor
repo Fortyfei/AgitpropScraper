@@ -1,0 +1,34 @@
+@using System.Diagnostics
+@inject Agitprop.Web.Diagnostics.CircuitTraceContext TraceContext
+@inject PersistentComponentState ApplicationState
+
+@code {
+    private const string StateKey = "agitprop.trace-origin";
+    private PersistingComponentStateSubscription _subscription;
+
+    protected override void OnInitialized()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            // Prerender runs inside the initial HTTP request, so the ambient span is the page load.
+            var origin = Activity.Current?.Id;
+            TraceContext.CaptureFromCurrentActivity();
+
+            _subscription = ApplicationState.RegisterOnPersisting(() =>
+            {
+                ApplicationState.PersistAsJson(StateKey, origin);
+                return Task.CompletedTask;
+            });
+
+            return;
+        }
+
+        // The interactive circuit is a different async flow; restore the page load's trace.
+        if (ApplicationState.TryTakeFromJson<string>(StateKey, out var persisted))
+        {
+            TraceContext.Restore(persisted);
+        }
+    }
+
+    public void Dispose() => _subscription.Dispose();
+}

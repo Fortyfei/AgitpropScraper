@@ -49,15 +49,13 @@ aspire start --apphost Agitprop.AppHost/Agitprop.AppHost.csproj
 - PostgreSQL 17 with PGMQ (pgAdmin 5050)
 - Consumer (runs spider + pgmq worker)
 - RSS Feed Reader
-- Web API (Swagger on :5000)
-- Web Client (Blazor on :5001)
+- Web app (Blazor Server dashboard + analytics queries)
 
 ### 2.2 Run Individual Services
 
 | Service | Command |
 |---------|---------|
-| Web API only | `dotnet run --project Agitprop.Web.Api/Agitprop.Web.Api.csproj` |
-| Web Client only | `dotnet run --project Agitprop.Web.Client/Agitprop.Web.Client.csproj` |
+| Web app only | `dotnet run --project Agitprop.Web/Agitprop.Web.csproj` |
 | Consumer only | `dotnet run --project Agitprop.Scraper.Consumer/Agitprop.Scraper.Consumer.csproj` |
 | RSS Feed Reader | `dotnet run --project Agitprop.Scraper.RssFeedReader/Agitprop.Scraper.RssFeedReader.csproj` |
 | CLI | `dotnet run --project Agitprop.CLI/Agitprop.CLI.csproj -- --help` |
@@ -174,9 +172,8 @@ dotnet run --project Agitprop.CLI/Agitprop.CLI.csproj -- retry --connection "Hos
 | Aspire Dashboard | 18888 |
 | pgAdmin | 5050 |
 | PostgreSQL | 5432 |
-| Web API | 5000 (Swagger on /swagger) |
-| Web Client | 5001 |
-| Web API (Aspire) | Dynamic (check dashboard) |
+| Web app (compose/publish) | 8080 |
+| Web app (Aspire) | Dynamic (check dashboard) |
 
 ## 9. Troubleshooting
 
@@ -187,4 +184,4 @@ dotnet run --project Agitprop.CLI/Agitprop.CLI.csproj -- retry --connection "Hos
 | Port already in use | Aspire uses randomized ports in isolated mode; check dashboard for actual ports. |
 | Consumer fails to load Hungarian NER model | Check network access to `huggingface.co` (the model is downloaded automatically on first start) and inspect logs for a SHA-256 mismatch; delete `ner-model` beside the consumer binaries to force a clean re-download. |
 | Proxy initialization timeout | Set `Proxy.StartupTimeoutMinutes` higher, or disable proxies (`UseProxies: false`). |
-| Blazor client not loading | Ensure `Microsoft.AspNetCore.Components.WebAssembly.Server` package is referenced. |
+| Blazor page shows "unable to load" | The dashboard caught a storage failure — check the `newsfeed` connection string and that migrations ran. |

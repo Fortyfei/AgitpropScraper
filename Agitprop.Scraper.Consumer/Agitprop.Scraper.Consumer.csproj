@@ -7,10 +7,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Remove="appsettings.json" />
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="System.ServiceModel.Syndication" />
   </ItemGroup>
@@ -24,12 +20,6 @@
     <ProjectReference Include="..\Agitprop.Sources\Agitprop.Sources.csproj" />
   </ItemGroup>
   
-  <ItemGroup>
-    <None Include="appsettings.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-</ItemGroup>
-
 <ItemGroup>
   <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
     <_Parameter1>Agitprop.UnitTests</_Parameter1>

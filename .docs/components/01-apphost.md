@@ -18,8 +18,7 @@ Agitprop.AppHost/Agitprop.AppHost.csproj`.
 - Adds all .NET projects to the application model:
   - `consumer` — waits for and references `newsfeedDb`; runs Hungarian NER in-process.
   - `rss-feed-reader` — waits for and references `newsfeedDb`, and waits for `consumer`.
-  - `backend` (Web.Api) — waits for and references `newsfeedDb`; it does not access the queue.
-  - `frontend` (Web.Client) — waits for `backend`, external HTTP endpoints.
+  - `web` (Agitprop.Web) — waits for and references `newsfeedDb`; serves the dashboard, runs the analytics queries, and owns the migrations. It does not access the queue.
 - AppHost-managed services use OTLP exporters. The containerized projects are
   configured for environment-aware image publishing.
 

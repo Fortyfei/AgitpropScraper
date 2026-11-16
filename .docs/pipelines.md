@@ -108,54 +108,60 @@ sequenceDiagram
     SINK->>DB: Persist entities and mentions
 ```
 
-## 6. Web API → Blazor Client Pipeline
+## 6. Blazor Dashboard → Repository Pipeline
 
 ```mermaid
 sequenceDiagram
-    participant CLIENT as Blazor Web App
-    participant API as Web Api (Controllers)
+    participant CLIENT as Blazor Component
+    participant SVC as AnalyticsService
     participant REPO as EntityRepository (IEntityRepository)
     participant TREND as TrendingRepository (ITrendingRepository)
     participant CACHE as IMemoryCache
     participant DB as PostgreSQL
 
-    CLIENT->>API: GET api/entities?from=&to=&page=&pageSize=
-    API->>CACHE: TryGetValue(cacheKey)
+    CLIENT->>SVC: GetEntitiesBrowseAsync(from, to, page, pageSize, search)
+    SVC->>CACHE: TryGetValue(cacheKey)
     alt Cache hit
-        CACHE-->>API: cached response
+        CACHE-->>SVC: cached result
     else Cache miss
-        API->>REPO: GetEntitiesWithMentionCountAsync(from,to,page,pageSize,search)
+        SVC->>SVC: CreateScope() → scoped AppDbContext
+        SVC->>REPO: GetEntitiesWithMentionCountAsync(from,to,page,pageSize,search)
         REPO->>DB: SQL query
         DB-->>REPO: entities + mention counts
-        REPO-->>API: (items, totalCount)
-        API->>CACHE: Set(cacheKey, response, 15min)
+        REPO-->>SVC: (items, totalCount)
+        SVC->>CACHE: Set(cacheKey, result, 15min)
     end
-    API-->>CLIENT: EntityBrowseResponse
+    SVC-->>CLIENT: EntityBrowsePage
 
-    Note over CLIENT,API: Entity detail (1‑hour cache)
-    CLIENT->>API: GET api/entities/{id}
-    API->>CACHE: TryGetValue($"entity:{id}")
+    Note over CLIENT,SVC: Entity detail (1‑hour cache)
+    CLIENT->>SVC: GetEntityByIdAsync(id)
+    SVC->>CACHE: TryGetValue($"entity:{id}")
     alt Cache hit
-        CACHE-->>API: cached response
+        CACHE-->>SVC: cached result
     else Cache miss
-        API->>REPO: GetEntityByIdAsync(id)
+        SVC->>REPO: GetEntityByIdAsync(id)
         REPO->>DB: SQL query
         DB-->>REPO: Entity
-        API->>CACHE: Set(cacheKey, response, 1hour)
+        SVC->>CACHE: Set(cacheKey, result, 1hour)
     end
-    API-->>CLIENT: EntityResponse
+    SVC-->>CLIENT: EntityInfo
 
-    Note over CLIENT,API: Top mentions analytics
-    CLIENT->>API: GET api/analytics/topmentions?from=&to=
-    API->>TREND: GetTrendingEntitiesAsync(from,to).Take(8)
+    Note over CLIENT,SVC: Top mentions analytics
+    CLIENT->>SVC: GetTopMentionedEntitiesAsync(from, to)
+    SVC->>TREND: GetTrendingEntitiesAsync(from,to).Take(8)
     TREND->>DB: SQL query
     DB-->>TREND: trending entities
-    API->>REPO: GetMentioningArticlesAsync(entityIds, from,to)
+    SVC->>REPO: GetMentioningArticlesAsync(entityIds, from,to)
     REPO->>DB: SQL query
     DB-->>REPO: mention counts
-    API->>CACHE: Set(cacheKey, response, 15min)
-    API-->>CLIENT: TopMentionedEntitiesResponse
+    SVC->>CACHE: Set(cacheKey, result, 15min)
+    SVC-->>CLIENT: EntitySummary list
 ```
+
+There is no HTTP hop: the Blazor Server host resolves the repositories in-process. Each
+`AnalyticsService` call creates its own DI scope so the EF Core context lives exactly as long
+as the query, and storage failures are logged and reported as a null result so the page keeps
+rendering its "unable to load" state.
 
 ## 7. CLI Pipeline (scrape-archive)
 
@@ -213,7 +219,7 @@ aspire start --apphost Agitprop.AppHost/Agitprop.AppHost.csproj
    - **Dashboard** on `:18888`
    - **PostgreSQL 17 + PGMQ** (`postgres`) — data volume, pgAdmin `:5050`, persistent lifetime, OTLP
    - **Database** `newsfeed` attached to PostgreSQL
-   - **Consumer**, **RSS Feed Reader**, **Web API**, **Web Client** projects
+   - **Consumer**, **RSS Feed Reader**, **Web app** projects
 4. Each service waits only for its declared dependencies (see component table in architecture.md).
 
 ### Step 2: Service Startup Order
@@ -221,8 +227,8 @@ aspire start --apphost Agitprop.AppHost/Agitprop.AppHost.csproj
 1. **PostgreSQL** + **Database** start first.
 2. **Consumer** waits for `newsfeedDb`, provisions or loads the Hungarian ONNX model, creates the PGMQ extension and queues, then starts its polling worker.
 3. **RSS Feed Reader** waits for `newsfeedDb` and `Consumer`. Registers as `IHostedService`.
-5. **Web API** waits for `newsfeedDb`. Applies migrations at startup when configured, then maps controllers.
-6. **Web Client** waits for backend (Web API). The Blazor host supports Interactive Server and WebAssembly rendering.
+5. **Web app** waits for `newsfeedDb`. Applies migrations at startup when configured, then serves the Blazor Server dashboard (Interactive Server only).
+6. The dashboard's `AnalyticsService` queries PostgreSQL directly through the repositories.
 
 ### Step 3: Runtime Operation
 
@@ -232,5 +238,5 @@ aspire start --apphost Agitprop.AppHost/Agitprop.AppHost.csproj
 4. **BaseArticleContentParser** extracts date/title/lead/article via XPath fallback lists.
 5. **NewsfeedSink** calls the in-process `NamedEntityRecognizer`, then persists results to PostgreSQL via `AppDbContext.CreateMentionsAsync`.
 6. **NamedEntityRecognizer** runs the local ONNX NER model and returns a `NamedEntityCollection`.
-7. **Web API** serves entity browse/analytics from PostgreSQL (cached 15 min / 1 hour).
+7. **Web app** serves entity browse/analytics from PostgreSQL (cached 15 min / 1 hour).
 8. **CLI** can re-queue failed messages from `newsfeed_job_error` via the `retry` command.

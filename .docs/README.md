@@ -26,8 +26,7 @@ NLP model using ONNX Runtime.
 - [Scraper.Consumer](components/06-scraper-consumer.md) — PostgreSQL queue worker that runs the spider.
 - [Scraper.RssFeedReader](components/07-scraper-rssfeedreader.md) — RSS-to-queue producer.
 - [Scraper.NLPService](components/08-scraper-nlpservice.md) — in-process .NET / ONNX Hungarian NER library.
-- [Web.Api](components/09-web-api.md) — read-only analytics REST API.
-- [Web.Client](components/10-web-client.md) — Blazor dashboard (Interactive Server and WebAssembly).
+- [Web](components/10-web-client.md) — Blazor Server dashboard that queries PostgreSQL directly.
 - [CLI](components/11-cli.md) — `dotnet` operator tool.
 - [ServiceDefaults](components/12-service-defaults.md) — shared OpenTelemetry/health/resilience config.
 

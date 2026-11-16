@@ -12,7 +12,7 @@ namespace Agitprop.Scraper.RssFeedReader;
 /// <summary>
 /// A hosted service that reads RSS feeds and publishes scraping jobs.
 /// </summary>
-public class RssFeedReader : IHostedService, IDisposable
+public class RssFeedReader : BackgroundService
 {
     private readonly string[] _feeds;
     private readonly ILogger<RssFeedReader> _logger;
@@ -50,16 +50,31 @@ public class RssFeedReader : IHostedService, IDisposable
         _interval = TimeSpan.FromMinutes(configuration.GetValue<double>("IntervalMinutes", 60));
     }
 
-    public async Task StartAsync(CancellationToken cancellationToken)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         using var activity = _activitySource.StartActivity("StartAsync");
-        await _pgmqClient.EnsureQueuesAsync(cancellationToken);
-        _logger.LogInformation("Starting RSS Feed Reader. Interval: {Interval} minutes, Feeds: {FeedCount}", _interval.TotalMinutes, _feeds.Length);
-        var timer = new Timer(async _ => await ExecuteTask(_), null,TimeSpan.Zero, _interval);
-        return;
+        await _pgmqClient.EnsureQueuesAsync(stoppingToken);
+        _logger.LogInformation(
+            "Starting RSS Feed Reader. Interval: {Interval} minutes, Feeds: {FeedCount}",
+            _interval.TotalMinutes,
+            _feeds.Length);
+
+        using var timer = new PeriodicTimer(_interval);
+        try
+        {
+            do
+            {
+                await RunCycleAsync();
+            }
+            while (await timer.WaitForNextTickAsync(stoppingToken));
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Host is shutting down.
+        }
     }
 
-    private async Task ExecuteTask(object? state)
+    private async Task RunCycleAsync()
     {
         using var activity = _activitySource.StartActivity("ExecuteTask", ActivityKind.Producer);
         var stopwatch = Stopwatch.StartNew();
@@ -104,18 +119,6 @@ public class RssFeedReader : IHostedService, IDisposable
         }
     }
 
-    public Task StopAsync(CancellationToken cancellationToken)
-    {
-        using var activity = _activitySource.StartActivity("StopAsync");
-        _logger.LogInformation("Stopping RSS Feed Reader");
-        return Task.CompletedTask;
-    }
-
-    public void Dispose()
-    {
-        _logger.LogInformation("Disposing RSS Feed Reader resources");
-    }
-    
     private List<NewsfeedJobDescrpition> FetchScrapingJobs()
     {
         using var activity = _activitySource.StartActivity("FetchScrapingJobs", ActivityKind.Producer);

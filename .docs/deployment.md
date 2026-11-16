@@ -7,8 +7,7 @@ The canonical resource graph is defined in
 
 - PostgreSQL 17 with the PGMQ extension is the shared infrastructure and queue store.
 - The consumer and RSS Feed Reader both reference the `newsfeed` database; the reader also waits for the consumer.
-- The Web API references PostgreSQL for application data and does not access the queue.
-- The Web Client waits for and references the Web API.
+- The Web app references PostgreSQL for application data and does not access the queue.
 - AppHost-managed services export OTLP telemetry to the Aspire dashboard.
 
 ## 2. AppHost
@@ -17,7 +16,7 @@ The project provides one canonical AppHost for the full distributed application:
 
 | Project | Use Case | What's included |
 |---------|----------|-----------------|
-| `Agitprop.AppHost` | Full distributed app | pgmq-enabled postgres + newsfeedDb + consumer (in-process NER) + rss-reader + backend + frontend + dashboard |
+| `Agitprop.AppHost` | Full distributed app | pgmq-enabled postgres + newsfeedDb + consumer (in-process NER) + rss-reader + web + dashboard |
 
 ### Run the application:
 
@@ -150,6 +149,112 @@ az containerapp up \
 | Service | Health Check | Path |
 |---------|-------------|------|
 | Consumer | Aspire built-in | `/health` |
-| Web API | Aspire built-in | `/health` |
-| Web Client | Aspire built-in | `/health` |
+| Web app | Aspire built-in | `/health` |
 | PostgreSQL | pgAdmin | `http://localhost:5050` |
+
+## 10. Cheap Self-Hosted Deployment (single VPS, Cloudflare Tunnel)
+
+The reference topology for a single-user deployment: one 4 GB VPS runs every
+container, and the public entry point is a **Cloudflare Tunnel**, so the host has
+neither a public IP nor open HTTP ports.
+
+```mermaid
+flowchart LR
+    BROWSER[Browser] -->|HTTPS| CF[Cloudflare edge]
+    subgraph VPS
+        CFD[cloudflared] -->|http://web:8080| WEB[web]
+        WEB --> PG[(postgres 17 + pgmq)]
+        CON[consumer] --> PG
+        RSS[rss-feed-reader] --> PG
+        SSH[sshd :22]
+    end
+    CF <-->|outbound tunnel| CFD
+    VPS --> SSH
+```
+
+Container budget (measured from the images): postgres 200–300 MB, web
+150–250 MB, consumer 600–900 MB (ONNX model), rss-feed-reader ~80 MB,
+cloudflared ~30 MB — roughly **1.1–1.6 GB**, which leaves headroom on 4 GB.
+
+### 10.1 Provisioning
+
+- A VPS with ~4 GB RAM, 2 vCPU, Docker Engine and Compose v2, plus 2 GB swap.
+- **Firewall: allow only `22`.** The tunnel is an outbound connection, so no
+  `80`/`443` rule is needed and no DNS record points at the VPS IP.
+- In the Cloudflare dashboard create a named tunnel and a public hostname
+  (for example `agitprop.<domain>`) whose service is `http://web:8080`; copy the
+  tunnel token into `TUNNEL_TOKEN`.
+- Optional: a Cloudflare WAF custom rule blocking `/health` and `/alive`, and a
+  health check that watches the public hostname.
+
+### 10.2 Deploy
+
+The deployment bundle is produced by the CI `publish-deployment` job
+(`agitprop-deploy` artifact) and contains `docker-compose.yaml` and `.env`.
+
+```bash
+# on the VPS
+unzip agitprop-deploy.zip -d agitprop && cd agitprop
+$EDITOR .env                  # fill POSTGRES_PASSWORD and TUNNEL_TOKEN
+docker compose pull
+docker compose up -d
+```
+
+Published stacks apply the EF Core migrations on boot while
+`ApplyMigrationsAtStartup` is `true` (the default for the web project when the
+environment is Development); in production set the environment variable
+explicitly to run them once and then turn it off. The workers create the `pgmq`
+extension and the `newsfeed_job` / `newsfeed_job_error` queues on their first
+start.
+
+The generated stack has **no published ports at all**: the database is reachable
+only inside the compose network. Migrations are the web app's job, and the
+consumer/rss workers talk to `postgres:5432`.
+
+### 10.3 Operations
+
+```bash
+# logs
+docker compose logs -f web consumer rss-feed-reader cloudflared
+
+# backup (add to cron)
+docker compose exec -T postgres pg_dump -U postgres newsfeed | gzip > backup-$(date +%F).sql.gz
+
+# shell into the database
+docker compose exec postgres psql -U postgres newsfeed
+
+# update images
+docker compose pull && docker compose up -d
+```
+
+`HealthEndpoints__Enabled=true` exposes `/health` and `/alive` in production so an
+uptime monitor can poll them; block those paths at the Cloudflare edge so they
+are not public.
+
+### 10.4 Hardening checklist
+
+- **Host**: `ufw` allowing only `22`; SSH key-only (`PasswordAuthentication no`,
+  `PermitRootLogin no`), fail2ban, `unattended-upgrades`. 2 GB swap.
+- **Database**: no published port; the password comes from `POSTGRES_PASSWORD`
+  in `.env` (`chmod 600`). Reach it with `docker compose exec postgres psql`.
+- **Edge**: Cloudflare terminates TLS (Always Use HTTPS, minimum TLS 1.2, WAF
+  managed rules). Optional WAF custom rule: block `/health` and `/alive`. Add a
+  Cloudflare rate-limiting rule on the public hostname instead of an app-level
+  limiter, because the Blazor Server circuit keeps one long-lived WebSocket.
+- **Containers**: every published service runs with
+  `restart: unless-stopped` and `security_opt: no-new-privileges:true`; the
+  generated images run as the non-root `app` user.
+- **Optional extra hardening**: set `read_only: true` plus a `tmpfs: /tmp` on the
+  services, and a memory limit (`deploy.resources.limits.memory`) on `consumer`.
+  If you make the consumer read-only, point `NLP__ModelDirectory` at a named
+  volume first, because the ONNX model is downloaded on first start.
+- **Backups**: nightly `pg_dump` (see Operations) with rotation, and one
+  restore rehearsal.
+- **Image tags**: the CI bundle currently deploys `:latest`; pin the tag to a
+  commit SHA before relying on rollbacks.
+
+### 10.5 Local development still uses the dashboard
+
+`aspire start` runs the same topology with the Aspire dashboard on `:18888`,
+pgAdmin on `:5050`, and PostgreSQL published on `:5432`. Publish mode drops the
+dashboard, publishes no ports, and adds `cloudflared`.

@@ -490,3 +490,5 @@ $RECYCLE.BIN/
 
 # Database files for running container
 databaseMount/
+# playwright-cli artifacts
+.playwright-cli/

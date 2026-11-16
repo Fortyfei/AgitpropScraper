@@ -18,7 +18,7 @@ Spider, parsers, in-process NLP library, and the Newsfeed sink.
    (PER/LOC/ORG/MISC) from article text using ONNX Runtime.
 5. **Persistence** — saves entities + mention links to PostgreSQL via EF Core.
 6. **Database ownership** — uses the shared PostgreSQL database; migrations are
-   applied by the Web API startup path rather than by this worker.
+   applied by the web app startup path rather than by this worker.
 
 ## Startup Validation
 
