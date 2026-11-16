@@ -177,6 +177,13 @@ Container budget (measured from the images): postgres 200–300 MB, web
 150–250 MB, consumer 600–900 MB (ONNX model), rss-feed-reader ~80 MB,
 cloudflared ~30 MB — roughly **1.1–1.6 GB**, which leaves headroom on 4 GB.
 
+The published stack also caps every container with
+`deploy.resources.limits.memory`: postgres `1G`, consumer `1200M`, web `512M`,
+rss-feed-reader `256M`, cloudflared `128M`. The caps are ceilings, not
+reservations, and together they exceed the host's RAM on purpose: a burst in one
+container should hit its own limit instead of letting the kernel OOM killer pick
+a victim such as PostgreSQL.
+
 ### 10.1 Provisioning
 
 - A VPS with ~4 GB RAM, 2 vCPU, Docker Engine and Compose v2, plus 2 GB swap.
@@ -254,6 +261,14 @@ docker compose exec web bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080' && echo listen
   `PermitRootLogin no`), fail2ban, `unattended-upgrades`. 2 GB swap.
 - **Database**: no published port; the password comes from `POSTGRES_PASSWORD`
   in `.env` (`chmod 600`). Reach it with `docker compose exec postgres psql`.
+- **Data**: two named volumes survive container recreates. `agitprop-postgres-data`
+  is pinned by name so that editing the AppHost cannot silently create a second,
+  empty database volume and look like data loss. `agitprop-ner-model` holds the
+  ~440 MB NER model, so `docker compose pull && docker compose up -d` does not
+  re-download it. Docker creates a fresh volume owned by root while the app runs
+  as `$APP_UID`, so a one-shot `model-ownership` container chowns the volume
+  before the consumer starts; without it the consumer cannot write the model and
+  crash-loops.
 - **Edge**: Cloudflare terminates TLS (Always Use HTTPS, minimum TLS 1.2, WAF
   managed rules). Optional WAF custom rule: block `/health` and `/alive`. Add a
   Cloudflare rate-limiting rule on the public hostname instead of an app-level
