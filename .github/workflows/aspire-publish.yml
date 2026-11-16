@@ -62,7 +62,6 @@ jobs:
           sed -i 's|^CONSUMER_IMAGE=.*|CONSUMER_IMAGE=ghcr.io/fortyfei/agitprop/consumer:latest|' artifacts/.env
           sed -i 's|^RSS_FEED_READER_IMAGE=.*|RSS_FEED_READER_IMAGE=ghcr.io/fortyfei/agitprop/rss-feed-reader:latest|' artifacts/.env
           sed -i 's|^WEB_IMAGE=.*|WEB_IMAGE=ghcr.io/fortyfei/agitprop/web:latest|' artifacts/.env
-          sed -i 's|^WEB_PORT=.*|WEB_PORT=8080|' artifacts/.env
 
       - name: Show generated files
         run: ls -la artifacts
