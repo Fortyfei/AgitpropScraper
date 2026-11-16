@@ -19,7 +19,7 @@ there is no HTTP hop, no controller layer, and no DTO boundary.
   bottom tab bar on narrow screens.
 - Dashboard and entity timeline charts, a top-sources donut chart, and an
   entity mention-count bar chart.
-- Entity detail pages include ranked co-mentions and a "who published first"
+- Entity detail pages include ranked co-mentions; the Sources page includes a
   ranking; the Sources page includes a publisher-by-entity coverage matrix.
 - The Timeline page (`/timeline`) shows a clickable articles-per-day strip with
   spike days highlighted above a day-grouped article feed. The feed filters by
@@ -39,7 +39,7 @@ WebAssembly render mode and no separate WASM project.
 |-------|------|--------------|
 | `/` and `/home` | `Home.razor` | `GetTopMentionedEntitiesAsync`, `GetEntitiesTimelineAsync` |
 | `/entities` | `EntityBrowser.razor` | `GetEntitiesBrowseAsync` |
-| `/entity/{Id}` | `EntityDetail.razor` | `GetEntityByIdAsync`, `GetEntitiesTimelineAsync`, `GetEntityArticlesAsync`, `GetEntityDomainStatsAsync`, `GetCoMentionsAsync`, `GetFirstPublishersAsync` |
+| `/entity/{Id}` | `EntityDetail.razor` | `GetEntityByIdAsync`, `GetEntitiesTimelineAsync`, `GetEntityArticlesAsync`, `GetEntityDomainStatsAsync`, `GetCoMentionsAsync` |
 | `/sources` | `Sources.razor` | `GetSourcesAsync`, `GetSourceEntityCoverageAsync` |
 | `/timeline` | `Timeline.razor` | `GetArticleFeedAsync`, `GetDailyArticleCountsAsync` |
 
@@ -54,7 +54,7 @@ null result, so pages keep rendering their existing "unable to load" state
 instead of faulting the circuit.
 
 Cache durations: 15 minutes for list queries, 1 hour for entity details,
-5 minutes for daily counts and first publishers.
+5 minutes for daily counts.
 
 ## Reporting calendar
 

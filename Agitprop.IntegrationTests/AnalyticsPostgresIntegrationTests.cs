@@ -166,21 +166,6 @@ public class AnalyticsPostgresIntegrationTests
     }
 
     [Test]
-    public async Task FirstPublishers_RanksPublishersByEarliestArticle()
-    {
-        var service = CreateAnalyticsService();
-
-        var publishers = (await service.GetFirstPublishersAsync(_entityId.ToString(), January, JanuaryEnd))!;
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(publishers[0].Domain, Is.EqualTo("integration.test"));
-            Assert.That(publishers[0].ArticleCount, Is.EqualTo(3));
-            Assert.That(publishers[1].Domain, Is.EqualTo("publisher-two.test"));
-        });
-    }
-
-    [Test]
     public async Task HomePage_IsServedByTheWebApplication()
     {
         using var client = _distributedApplication!.CreateHttpClient("web");

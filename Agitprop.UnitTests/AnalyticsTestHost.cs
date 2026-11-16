@@ -120,10 +120,4 @@ internal sealed class FakeArticleFeedRepository : IArticleFeedRepository
                 index == 9 ? 20 : 2 + index % 2))
             .ToList();
     }
-
-    public IReadOnlyList<PublisherFirstSeen> GetPublisherFirstSeen(string entityId, DateOnly from, DateOnly to)
-    {
-        Calls++;
-        return [];
-    }
 }
