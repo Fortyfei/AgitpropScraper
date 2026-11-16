@@ -113,7 +113,8 @@ aspire update --self
 
 - [ ] `ASPNETCORE_ENVIRONMENT=Production`
 - [ ] Connection strings set via environment variables (not appsettings)
-- [ ] `ApplyMigrationsAtStartup=false` (run migrations manually)
+- [ ] Migrations: the published stack sets `ApplyMigrationsAtStartup=true`, and migrating an
+      up-to-date database is a no-op, so the web container migrates on every start
 - [ ] PGMQ extension is installed/enabled and the application role can create the two queues on first startup
 - [ ] GHCR credentials configured for image pull
 - [ ] OTLP collector endpoint configured (`OTEL_EXPORTER_OTLP_ENDPOINT`)
@@ -146,11 +147,11 @@ az containerapp up \
 
 ## 9. Health Check Endpoints
 
-| Service | Health Check | Path |
-|---------|-------------|------|
-| Consumer | Aspire built-in | `/health` |
-| Web app | Aspire built-in | `/health` |
-| PostgreSQL | pgAdmin | `http://localhost:5050` |
+| Service | Health Check | Path | Notes |
+|---------|-------------|------|-------|
+| Web app | ASP.NET health checks | `/health`, `/alive` | Mapped when the environment is Development or `HealthEndpoints:Enabled` is `true`; the published stack sets it |
+| PostgreSQL | `pg_isready` | — | Docker health check in the compose file; the app containers wait for `service_healthy` |
+| Consumer / RSS reader | — | — | Workers expose no HTTP endpoint and the runtime image ships no HTTP client; watch their logs |
 
 ## 10. Cheap Self-Hosted Deployment (single VPS, Cloudflare Tunnel)
 
@@ -200,16 +201,25 @@ docker compose pull
 docker compose up -d
 ```
 
-Published stacks apply the EF Core migrations on boot while
-`ApplyMigrationsAtStartup` is `true` (the default for the web project when the
-environment is Development); in production set the environment variable
-explicitly to run them once and then turn it off. The workers create the `pgmq`
+Published stacks apply the EF Core migrations on boot: the web container runs with
+`ApplyMigrationsAtStartup=true`, and migrating an up-to-date database is a no-op,
+so there is no separate migration step to remember. The workers create the `pgmq`
 extension and the `newsfeed_job` / `newsfeed_job_error` queues on their first
 start.
 
 The generated stack has **no published ports at all**: the database is reachable
 only inside the compose network. Migrations are the web app's job, and the
 consumer/rss workers talk to `postgres:5432`.
+
+Start-up order is enforced by Docker, not by retries: `postgres` has a
+`pg_isready` health check and every app container depends on it with
+`condition: service_healthy`. The web container has its own health check (a TCP
+probe on its port, because the runtime image has no `curl`), so `cloudflared`
+waits for a listening web app before it opens the tunnel.
+
+**The web port is fixed at `8080`** in the published stack. It must match the
+public hostname's service URL in the Cloudflare dashboard (`http://web:8080`);
+there is no longer a `WEB_PORT` value to keep in sync in `.env`.
 
 ### 10.3 Operations
 
@@ -227,9 +237,16 @@ docker compose exec postgres psql -U postgres newsfeed
 docker compose pull && docker compose up -d
 ```
 
-`HealthEndpoints__Enabled=true` exposes `/health` and `/alive` in production so an
-uptime monitor can poll them; block those paths at the Cloudflare edge so they
-are not public.
+`HealthEndpoints__Enabled` is `true` in the published stack, so `/health` and
+`/alive` exist in production for an uptime monitor; block those paths at the
+Cloudflare edge so they are not public.
+
+```bash
+# health of the containers themselves
+docker compose ps                 # web and postgres report healthy
+curl -fsS http://127.0.0.1:8080  # only from inside the compose network
+docker compose exec web bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080' && echo listening
+```
 
 ### 10.4 Hardening checklist
 

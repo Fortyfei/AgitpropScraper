@@ -1,5 +1,7 @@
 using System;
 
+using Aspire.Hosting.Docker.Resources.ServiceNodes;
+
 namespace Agitprop.AppHost;
 
 public static class Extensions
@@ -36,6 +38,63 @@ public static class Extensions
                 service.Restart = "unless-stopped";
                 service.SecurityOpt = ["no-new-privileges:true"];
             });
+        }
+
+        /// <summary>
+        /// Declares a Docker health check for a published container. Aspire only emits one for the
+        /// HTTP endpoints of projects, so containers published as images need theirs from here.
+        /// Dependants wait for <c>service_healthy</c> once this is present.
+        /// </summary>
+        internal IResourceBuilder<T> WithComposeHealthCheck(params string[] test)
+        {
+            return builder.PublishAsDockerComposeService((_, service) =>
+            {
+                service.Healthcheck = new Healthcheck
+                {
+                    Test = [.. test],
+                    Interval = "15s",
+                    Timeout = "5s",
+                    Retries = 5,
+                    StartPeriod = "60s"
+                };
+            });
+        }
+
+        /// <summary>
+        /// Upgrades the compose dependency on <paramref name="serviceName"/> from
+        /// <c>service_started</c> to <c>service_healthy</c>, so a first boot cannot race a
+        /// database that is up but not yet accepting connections.
+        /// </summary>
+        internal IResourceBuilder<T> WaitForHealthyDependency(string serviceName)
+        {
+            return builder.PublishAsDockerComposeService((_, service) =>
+            {
+                if (service.DependsOn is not null &&
+                    service.DependsOn.TryGetValue(serviceName, out var dependency))
+                {
+                    dependency.Condition = "service_healthy";
+                }
+            });
+        }
+    }
+
+    extension<T>(IResourceBuilder<T> builder) where T : IResourceWithEndpoints
+    {
+        /// <summary>
+        /// Drops the HTTPS endpoint of a published project. TLS terminates at the Cloudflare edge,
+        /// so the container needs no HTTPS endpoint, and its port would otherwise be a second,
+        /// unfilled value in the deployment bundle.
+        /// </summary>
+        internal IResourceBuilder<T> WithoutHttpsEndpoint()
+        {
+            foreach (var annotation in builder.Resource.Annotations.OfType<EndpointAnnotation>()
+                                        .Where(annotation => annotation.UriScheme == "https")
+                                        .ToArray())
+            {
+                builder.Resource.Annotations.Remove(annotation);
+            }
+
+            return builder;
         }
     }
 }

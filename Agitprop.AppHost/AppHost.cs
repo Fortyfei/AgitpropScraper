@@ -4,6 +4,8 @@ using Projects;
 
 internal class Program
 {
+    private const int WebPort = 8080;
+
     private static void Main(string[] args)
     {
         var builder = DistributedApplication.CreateBuilder(args);
@@ -32,6 +34,7 @@ internal class Program
                               .WithDataVolume(isReadOnly: false)
                               .WithLifetime(ContainerLifetime.Persistent)
                               .WithOtlpExporter()
+                              .WithComposeHealthCheck("CMD-SHELL", "pg_isready -U postgres -d newsfeed")
                               .HardenComposeService();
 
         if (!publishMode)
@@ -75,6 +78,21 @@ internal class Program
 
         if (publishMode)
         {
+            consumer.WaitForHealthyDependency("postgres");
+            rssReader.WaitForHealthyDependency("postgres");
+
+            // One fixed container port, because the Cloudflare public hostname targets
+            // http://web:8080 and must not depend on a value filled in at release time.
+            web.WithoutHttpsEndpoint()
+               .WithHttpEndpoint(targetPort: WebPort, name: "http")
+               // Migrations are the web app's job in a published stack and migrating is idempotent.
+               .WithEnvironment("ApplyMigrationsAtStartup", "true")
+               // /health and /alive let an uptime monitor see the app without a shell on the host.
+               .WithEnvironment("HealthEndpoints__Enabled", "true")
+               // The runtime image ships neither curl nor wget, but bash can open a socket.
+               .WithComposeHealthCheck("CMD", "bash", "-c", $"exec 3<>/dev/tcp/127.0.0.1/{WebPort}")
+               .WaitForHealthyDependency("postgres");
+
             // Public entry point: cloudflared dials out to Cloudflare, so the host needs
             // neither a public IP nor open 80/443 ports. The public hostname is configured
             // in the Cloudflare dashboard and targets http://web:8080.
@@ -85,6 +103,7 @@ internal class Program
                    .WithEnvironment("TUNNEL_TOKEN", tunnelToken)
                    .WithReference(web)
                    .WaitFor(web)
+                   .WaitForHealthyDependency("web")
                    .HardenComposeService();
         }
         else
