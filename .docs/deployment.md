@@ -325,11 +325,24 @@ tunnel and from inside the compose network.
   limiter, because the Blazor Server circuit keeps one long-lived WebSocket.
 - **Containers**: every published service runs with
   `restart: unless-stopped` and `security_opt: no-new-privileges:true`; the
-  generated images run as the non-root `app` user.
-- **Optional extra hardening**: add `read_only: true` plus a `tmpfs: /tmp` to the
-  services. Memory limits are already in place (`deploy.resources.limits.memory`:
-  postgres `1G`, consumer `1200M`, web `512M`, rss-feed-reader `256M`, cloudflared
-  `128M`), and the NER model already lives on the `agitprop-ner-model` volume.
+  generated images run as the non-root `app` user. The four services that never
+  need a privileged operation (`web`, `consumer`, `rss-feed-reader`,
+  `cloudflared`) also drop every Linux capability with `cap_drop: ALL`; `postgres`
+  keeps its defaults because the entrypoint needs them to fix ownership of a fresh
+  data directory. The app services pin `ASPNETCORE_ENVIRONMENT` /
+  `DOTNET_ENVIRONMENT` to `Production` explicitly instead of relying on the
+  framework default.
+- **Optional extra hardening**: add `read_only: true` to the services that write
+  nothing. `rss-feed-reader` and `cloudflared` are the safe ones; `web` needs a
+  `tmpfs` for `/tmp` and for `/home/app/.aspnet`, where ASP.NET Core keeps the
+  DataProtection keys that antiforgery relies on; `postgres` needs
+  `/var/run/postgresql` and `/tmp` writable. Memory limits are already in place
+  (`deploy.resources.limits.memory`: postgres `1G`, consumer `1200M`, web `512M`,
+  rss-feed-reader `256M`, cloudflared `128M`), and the NER model already lives on
+  the `agitprop-ner-model` volume.
+- **Consumer memory**: `ConcurrencyLimit` (4 by default) is the knob if the
+  consumer approaches its `1200M` limit — each concurrent article goes through the
+  ONNX session. Lower it to 2 before raising the limit.
 - **Backups**: nightly `pg_dump` (see Operations) with rotation, and one
   restore rehearsal.
 - **Image tags**: the CI bundle pins every image to the commit it was built from,
