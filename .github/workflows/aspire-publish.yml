@@ -39,7 +39,9 @@ jobs:
 
   publish-deployment:
     if: github.event_name == 'push'
-    needs: [test, integration-tests]
+    # The artifact pins image tags to this commit, so it must not exist before the images it
+    # references have been pushed.
+    needs: [test, integration-tests, build-and-push]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -57,11 +59,11 @@ jobs:
       - name: Generate deployment artifacts
         run: aspire publish --output-path artifacts --non-interactive
 
-      - name: Fill image names and ports
+      - name: Pin the images to this commit
         run: |
-          sed -i 's|^CONSUMER_IMAGE=.*|CONSUMER_IMAGE=ghcr.io/fortyfei/agitprop/consumer:latest|' artifacts/.env
-          sed -i 's|^RSS_FEED_READER_IMAGE=.*|RSS_FEED_READER_IMAGE=ghcr.io/fortyfei/agitprop/rss-feed-reader:latest|' artifacts/.env
-          sed -i 's|^WEB_IMAGE=.*|WEB_IMAGE=ghcr.io/fortyfei/agitprop/web:latest|' artifacts/.env
+          sed -i "s|^CONSUMER_IMAGE=.*|CONSUMER_IMAGE=ghcr.io/fortyfei/agitprop/consumer:${GITHUB_SHA}|" artifacts/.env
+          sed -i "s|^RSS_FEED_READER_IMAGE=.*|RSS_FEED_READER_IMAGE=ghcr.io/fortyfei/agitprop/rss-feed-reader:${GITHUB_SHA}|" artifacts/.env
+          sed -i "s|^WEB_IMAGE=.*|WEB_IMAGE=ghcr.io/fortyfei/agitprop/web:${GITHUB_SHA}|" artifacts/.env
 
       - name: Show generated files
         run: ls -la artifacts

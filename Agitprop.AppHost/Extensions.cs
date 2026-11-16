@@ -10,20 +10,28 @@ public static class Extensions
     extension<T>(IResourceBuilder<T> builder) where T : IComputeResource
     {
         /// <summary>
-        /// Configures environment-aware image naming for container push operations.
-        /// When running locally (no GITHUB_ACTIONS env var), appends "-dev" suffix to image name and uses "latest-dev" tag.
-        /// In CI (GITHUB_ACTIONS=true), uses original image name with "latest" tag.
+        /// Configures environment-aware image naming for container push operations. In CI
+        /// (GITHUB_SHA set) the image is tagged with the commit, which is what makes a deployment
+        /// rollback-able: the release artifact pins the images it was generated with instead of a
+        /// moving "latest". Locally the name gains a "-dev" suffix so a developer push cannot
+        /// overwrite the images a deployment runs.
         /// </summary>
         internal IResourceBuilder<T> WithEnvironmentAwareImagePush()
         {
             return builder.WithImagePushOptions(async context =>
             {
-                context.Options.RemoteImageTag = "latest";
+                var commit = Environment.GetEnvironmentVariable("GITHUB_SHA");
 
-                if (Environment.GetEnvironmentVariable("GITHUB_ACTIONS") is null)
+                if (string.IsNullOrWhiteSpace(commit))
                 {
                     context.Options.RemoteImageName += "-dev";
+                    context.Options.RemoteImageTag = "latest";
                 }
+                else
+                {
+                    context.Options.RemoteImageTag = commit;
+                }
+
                 await Task.CompletedTask;
             });
         }

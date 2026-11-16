@@ -198,7 +198,9 @@ a victim such as PostgreSQL.
 ### 10.2 Deploy
 
 The deployment bundle is produced by the CI `publish-deployment` job
-(`agitprop-deploy` artifact) and contains `docker-compose.yaml` and `.env`.
+(`agitprop-deploy` artifact) and contains `docker-compose.yaml` and `.env`. The
+`.env` pins each image to the commit the artifact was generated from
+(`.../web:<sha>`), so a bundle always describes one exact stack.
 
 ```bash
 # on the VPS
@@ -240,9 +242,16 @@ docker compose exec -T postgres pg_dump -U postgres newsfeed | gzip > backup-$(d
 # shell into the database
 docker compose exec postgres psql -U postgres newsfeed
 
-# update images
+# update to a newer build: download the agitprop-deploy artifact of that commit
+# (the build-and-push job must have finished) and replace .env, then
 docker compose pull && docker compose up -d
+
+# roll back: change the three image tags in .env to the commit that last worked
+$EDITOR .env && docker compose pull && docker compose up -d
 ```
+
+Image tags are commit SHAs, never `latest`, so the only thing a rollback needs is
+the SHA that was running. `git log` names it; the images stay in the registry.
 
 `HealthEndpoints__Enabled` is `true` in the published stack, so `/health` and
 `/alive` exist in production for an uptime monitor; block those paths at the
