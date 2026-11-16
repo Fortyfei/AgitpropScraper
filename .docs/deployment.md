@@ -209,16 +209,19 @@ The deployment bundle is produced by the CI `publish-deployment` job
 ```bash
 # on the VPS
 unzip agitprop-deploy.zip -d agitprop && cd agitprop
+chmod +x deploy/*.sh          # the artifact archive does not keep the executable bit
 $EDITOR .env                  # fill POSTGRES_PASSWORD, APP_DB_PASSWORD and TUNNEL_TOKEN
 chmod 600 .env
 docker compose pull
 docker compose up -d
 ```
 
-`.env` carries four values: `POSTGRES_PASSWORD` (the container superuser, used
-only for administration), `APP_DB_PASSWORD` (the role the application logs in
-with), `TUNNEL_TOKEN`, and `POSTGRES_BINDMOUNT_0`, which the CI fills in with the
-bundle's own `postgres-init` folder.
+`.env` carries four required values: `POSTGRES_PASSWORD` (the container
+superuser, used only for administration), `APP_DB_PASSWORD` (the role the
+application logs in with), `TUNNEL_TOKEN`, and `POSTGRES_BINDMOUNT_0`, which the
+CI fills in with the bundle's own `postgres-init` folder. Three optional values
+turn on notifications and the off-site copy: `DISCORD_WEBHOOK_URL`,
+`ARCHIVE_REPO`, `GH_TOKEN` (see 10.7).
 
 On the first start of an empty data directory PostgreSQL runs
 `postgres-init/01-agitprop-role.sql`. It creates the `agitprop` role, the
@@ -251,22 +254,26 @@ there is no longer a `WEB_PORT` value to keep in sync in `.env`.
 
 ### 10.3 Operations
 
+The bundle ships the operator scripts described in 10.6 and 10.7. The raw
+commands below are what those scripts wrap; reach for them when something is
+broken.
+
+`pg_hba` in this stack requires the password **even on the container's unix
+socket**, so `psql` needs `PGPASSWORD`:
+
 ```bash
 # logs
 docker compose logs -f web consumer rss-feed-reader cloudflared
 
-# backup (add to cron)
-docker compose exec -T postgres pg_dump -U postgres newsfeed | gzip > backup-$(date +%F).sql.gz
-
 # shell into the database
-docker compose exec postgres psql -U postgres newsfeed
+set -a; . ./.env; set +a
+docker compose exec -e PGPASSWORD="$POSTGRES_PASSWORD" postgres psql -U postgres newsfeed
 
-# update to a newer build: download the agitprop-deploy artifact of that commit
-# (the build-and-push job must have finished) and replace .env, then
-docker compose pull && docker compose up -d
+# deploy a build, with rollback on failure (10.6)
+./deploy.sh <commit-sha>
 
-# roll back: change the three image tags in .env to the commit that last worked
-$EDITOR .env && docker compose pull && docker compose up -d
+# back up now, and prove the dump restores (10.7)
+./backup.sh && ./restore.sh backups/newsfeed-$(date +%F).sql.gz
 ```
 
 Image tags are commit SHAs, never `latest`, so the only thing a rollback needs is
@@ -309,8 +316,10 @@ tunnel and from inside the compose network.
 - **Host**: `ufw` allowing only `22`; SSH key-only (`PasswordAuthentication no`,
   `PermitRootLogin no`), fail2ban, `unattended-upgrades`. 2 GB swap.
 - **Database**: no published port; passwords come from `.env` (`chmod 600`). The
-  app logs in as `agitprop`, not as the superuser; `docker compose exec postgres
-  psql -U postgres newsfeed` stays available for administration.
+  app logs in as `agitprop`, not as the superuser. Administration needs the
+  password over the unix socket too:
+  `set -a; . ./.env; set +a` then
+  `docker compose exec -e PGPASSWORD="$POSTGRES_PASSWORD" postgres psql -U postgres newsfeed`.
 - **Data**: two named volumes survive container recreates. `agitprop-postgres-data`
   is pinned by name so that editing the AppHost cannot silently create a second,
   empty database volume and look like data loss. `agitprop-ner-model` holds the
@@ -340,3 +349,72 @@ tunnel and from inside the compose network.
 `aspire start` runs the same topology with the Aspire dashboard on `:18888`,
 pgAdmin on `:5050`, and PostgreSQL published on `:5432`. Publish mode drops the
 dashboard, publishes no ports, and adds `cloudflared`.
+
+### 10.6 Deploying a build
+
+The CI publishes images tagged with the commit and a bundle (`agitprop-deploy`)
+whose `.env` names those tags. Nothing reaches into the server: a deploy is a
+manual pull **from** the host, so merging into `main` never changes what is
+running by itself.
+
+```bash
+# every deploy
+cd /opt/agitprop
+./deploy/deploy.sh <commit-sha>
+```
+
+`./deploy/deploy.sh` rewrites the three image tags, pulls, restarts, and waits for
+`web` and `postgres` to report healthy. If the pull fails it leaves `.env`
+untouched; if the containers do not start or do not become healthy within four
+minutes, it puts the previous tags back and restarts them. The three most recent
+previous `.env` files stay in `.deploy-history/`, so a rollback is
+`./deploy/deploy.sh <older-sha>`; `./deploy/deploy.sh current` restarts whatever
+is pinned now.
+
+**Watchtower is deliberately not part of the stack.** It follows a moving tag,
+restarts without approval, and knows nothing about the bundle history a rollback
+needs — the three properties this deployment wants. Automatic updates would mean
+giving those up.
+
+At the end of a successful deploy the script prunes images that have been unused
+for 28 days: SHA-tagged images never become dangling, so they would otherwise
+fill the disk one deploy at a time.
+
+If `DISCORD_WEBHOOK_URL` is set in `.env`, every deploy reports success or failure
+there, including which tag it rolled back to.
+
+### 10.7 Backups, restore rehearsal, off-site copy
+
+The bundle ships three scripts and a systemd timer:
+
+```bash
+./deploy/backup.sh                                        # dump now
+./deploy/restore.sh backups/newsfeed-YYYY-MM-DD.sql.gz    # prove it restores
+```
+
+`backup.sh` writes `backups/newsfeed-<date>.sql.gz`, keeps the **four** most
+recent weekly dumps, and keeps **one archive per month** in `backups/archive/`.
+It verifies the gzip stream before reporting success, and notifies Discord on
+failure (and on success).
+
+Weekly schedule — `deploy/systemd/agitprop-backup.{service,timer}` runs it every
+Sunday at 03:30 with `Persistent=true`, so a run missed while the host was off
+happens after boot:
+
+```bash
+sudo cp deploy/systemd/agitprop-backup.* /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now agitprop-backup.timer
+systemctl list-timers agitprop-backup.timer
+```
+
+**Off-site copy.** When `ARCHIVE_REPO` (a *private* repository) and `GH_TOKEN`
+(a token with `contents: write` on it) are set, the monthly archive is uploaded
+as a release asset on a `db-YYYY-MM` release. Release assets avoid the 100 MB
+per-file limit a commit would hit, and nothing else leaves the host. Without those
+two values the archive stays on the VPS and the script says so.
+
+**Restore rehearsal.** `restore.sh` restores a dump into a scratch database next
+to the live one, prints the article/entity/mention counts, then drops it. Run it
+after the first weekly backup and whenever a dump looks suspicious. The dumps
+contain public news data only — there are no accounts or credentials in them.

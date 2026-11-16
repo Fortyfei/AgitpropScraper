@@ -1,0 +1,11 @@
+[Unit]
+Description=Agitprop weekly database backup
+Documentation=file:/opt/agitprop/deploy/backup.sh
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/agitprop
+EnvironmentFile=/opt/agitprop/.env
+ExecStart=/opt/agitprop/deploy/backup.sh

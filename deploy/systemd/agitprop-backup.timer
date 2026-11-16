@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the Agitprop database backup weekly
+
+[Timer]
+OnCalendar=Sun 03:30
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target
