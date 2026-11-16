@@ -201,7 +201,7 @@
 
     private (DateOnly From, DateOnly To) WindowRange()
     {
-        var to = DateOnly.FromDateTime(DateTime.UtcNow);
+        var to = ReportingTimeZone.Today();
         return (to.AddDays(-(TimeframeOptions[SelectedTimeframeIndex].Days - 1)), to);
     }
 

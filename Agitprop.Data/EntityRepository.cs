@@ -1,3 +1,4 @@
+using Agitprop.Core;
 using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -48,8 +49,7 @@ public class EntityRepository : IEntityRepository
 
         try
         {
-            var from = DateTime.SpecifyKind(startDate.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
-            var to = DateTime.SpecifyKind(endDate.ToDateTime(TimeOnly.MaxValue), DateTimeKind.Utc);
+            var (from, to) = ReportingTimeZone.ToUtcRange(startDate, endDate);
 
             var entities = _dbContext.Entities
                 .Where(e => e.Mentions.Any(m =>
@@ -92,8 +92,7 @@ public class EntityRepository : IEntityRepository
         using var trace = _activitySource.StartActivity("GetMentioningArticlesByDomain", ActivityKind.Internal);
         trace?.SetTag("entityId", entityId);
 
-        var from = DateTime.SpecifyKind(startDate.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
-        var to = DateTime.SpecifyKind(endDate.ToDateTime(TimeOnly.MaxValue), DateTimeKind.Utc);
+        var (from, to) = ReportingTimeZone.ToUtcRange(startDate, endDate);
 
         try
         {
@@ -131,8 +130,7 @@ public class EntityRepository : IEntityRepository
         trace?.SetTag("from", startDate.ToString());
         trace?.SetTag("to", endDate.ToString());
 
-        var from = DateTime.SpecifyKind(startDate.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
-        var to = DateTime.SpecifyKind(endDate.ToDateTime(TimeOnly.MaxValue), DateTimeKind.Utc);
+        var (from, to) = ReportingTimeZone.ToUtcRange(startDate, endDate);
 
         try
         {
@@ -178,8 +176,7 @@ public class EntityRepository : IEntityRepository
         trace?.SetTag("limit", limit);
 
         var targetEntityId = Guid.Parse(entityId);
-        var from = DateTime.SpecifyKind(startDate.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
-        var to = DateTime.SpecifyKind(endDate.ToDateTime(TimeOnly.MaxValue), DateTimeKind.Utc);
+        var (from, to) = ReportingTimeZone.ToUtcRange(startDate, endDate);
 
         try
         {
@@ -236,8 +233,7 @@ public class EntityRepository : IEntityRepository
         trace?.SetTag("sourceLimit", sourceLimit);
         trace?.SetTag("entityLimit", entityLimit);
 
-        var from = DateTime.SpecifyKind(startDate.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
-        var to = DateTime.SpecifyKind(endDate.ToDateTime(TimeOnly.MaxValue), DateTimeKind.Utc);
+        var (from, to) = ReportingTimeZone.ToUtcRange(startDate, endDate);
 
         try
         {
@@ -337,8 +333,7 @@ public class EntityRepository : IEntityRepository
         trace?.SetTag("page", page);
         trace?.SetTag("pageSize", pageSize);
 
-        var from = DateTime.SpecifyKind(startDate.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
-        var to = DateTime.SpecifyKind(endDate.ToDateTime(TimeOnly.MaxValue), DateTimeKind.Utc);
+        var (from, to) = ReportingTimeZone.ToUtcRange(startDate, endDate);
 
         try
         {
@@ -371,8 +366,7 @@ public class EntityRepository : IEntityRepository
         using var trace = _activitySource.StartActivity("GetMentioningArticles", ActivityKind.Internal);
         trace?.SetTag("entityId", entityId);
 
-        var from = DateTime.SpecifyKind(startDate.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
-        var to = DateTime.SpecifyKind(endDate.ToDateTime(TimeOnly.MaxValue), DateTimeKind.Utc);
+        var (from, to) = ReportingTimeZone.ToUtcRange(startDate, endDate);
         trace?.SetTag("from", from.ToString("o"));
         trace?.SetTag("to", to.ToString("o"));
 
@@ -403,8 +397,7 @@ public class EntityRepository : IEntityRepository
         using var trace = _activitySource.StartActivity("GetMentioningArticles", ActivityKind.Internal);
         trace?.SetTag("entityId", entityIds);
 
-        var from = DateTime.SpecifyKind(startDate.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
-        var to = DateTime.SpecifyKind(endDate.ToDateTime(TimeOnly.MaxValue), DateTimeKind.Utc);
+        var (from, to) = ReportingTimeZone.ToUtcRange(startDate, endDate);
         trace?.SetTag("from", from.ToString("o"));
         trace?.SetTag("to", to.ToString("o"));
 
@@ -455,8 +448,7 @@ public class EntityRepository : IEntityRepository
         trace?.SetTag("pageSize", pageSize);
         trace?.SetTag("search", search);
 
-        var fromUtc = DateTime.SpecifyKind(from.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
-        var toUtc = DateTime.SpecifyKind(to.ToDateTime(TimeOnly.MaxValue), DateTimeKind.Utc);
+        var (fromUtc, toUtc) = ReportingTimeZone.ToUtcRange(from, to);
 
         try
         {
@@ -504,8 +496,7 @@ public class EntityRepository : IEntityRepository
 
         try
         {
-            var from = DateTime.SpecifyKind(startDate.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
-            var to = DateTime.SpecifyKind(endDate.ToDateTime(TimeOnly.MaxValue), DateTimeKind.Utc);
+            var (from, to) = ReportingTimeZone.ToUtcRange(startDate, endDate);
 
             var entities = await _dbContext.Entities
                 .Where(e => e.Mentions.Any(m =>

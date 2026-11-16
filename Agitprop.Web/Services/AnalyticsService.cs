@@ -427,7 +427,7 @@ public class AnalyticsService
                     pair =>
                     {
                         var countsByDay = pair.Value
-                            .GroupBy(article => DateOnly.FromDateTime(article.PublishedTime))
+                            .GroupBy(article => Agitprop.Core.ReportingTimeZone.ToDay(article.PublishedTime))
                             .ToDictionary(group => group.Key, group => group.Count());
 
                         return Enumerable.Range(0, to.DayNumber - from.DayNumber + 1)

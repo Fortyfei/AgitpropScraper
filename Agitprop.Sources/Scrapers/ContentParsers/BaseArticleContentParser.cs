@@ -13,6 +13,11 @@ namespace Agitprop.Sources.Scrapers.ContentParsers;
 
 internal abstract class BaseArticleContentParser : IContentParser
 {
+    // A trailing "Z" or "+01:00"/"+0100". The four digits keep plain dates such as 2025-01-11 unmatched.
+    private static readonly Regex ExplicitOffsetPattern = new(
+        @"(?:[zZ]|[+-]\d{2}:?\d{2})\z",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
     protected abstract List<string> DateXPaths { get; }
     protected abstract List<string> TitleXPaths { get; }
     protected abstract List<string> LeadXPaths { get; }
@@ -162,7 +167,7 @@ internal abstract class BaseArticleContentParser : IContentParser
         var value = dateText.Trim();
 
         // The value states its own offset; honour it and normalise to UTC.
-        if (SourceTimeZone.HasExplicitOffset(value)
+        if (HasExplicitOffset(value)
             && DateTimeOffset.TryParse(
                 value,
                 CultureInfo.InvariantCulture,
@@ -181,19 +186,21 @@ internal abstract class BaseArticleContentParser : IContentParser
             DateTimeStyles.AllowWhiteSpaces,
             out var hungarianDate))
         {
-            date = SourceTimeZone.ToUtc(hungarianDate);
+            date = ReportingTimeZone.ToUtc(hungarianDate);
             return true;
         }
 
         if (DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out var parsed)
             || DateTime.TryParse(value, new CultureInfo("hu-HU"), DateTimeStyles.AllowWhiteSpaces, out parsed))
         {
-            date = SourceTimeZone.ToUtc(parsed);
+            date = ReportingTimeZone.ToUtc(parsed);
             return true;
         }
 
         return false;
     }
+
+    private static bool HasExplicitOffset(string value) => ExplicitOffsetPattern.IsMatch(value.TrimEnd());
 
     private static bool TryExtractDate(HtmlNode node, out DateTime date)
     {

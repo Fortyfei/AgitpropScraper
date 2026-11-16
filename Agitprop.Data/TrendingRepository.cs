@@ -1,3 +1,4 @@
+using Agitprop.Core;
 using System;
 using System.Diagnostics;
 
@@ -28,8 +29,7 @@ public class TrendingRepository : ITrendingRepository
         trace?.SetTag("startDate", startDate.ToString());
         trace?.SetTag("endDate", endDate.ToString());
 
-        var from = DateTime.SpecifyKind(startDate.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
-        var to = DateTime.SpecifyKind(endDate.ToDateTime(TimeOnly.MaxValue), DateTimeKind.Utc);
+        var (from, to) = ReportingTimeZone.ToUtcRange(startDate, endDate);
 
         var entities = _dbContext.Entities
             .Where(e => e.Mentions.Any(m =>

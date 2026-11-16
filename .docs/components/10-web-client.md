@@ -56,6 +56,14 @@ instead of faulting the circuit.
 Cache durations: 15 minutes for list queries, 1 hour for entity details,
 5 minutes for daily counts and first publishers.
 
+## Reporting calendar
+
+Instants are stored and compared in UTC, but every day bucket, date-range filter
+and "today" default uses `ReportingTimeZone` (`Agitprop.Core`, `Europe/Budapest`)
+— the calendar the outlets publish in and the audience reads. An article stored
+at `2026-02-10T23:30Z` therefore appears in the 11th's bucket and in the
+`2026-02-11..2026-02-11` feed range.
+
 ## Tracing: one browser session is one trace
 
 Blazor Server dispatches each interaction on its own async flow with no ambient
