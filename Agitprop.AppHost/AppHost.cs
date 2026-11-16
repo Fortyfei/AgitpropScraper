@@ -31,6 +31,7 @@ internal class Program
         }
 
         var postgresPassword = builder.AddParameter("postgres-password", secret: true);
+        var appDbPassword = builder.AddParameter("app-db-password", secret: true);
 
         var postgres = builder.AddPostgres("postgres", password: postgresPassword)
                               .WithImageRegistry("ghcr.io")
@@ -61,7 +62,6 @@ internal class Program
 
         var consumer = builder.AddProject<Agitprop_Scraper_Consumer>("consumer")
                               .WaitFor(newsfeedDb)
-                              .WithReference(newsfeedDb)
                               .WithOtlpExporter()
                               .WithContainerRegistry(registry)
                               .WithEnvironmentAwareImagePush()
@@ -70,7 +70,6 @@ internal class Program
 
         var rssReader = builder.AddProject<Agitprop_Scraper_RssFeedReader>("rss-feed-reader")
                                .WaitFor(newsfeedDb)
-                               .WithReference(newsfeedDb)
                                .WaitFor(consumer)
                                .WithOtlpExporter()
                                .WithContainerRegistry(registry)
@@ -80,7 +79,6 @@ internal class Program
 
         var web = builder.AddProject<Agitprop_Web>("web")
                          .WaitFor(newsfeedDb)
-                         .WithReference(newsfeedDb)
                          .WithOtlpExporter()
                          .WithContainerRegistry(registry)
                          .WithEnvironmentAwareImagePush()
@@ -89,6 +87,20 @@ internal class Program
 
         if (publishMode)
         {
+            // The bootstrap script creates the app role and its database, so the app never runs
+            // as the container superuser: COPY ... FROM PROGRAM would otherwise let a compromised
+            // query execute programs on the database host. It runs once, when the data volume is
+            // empty; an existing volume needs the role created by hand (see .docs/deployment.md).
+            postgres.WithInitFiles("postgres-init")
+                    .WithEnvironment("AGITPROP_DB_PASSWORD", appDbPassword);
+
+            var appDbConnectionString = ReferenceExpression.Create(
+                $"Host=postgres;Port=5432;Username=agitprop;Password={appDbPassword};Database=newsfeed");
+
+            consumer.WithEnvironment("ConnectionStrings__newsfeed", appDbConnectionString);
+            rssReader.WithEnvironment("ConnectionStrings__newsfeed", appDbConnectionString);
+            web.WithEnvironment("ConnectionStrings__newsfeed", appDbConnectionString);
+
             consumer.WaitForHealthyDependency("postgres");
 
             // The NER model is ~440 MB and is checksum-verified on every start, so it belongs on a
@@ -138,7 +150,13 @@ internal class Program
         }
         else
         {
-            web.WithExternalHttpEndpoints();
+            // Locally the AppHost creates the database itself, so the app keeps the container
+            // credentials; the role above exists only in a published stack.
+            consumer.WithReference(newsfeedDb);
+            rssReader.WithReference(newsfeedDb);
+
+            web.WithExternalHttpEndpoints()
+               .WithReference(newsfeedDb);
         }
 
         builder.Build().Run();
