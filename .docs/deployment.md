@@ -193,11 +193,35 @@ a victim such as PostgreSQL.
 - A VPS with ~4 GB RAM, 2 vCPU, Docker Engine and Compose v2, plus 2 GB swap.
 - **Firewall: allow only `22`.** The tunnel is an outbound connection, so no
   `80`/`443` rule is needed and no DNS record points at the VPS IP.
-- In the Cloudflare dashboard create a named tunnel and a public hostname
-  (for example `agitprop.<domain>`) whose service is `http://web:8080`; copy the
-  tunnel token into `TUNNEL_TOKEN`.
-- Optional: a Cloudflare WAF custom rule blocking `/health` and `/alive`, and a
-  health check that watches the public hostname.
+- A dedicated operator account owns the deployment, so day-to-day work never
+  needs root and the container runtime is not driven by `root`'s Docker config:
+
+  ```bash
+  sudo adduser --disabled-password --gecos "" deploy
+  sudo usermod -aG docker deploy
+  sudo install -d -o deploy -g deploy /opt/agitprop
+  sudo install -d -o deploy -g deploy /opt/agitprop/backups
+  sudo -iu deploy
+  ```
+
+- Images are private, so the deploy user logs in to the registry once. Use a
+  token scoped to `read:packages` only; the credentials land in
+  `~deploy/.docker/config.json`, which `docker compose pull` (and therefore
+  `deploy.sh`) uses:
+
+  ```bash
+  echo "$GHCR_TOKEN" | docker login ghcr.io -u <github-user> --password-stdin
+  ```
+
+- In the Cloudflare dashboard create a named tunnel and a public hostname for
+  `agitprop.cc` whose service is `http://web:8080`; copy the tunnel token into
+  `TUNNEL_TOKEN`. A redirect rule can send `www.agitprop.cc` to the apex.
+- Optional: a Cloudflare WAF custom rule blocking `/health` and `/alive`, a
+  rate-limiting rule on the public hostname, and a health check watching it.
+- Optional, later: put SSH itself behind Cloudflare Access
+  (`cloudflared access ssh` with an Access application), which allows closing
+  port `22`. It is left out of the first bring-up because a mistake there locks
+  you out of the host.
 
 ### 10.2 Deploy
 
