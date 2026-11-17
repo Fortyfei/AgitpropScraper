@@ -208,8 +208,7 @@ killer pick a victim such as PostgreSQL.
 
 - Images are private, so the deploy user logs in to the registry once. Use a
   token scoped to `read:packages` only; the credentials land in
-  `~deploy/.docker/config.json`, which `docker compose pull` (and therefore
-  `deploy.sh`) uses:
+  `~deploy/.docker/config.json`, which `docker compose pull` and Watchtower use:
 
   ```bash
   echo "$GHCR_TOKEN" | docker login ghcr.io -u <github-user> --password-stdin
@@ -297,15 +296,13 @@ docker compose logs -f web consumer rss-feed-reader cloudflared
 set -a; . ./.env; set +a
 docker compose exec -e PGPASSWORD="$POSTGRES_PASSWORD" postgres psql -U postgres newsfeed
 
-# deploy a build, with rollback on failure (10.6)
-./deploy.sh <commit-sha>
-
 # back up now, and prove the dump restores (10.7)
-./backup.sh && ./restore.sh backups/newsfeed-$(date +%F).sql.gz
+./deploy/backup.sh
 ```
 
-Image tags are commit SHAs, never `latest`, so the only thing a rollback needs is
-the SHA that was running. `git log` names it; the images stay in the registry.
+Image tags are commit SHAs plus the moving `stable` tag; nothing is `latest`, so
+a rollback can always name an exact build. The rest of the deploy story — what
+Watchtower does, and the two commands that pin or unpin it — is in 10.6.
 
 Before the first `docker compose up`, check that no value is still empty — the
 postgres image fails late and unhelpfully otherwise:
@@ -370,8 +367,8 @@ tunnel and from inside the compose network.
 - **Backups**: nightly `pg_dump` (see Operations) with rotation, and one
   restore rehearsal.
 - **Image tags**: every image is published under its commit SHA and the moving `stable` tag is
-  moved onto each build. Watchtower follows `stable`; `./deploy/deploy.sh <sha>` pins the stack
-  to one build and stops automatic updates until `./deploy/deploy.sh stable`.
+  moved onto each build. Watchtower follows `stable`; pinning a commit in `.env` stops automatic
+  updates until `stable` is put back (see 10.6).
 
 ### 10.5 Local development still uses the dashboard
 
@@ -395,28 +392,38 @@ a bad merge:
   shows `unhealthy`) instead of silently serving errors;
 - a revert PR merged into `main` moves `stable` back, and Watchtower deploys the
   revert the same way — no shell needed;
-- `./deploy/deploy.sh <commit-sha>` **pins** the stack to an exact build and
-  thereby stops automatic updates, which is the emergency brake.
-  `./deploy/deploy.sh stable` hands the stack back to Watchtower.
-
-`deploy.sh` also keeps the three most recent `.env` bundles in
-`.deploy-history/`, waits up to four minutes for `web` and `postgres` to report
-healthy, and rolls back on its own if a pinned build does not come up.
+- pinning a commit in `.env` is the emergency brake: keep the automatic channel
+  aside, then pin, then hand the stack back when the trouble is over.
 
 ```bash
 cd /opt/agitprop
-./deploy/deploy.sh <commit-sha>   # pin / freeze at one build
-./deploy/deploy.sh stable         # follow the moving tag again
-./deploy/deploy.sh current        # restart whatever .env names now
+
+# freeze at one build (any commit SHA from `git log`)
+cp .env .env.stable
+sed -i 's|:stable$|:<commit-sha>|' .env
+docker compose pull && docker compose up -d
+
+# hand the stack back to Watchtower
+cp .env.stable .env
+docker compose pull && docker compose up -d
 ```
+
+The bundle names all three app images with `stable`, so one substitution covers
+them, and `.env.stable` is what makes the way back a single `cp`. Containers
+created on a SHA tag watch that tag, whose digest never changes, which is exactly
+why the pin holds until you undo it.
+
+Watchtower restarts in `--rolling-restart` mode: one container at a time, and for
+`web` — which declares a health check — the old container is only stopped once the
+new one reports healthy, so migrations finish before traffic moves.
 
 Watchtower is the only container with the Docker socket mounted, which is
 root-equivalent on this host. `--label-enable` keeps it from touching `postgres`,
-`cloudflared` and the one-shot `model-ownership`; `--cleanup` removes the images it
-replaces, so SHA-tagged images do not accumulate one deploy at a time.
+`cloudflared` and the one-shot `model-ownership`. The label lives on the three app
+services in `AppHost.cs`; `--cleanup` removes the images it replaces, so
+SHA-tagged images do not accumulate one deploy at a time.
 
-Automatic updates are visible in `docker compose logs -f watchtower`; manually
-pinned deploys also report to Discord when `DISCORD_WEBHOOK_URL` is set.
+Automatic updates are visible in `docker compose logs -f watchtower`.
 
 One caveat after any restart of `web` (Watchtower or manual): `cloudflared` may
 hold a connection to the previous container's address, which shows up as a few
@@ -425,21 +432,22 @@ hold a connection to the previous container's address, which shows up as a few
 
 ### 10.7 Backups, restore rehearsal, off-site copy
 
-The bundle ships three scripts and a systemd timer:
+One script and one timer: `deploy/backup.sh` is the only shell in the bundle,
+because it runs unattended and rotation plus the off-site copy are the parts that
+are unsafe to retype at 03:30.
 
 ```bash
-./deploy/backup.sh                                        # dump now
-./deploy/restore.sh backups/newsfeed-YYYY-MM-DD.sql.gz    # prove it restores
+./deploy/backup.sh        # dump now (add --dry-run to see what it would do)
 ```
 
 `backup.sh` writes `backups/newsfeed-<date>.sql.gz`, keeps the **four** most
 recent weekly dumps, and keeps **one archive per month** in `backups/archive/`.
 It verifies the gzip stream before reporting success, and notifies Discord on
-failure (and on success).
+failure (and on success) when `DISCORD_WEBHOOK_URL` is set.
 
 Weekly schedule — `deploy/systemd/agitprop-backup.{service,timer}` runs it every
-Sunday at 03:30 with `Persistent=true`, so a run missed while the host was off
-happens after boot:
+Sunday at 03:30 as the `deploy` user, with `Persistent=true`, so a run missed
+while the host was off happens after boot:
 
 ```bash
 sudo cp deploy/systemd/agitprop-backup.* /etc/systemd/system/
@@ -454,7 +462,22 @@ as a release asset on a `db-YYYY-MM` release. Release assets avoid the 100 MB
 per-file limit a commit would hit, and nothing else leaves the host. Without those
 two values the archive stays on the VPS and the script says so.
 
-**Restore rehearsal.** `restore.sh` restores a dump into a scratch database next
-to the live one, prints the article/entity/mention counts, then drops it. Run it
-after the first weekly backup and whenever a dump looks suspicious. The dumps
-contain public news data only — there are no accounts or credentials in them.
+**Restore rehearsal.** Four commands, no script — the value is in doing it, not in
+the code:
+
+```bash
+cd /opt/agitprop
+set -a; . ./.env; set +a
+q() { docker compose exec -T -e PGPASSWORD="$POSTGRES_PASSWORD" postgres psql -U postgres "$@"; }
+
+q -c 'DROP DATABASE IF EXISTS newsfeed_restore'
+q -c 'CREATE DATABASE newsfeed_restore'
+gunzip -c backups/newsfeed-YYYY-MM-DD.sql.gz | q -d newsfeed_restore -q -v ON_ERROR_STOP=1
+q -d newsfeed_restore -tAc "SELECT 'articles=' || count(*) FROM articles"
+q -c 'DROP DATABASE newsfeed_restore'
+```
+
+The scratch database sits next to the live one, so a bad restore cannot touch
+production; the last two commands report a row count and clean up. Run it after
+the first weekly backup and whenever a dump looks suspicious. The dumps contain
+public news data only — there are no accounts or credentials in them.

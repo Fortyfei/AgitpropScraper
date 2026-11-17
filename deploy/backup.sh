@@ -1,17 +1,16 @@
 #!/usr/bin/env bash
-# Weekly database backup for the single-VPS stack.
+# Weekly database backup for the single-VPS stack. The only script in this directory: it runs
+# unattended, and rotation plus the off-site copy are the parts that are unsafe to retype.
 #
 # Writes a gzipped pg_dump into BACKUP_DIR, keeps the last four weekly dumps, and keeps one
 # archive per month. When ARCHIVE_REPO and GH_TOKEN are set, the monthly archive is uploaded to
-# that repository as a release asset, so the off-site copy does not need a storage account.
+# that repository as a release asset, so the off-site copy needs no storage account.
 #
 # Usage: ./backup.sh [--dry-run]
 
 set -euo pipefail
 
 cd "$(dirname -- "${BASH_SOURCE[0]}")"
-# shellcheck source=deploy/lib.sh
-source ./lib.sh
 
 readonly weekly_keep=4
 backup_dir="${BACKUP_DIR:-./backups}"
@@ -29,7 +28,34 @@ if [[ ! -f .env ]]; then
   exit 1
 fi
 
-load_env
+# .env is the single secrets file, and it is parsed rather than sourced: the values may contain
+# characters a shell would interpret.
+while IFS= read -r line || [[ -n "$line" ]]; do
+  [[ -z "$line" || "$line" == \#* || "$line" != *=* ]] && continue
+  key="${line%%=*}"
+  value="${line#*=}"
+  if [[ "$value" == \"*\" || "$value" == \'*\' ]]; then
+    value="${value:1:${#value}-2}"
+  fi
+  export "$key=$value"
+done < .env
+
+notify() {
+  local message="$1" url="${DISCORD_WEBHOOK_URL:-}" escaped
+  [[ -z "$url" ]] && return 0
+
+  escaped="${message//\\/\\\\}"
+  escaped="${escaped//\"/\\\"}"
+  escaped="${escaped//$'\r'/}"
+  escaped="${escaped//$'\n'/ }"
+
+  if ! curl --silent --show-error --fail --max-time 10 \
+            --header 'Content-Type: application/json' \
+            --data "{\"content\": \"${escaped}\"}" \
+            "$url" >/dev/null; then
+    echo "warning: Discord notification failed" >&2
+  fi
+}
 
 # pg_hba requires the password even on the container's unix socket.
 if [[ -z "${POSTGRES_PASSWORD:-}" ]]; then
@@ -80,7 +106,7 @@ if [[ ! -f "$archive_file" ]]; then
         --notes "Monthly newsfeed dump from the Agitprop host."
     fi
     GH_TOKEN="$GH_TOKEN" gh release upload "$tag" "$archive_file" --repo "$ARCHIVE_REPO" --clobber
-    notify "Agitprop backup: monthly archive $month downloaded to $ARCHIVE_REPO."
+    notify "Agitprop backup: monthly archive $month uploaded to $ARCHIVE_REPO."
   else
     echo "note: ARCHIVE_REPO/GH_TOKEN are not set, so the archive stays on this host"
   fi
