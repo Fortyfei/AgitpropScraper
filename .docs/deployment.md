@@ -418,6 +418,11 @@ replaces, so SHA-tagged images do not accumulate one deploy at a time.
 Automatic updates are visible in `docker compose logs -f watchtower`; manually
 pinned deploys also report to Discord when `DISCORD_WEBHOOK_URL` is set.
 
+One caveat after any restart of `web` (Watchtower or manual): `cloudflared` may
+hold a connection to the previous container's address, which shows up as a few
+502s. If it does not clear within a minute,
+`docker compose restart cloudflared`.
+
 ### 10.7 Backups, restore rehearsal, off-site copy
 
 The bundle ships three scripts and a systemd timer:
