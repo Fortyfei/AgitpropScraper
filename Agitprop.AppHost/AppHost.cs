@@ -156,7 +156,10 @@ internal class Program
             // containers. It gets the Docker socket, which is root-equivalent on this host, so it
             // is the one container allowed to have it and it touches nothing unlabelled.
             builder.AddContainer("watchtower", "containrrr/watchtower", "1.7.1")
-                   .WithArgs("--label-enable", "--cleanup", "--interval", "300", "--stop-timeout", "120")
+                   // One container at a time, and for web (which has a health check) the old one
+                   // only stops once the new one reports healthy.
+                   .WithArgs("--label-enable", "--cleanup", "--rolling-restart",
+                             "--interval", "300", "--stop-timeout", "120")
                    .WithBindMount("/var/run/docker.sock", "/var/run/docker.sock")
                    .LimitComposeMemory("64M")
                    .PublishAsDockerComposeService((_, service) => service.CapDrop = ["ALL"])
