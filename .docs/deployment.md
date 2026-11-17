@@ -208,11 +208,24 @@ killer pick a victim such as PostgreSQL.
 
 - Images are private, so the deploy user logs in to the registry once. Use a
   token scoped to `read:packages` only; the credentials land in
-  `~deploy/.docker/config.json`, which `docker compose pull` and Watchtower use:
+  `~deploy/.docker/config.json`, which is what both `docker compose pull` and
+  Watchtower use:
 
   ```bash
   echo "$GHCR_TOKEN" | docker login ghcr.io -u <github-user> --password-stdin
+
+  # Watchtower reads the same login from a directory, so it must be copied there
+  # (read-only mount, path fixed in the published compose file)
+  mkdir -p /opt/agitprop/docker-config
+  cp ~/.docker/config.json /opt/agitprop/docker-config/config.json
+  chmod 700 /opt/agitprop/docker-config
+  chmod 600 /opt/agitprop/docker-config/config.json
   ```
+
+  A token that expires means two things to redo: `docker login` again and copy
+  the file again. First the app containers lose the ability to pull, then
+  Watchtower stops updating. Watchtower picks a changed file up on its next poll;
+  no restart is needed.
 
 - In the Cloudflare dashboard create a named tunnel and a public hostname for
   `agitprop.cc` whose service is `http://web:8080`; copy the tunnel token into
@@ -243,12 +256,12 @@ docker compose pull
 docker compose up -d
 ```
 
-`.env` carries four required values: `POSTGRES_PASSWORD` (the container
+`.env` carries five required values: `POSTGRES_PASSWORD` (the container
 superuser, used only for administration), `APP_DB_PASSWORD` (the role the
-application logs in with), `TUNNEL_TOKEN`, and `POSTGRES_BINDMOUNT_0`, which the
-CI fills in with the bundle's own `postgres-init` folder. Three optional values
-turn on notifications and the off-site copy: `DISCORD_WEBHOOK_URL`,
-`ARCHIVE_REPO`, `GH_TOKEN` (see 10.7).
+application logs in with), `TUNNEL_TOKEN`, and the two bind-mount sources
+`POSTGRES_BINDMOUNT_0` and `WATCHTOWER_BINDMOUNT_0`, which the CI fills in.
+Four optional values turn on notifications and the off-site copy:
+`DISCORD_WEBHOOK_URL`, `ARCHIVE_REPO`, `GH_TOKEN` (see 10.7).
 
 On the first start of an empty data directory PostgreSQL runs
 `postgres-init/01-agitprop-role.sql`. It creates the `agitprop` role, the
@@ -422,6 +435,12 @@ root-equivalent on this host. `--label-enable` keeps it from touching `postgres`
 `cloudflared` and the one-shot `model-ownership`. The label lives on the three app
 services in `AppHost.cs`; `--cleanup` removes the images it replaces, so
 SHA-tagged images do not accumulate one deploy at a time.
+
+Watchtower pulls with the registry login the deploy user performed, read from
+`/opt/agitprop/docker-config` (mounted read-only at `/config`, `DOCKER_CONFIG`
+pointing there). Without that copy it silently fails to pull and only logs
+`unauthorized` — the first place to look when a merge does not show up on the
+site.
 
 Automatic updates are visible in `docker compose logs -f watchtower`.
 

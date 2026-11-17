@@ -155,12 +155,19 @@ internal class Program
             // merge, Watchtower notices the new digest and recreates only the labelled app
             // containers. It gets the Docker socket, which is root-equivalent on this host, so it
             // is the one container allowed to have it and it touches nothing unlabelled.
+            //
+            // The images are private, so Watchtower needs the registry credentials: DOCKER_CONFIG
+            // points at a directory holding a config.json, which is the login the deploy user
+            // performed. A directory rather than a file, so a re-login (new inode) is picked up
+            // without restarting Watchtower.
             builder.AddContainer("watchtower", "containrrr/watchtower", "1.7.1")
                    // One container at a time, and for web (which has a health check) the old one
                    // only stops once the new one reports healthy.
                    .WithArgs("--label-enable", "--cleanup", "--rolling-restart",
                              "--interval", "300", "--stop-timeout", "120")
                    .WithBindMount("/var/run/docker.sock", "/var/run/docker.sock")
+                   .WithBindMount("/opt/agitprop/docker-config", "/config", isReadOnly: true)
+                   .WithEnvironment("DOCKER_CONFIG", "/config")
                    .LimitComposeMemory("64M")
                    .PublishAsDockerComposeService((_, service) => service.CapDrop = ["ALL"])
                    .HardenComposeService();

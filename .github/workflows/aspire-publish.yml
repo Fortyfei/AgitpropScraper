@@ -73,6 +73,7 @@ jobs:
           sed -i "s|^RSS_FEED_READER_IMAGE=.*|RSS_FEED_READER_IMAGE=ghcr.io/fortyfei/agitprop/rss-feed-reader:stable|" artifacts/.env
           sed -i "s|^WEB_IMAGE=.*|WEB_IMAGE=ghcr.io/fortyfei/agitprop/web:stable|" artifacts/.env
           sed -i "s|^POSTGRES_BINDMOUNT_0=.*|POSTGRES_BINDMOUNT_0=./postgres-init|" artifacts/.env
+          sed -i "s|^WATCHTOWER_BINDMOUNT_0=.*|WATCHTOWER_BINDMOUNT_0=/opt/agitprop/docker-config|" artifacts/.env
           echo "${GITHUB_SHA}" > artifacts/.build-sha
 
       - name: Show generated files
