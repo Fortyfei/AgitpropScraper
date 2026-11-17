@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # Manual, pull-based deployment of the Agitprop stack.
 #
-# The CI publishes images tagged with the commit SHA and a bundle whose .env names those tags.
-# Nothing reaches into the server: you run this script over SSH, it pulls the tags you name,
-# restarts the stack, and rolls back on its own if the stack does not become healthy.
+# The CI publishes every build under its commit SHA and moves the "stable" tag onto it. A host
+# that runs this script once with a SHA pins itself to that build and stops automatic updates;
+# running it with "stable" hands the stack back to Watchtower.
 #
 # Usage:
-#   ./deploy.sh <commit-sha> [--dry-run]
-#   ./deploy.sh current      # restart the tags already in .env
+#   ./deploy.sh <commit-sha> [--dry-run]   # pin/freeze at that build
+#   ./deploy.sh stable [--dry-run]         # follow the moving tag again
+#   ./deploy.sh current [--dry-run]        # restart whatever .env names now
 #
 # The three most recent previous bundles stay in .deploy-history/, so a rollback is always
 # possible even after a few bad deploys.
@@ -40,8 +41,8 @@ if [[ -z "$target" ]]; then
   exit 2
 fi
 
-if [[ "$target" != "current" && ! "$target" =~ ^[0-9a-f]{7,40}$ ]]; then
-  echo "error: '$target' is not a commit SHA (7-40 lowercase hex characters) or 'current'" >&2
+if [[ "$target" != "current" && ! "$target" =~ ^[0-9a-f]{7,40}$ && ! "$target" =~ ^[a-z][a-z0-9._-]{1,63}$ ]]; then
+  echo "error: '$target' is not a commit SHA (7-40 lowercase hex characters), a tag such as 'stable', or 'current'" >&2
   exit 2
 fi
 
@@ -52,7 +53,7 @@ for required in "$compose_file" "$env_file"; do
   fi
 done
 
-current_tag="$(grep -oE '/web:[0-9a-f]+' "$env_file" | cut -d: -f2 || true)"
+current_tag="$(grep -oE '/web:[^[:space:]]+' "$env_file" | cut -d: -f2 || true)"
 current_tag="${current_tag:-unknown}"
 
 if [[ "$target" == "current" ]]; then
@@ -64,7 +65,7 @@ if [[ "$target" == "current" ]]; then
 fi
 
 if [[ "$target" == "$current_tag" ]]; then
-  echo "already on $target; nothing to do (use the image tag of an older commit to roll back)"
+  echo "already on $target; nothing to do (name another tag or commit to move this stack)"
   exit 0
 fi
 
@@ -148,4 +149,9 @@ docker image prune --all --force --filter "until=672h" >/dev/null || true
 
 notify "Agitprop deployed ${target} (was ${current_tag}); web and postgres are healthy."
 echo "deployed $target; web and postgres are healthy"
+if [[ "$target" == "stable" ]]; then
+  echo "Watchtower follows 'stable' again, so the next merge deploys itself."
+else
+  echo "pinned to $target: Watchtower will not move this stack until you run ./deploy.sh stable"
+fi
 echo "rollback: ./deploy.sh $current_tag"

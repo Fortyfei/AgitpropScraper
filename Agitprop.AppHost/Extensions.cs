@@ -101,6 +101,19 @@ public static class Extensions
         }
 
         /// <summary>
+        /// Marks a published container for Watchtower. Only labelled containers are recreated,
+        /// so the database, the tunnel and the one-shot ownership job stay untouched.
+        /// </summary>
+        internal IResourceBuilder<T> WatchtowerManaged()
+        {
+            return builder.PublishAsDockerComposeService((_, service) =>
+            {
+                service.Labels ??= [];
+                service.Labels["com.centurylinklabs.watchtower.enable"] = "true";
+            });
+        }
+
+        /// <summary>
         /// Mounts a named volume into a published project. The container-only volume overloads do
         /// not apply to projects, which become containers only when publishing.
         /// </summary>

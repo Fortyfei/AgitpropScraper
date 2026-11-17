@@ -66,6 +66,7 @@ internal class Program
                               .WithContainerRegistry(registry)
                               .WithEnvironmentAwareImagePush()
                               .LimitComposeMemory("1200M")
+                              .WatchtowerManaged()
                               .HardenComposeService();
 
         var rssReader = builder.AddProject<Agitprop_Scraper_RssFeedReader>("rss-feed-reader")
@@ -75,6 +76,7 @@ internal class Program
                                .WithContainerRegistry(registry)
                                .WithEnvironmentAwareImagePush()
                                .LimitComposeMemory("256M")
+                               .WatchtowerManaged()
                                .HardenComposeService();
 
         var web = builder.AddProject<Agitprop_Web>("web")
@@ -83,6 +85,7 @@ internal class Program
                          .WithContainerRegistry(registry)
                          .WithEnvironmentAwareImagePush()
                          .LimitComposeMemory("512M")
+                         .WatchtowerManaged()
                          .HardenComposeService();
 
         if (publishMode)
@@ -146,6 +149,17 @@ internal class Program
                    .WaitFor(web)
                    .WaitForHealthyDependency("web")
                    .LimitComposeMemory("128M")
+                   .HardenComposeService();
+
+            // Deploys are pulled by the host: the release job moves the "stable" tag on every
+            // merge, Watchtower notices the new digest and recreates only the labelled app
+            // containers. It gets the Docker socket, which is root-equivalent on this host, so it
+            // is the one container allowed to have it and it touches nothing unlabelled.
+            builder.AddContainer("watchtower", "containrrr/watchtower", "1.7.1")
+                   .WithArgs("--label-enable", "--cleanup", "--interval", "300", "--stop-timeout", "120")
+                   .WithBindMount("/var/run/docker.sock", "/var/run/docker.sock")
+                   .LimitComposeMemory("64M")
+                   .PublishAsDockerComposeService((_, service) => service.CapDrop = ["ALL"])
                    .HardenComposeService();
         }
         else

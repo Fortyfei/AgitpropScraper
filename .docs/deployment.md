@@ -171,6 +171,7 @@ flowchart LR
         WEB --> PG[(postgres 17 + pgmq)]
         CON[consumer] --> PG
         RSS[rss-feed-reader] --> PG
+        WT[watchtower] -.->|pull stable| GHCR[(GHCR)]
         SSH[sshd :22]
     end
     CF <-->|outbound tunnel| CFD
@@ -179,14 +180,15 @@ flowchart LR
 
 Container budget (measured from the images): postgres 200–300 MB, web
 150–250 MB, consumer 600–900 MB (ONNX model), rss-feed-reader ~80 MB,
-cloudflared ~30 MB — roughly **1.1–1.6 GB**, which leaves headroom on 4 GB.
+cloudflared ~30 MB, watchtower ~20 MB — roughly **1.1–1.6 GB**, which leaves
+headroom on 4 GB.
 
 The published stack also caps every container with
 `deploy.resources.limits.memory`: postgres `1G`, consumer `1200M`, web `512M`,
-rss-feed-reader `256M`, cloudflared `128M`. The caps are ceilings, not
-reservations, and together they exceed the host's RAM on purpose: a burst in one
-container should hit its own limit instead of letting the kernel OOM killer pick
-a victim such as PostgreSQL.
+rss-feed-reader `256M`, cloudflared `128M`, watchtower `64M`. The caps are
+ceilings, not reservations, and together they exceed the host's RAM on purpose: a
+burst in one container should hit its own limit instead of letting the kernel OOM
+killer pick a victim such as PostgreSQL.
 
 ### 10.1 Provisioning
 
@@ -226,9 +228,11 @@ a victim such as PostgreSQL.
 ### 10.2 Deploy
 
 The deployment bundle is produced by the CI `publish-deployment` job
-(`agitprop-deploy` artifact) and contains `docker-compose.yaml` and `.env`. The
-`.env` pins each image to the commit the artifact was generated from
-(`.../web:<sha>`), so a bundle always describes one exact stack.
+(`agitprop-deploy` artifact) and contains `docker-compose.yaml`, `.env`,
+`postgres-init/` and `deploy/`. The `.env` names the images by the moving
+`stable` tag; `postgres`, `cloudflared` and `model-ownership` stay pinned to
+exact versions, and the commit the bundle was generated from is recorded in
+`.build-sha`.
 
 ```bash
 # on the VPS
@@ -365,8 +369,9 @@ tunnel and from inside the compose network.
   `128M`), and the NER model already lives on the `agitprop-ner-model` volume.
 - **Backups**: nightly `pg_dump` (see Operations) with rotation, and one
   restore rehearsal.
-- **Image tags**: the CI bundle pins every image to the commit it was built from,
-  so a rollback means pointing `.env` at an older SHA.
+- **Image tags**: every image is published under its commit SHA and the moving `stable` tag is
+  moved onto each build. Watchtower follows `stable`; `./deploy/deploy.sh <sha>` pins the stack
+  to one build and stops automatic updates until `./deploy/deploy.sh stable`.
 
 ### 10.5 Local development still uses the dashboard
 
@@ -376,36 +381,42 @@ dashboard, publishes no ports, and adds `cloudflared`.
 
 ### 10.6 Deploying a build
 
-The CI publishes images tagged with the commit and a bundle (`agitprop-deploy`)
-whose `.env` names those tags. Nothing reaches into the server: a deploy is a
-manual pull **from** the host, so merging into `main` never changes what is
-running by itself.
+**Merging into `main` deploys itself.** The pipeline publishes every image under
+its commit SHA, moves the moving `stable` tag onto that build, and produces the
+bundle. On the host, Watchtower polls the registry every five minutes and
+recreates the three labelled app containers (`web`, `consumer`,
+`rss-feed-reader`) when `stable` points at a new digest. Nothing reaches into the
+server; the approval step is the pull request merge.
+
+Watchtower does **not** wait for health and cannot roll back. What still protects
+a bad merge:
+
+- the container health checks make a broken web app visible (`docker compose ps`
+  shows `unhealthy`) instead of silently serving errors;
+- a revert PR merged into `main` moves `stable` back, and Watchtower deploys the
+  revert the same way — no shell needed;
+- `./deploy/deploy.sh <commit-sha>` **pins** the stack to an exact build and
+  thereby stops automatic updates, which is the emergency brake.
+  `./deploy/deploy.sh stable` hands the stack back to Watchtower.
+
+`deploy.sh` also keeps the three most recent `.env` bundles in
+`.deploy-history/`, waits up to four minutes for `web` and `postgres` to report
+healthy, and rolls back on its own if a pinned build does not come up.
 
 ```bash
-# every deploy
 cd /opt/agitprop
-./deploy/deploy.sh <commit-sha>
+./deploy/deploy.sh <commit-sha>   # pin / freeze at one build
+./deploy/deploy.sh stable         # follow the moving tag again
+./deploy/deploy.sh current        # restart whatever .env names now
 ```
 
-`./deploy/deploy.sh` rewrites the three image tags, pulls, restarts, and waits for
-`web` and `postgres` to report healthy. If the pull fails it leaves `.env`
-untouched; if the containers do not start or do not become healthy within four
-minutes, it puts the previous tags back and restarts them. The three most recent
-previous `.env` files stay in `.deploy-history/`, so a rollback is
-`./deploy/deploy.sh <older-sha>`; `./deploy/deploy.sh current` restarts whatever
-is pinned now.
+Watchtower is the only container with the Docker socket mounted, which is
+root-equivalent on this host. `--label-enable` keeps it from touching `postgres`,
+`cloudflared` and the one-shot `model-ownership`; `--cleanup` removes the images it
+replaces, so SHA-tagged images do not accumulate one deploy at a time.
 
-**Watchtower is deliberately not part of the stack.** It follows a moving tag,
-restarts without approval, and knows nothing about the bundle history a rollback
-needs — the three properties this deployment wants. Automatic updates would mean
-giving those up.
-
-At the end of a successful deploy the script prunes images that have been unused
-for 28 days: SHA-tagged images never become dangling, so they would otherwise
-fill the disk one deploy at a time.
-
-If `DISCORD_WEBHOOK_URL` is set in `.env`, every deploy reports success or failure
-there, including which tag it rolled back to.
+Automatic updates are visible in `docker compose logs -f watchtower`; manually
+pinned deploys also report to Discord when `DISCORD_WEBHOOK_URL` is set.
 
 ### 10.7 Backups, restore rehearsal, off-site copy
 

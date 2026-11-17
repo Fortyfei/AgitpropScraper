@@ -67,12 +67,13 @@ jobs:
           cp -r deploy artifacts/deploy
           chmod +x artifacts/deploy/*.sh
 
-      - name: Pin the images to this commit
+      - name: Point the bundle at the moving tag
         run: |
-          sed -i "s|^CONSUMER_IMAGE=.*|CONSUMER_IMAGE=ghcr.io/fortyfei/agitprop/consumer:${GITHUB_SHA}|" artifacts/.env
-          sed -i "s|^RSS_FEED_READER_IMAGE=.*|RSS_FEED_READER_IMAGE=ghcr.io/fortyfei/agitprop/rss-feed-reader:${GITHUB_SHA}|" artifacts/.env
-          sed -i "s|^WEB_IMAGE=.*|WEB_IMAGE=ghcr.io/fortyfei/agitprop/web:${GITHUB_SHA}|" artifacts/.env
+          sed -i "s|^CONSUMER_IMAGE=.*|CONSUMER_IMAGE=ghcr.io/fortyfei/agitprop/consumer:stable|" artifacts/.env
+          sed -i "s|^RSS_FEED_READER_IMAGE=.*|RSS_FEED_READER_IMAGE=ghcr.io/fortyfei/agitprop/rss-feed-reader:stable|" artifacts/.env
+          sed -i "s|^WEB_IMAGE=.*|WEB_IMAGE=ghcr.io/fortyfei/agitprop/web:stable|" artifacts/.env
           sed -i "s|^POSTGRES_BINDMOUNT_0=.*|POSTGRES_BINDMOUNT_0=./postgres-init|" artifacts/.env
+          echo "${GITHUB_SHA}" > artifacts/.build-sha
 
       - name: Show generated files
         run: ls -la artifacts
@@ -120,3 +121,14 @@ jobs:
           REGISTRY_ENDPOINT: ghcr.io
           REGISTRY_REPOSITORY: ${{ github.repository }}
         run: aspire do push --log-level trace
+
+      # Watchtower follows a tag, not a commit: move "stable" onto the images built here so every
+      # host pulling "stable" picks this merge up within one poll interval. The commit tags stay
+      # in place as the pin and rollback targets.
+      - name: Move the stable tag onto this build
+        run: |
+          for image in consumer rss-feed-reader web; do
+            docker buildx imagetools create \
+              --tag "ghcr.io/fortyfei/agitprop/${image}:stable" \
+              "ghcr.io/fortyfei/agitprop/${image}:${GITHUB_SHA}"
+          done
