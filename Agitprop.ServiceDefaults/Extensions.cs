@@ -65,7 +65,6 @@ public static class Extensions
         {
             builder.AddHttpClientInstrumentation()
                    .AddAspNetCoreInstrumentation()
-                   .AddProcessInstrumentation()
                    .AddRuntimeInstrumentation()
                    .AddMeter(
                        "Agitprop.Spider",
@@ -86,6 +85,9 @@ public static class Extensions
                        options.EnableAspNetCoreSignalRSupport = false;
                        options.Filter = context => !IsStaticAssetRequest(context.Request.Path);
                    })
+                   // No stable release exists for the EF Core instrumentation, and the Npgsql
+                   // traces alone would not show which query the application issued. This is the
+                   // one beta package left on the production path.
                    .AddEntityFrameworkCoreInstrumentation()
                    .AddSource(
                        "Agitprop.Spider",

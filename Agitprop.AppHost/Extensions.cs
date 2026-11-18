@@ -114,6 +114,16 @@ public static class Extensions
         }
 
         /// <summary>
+        /// Drops every Linux capability from a published container. The default set still
+        /// contains CHOWN, SETUID and SETGID, which a compromised process could use even though
+        /// these services run as a non-root user and never need a privileged operation.
+        /// </summary>
+        internal IResourceBuilder<T> WithoutCapabilities()
+        {
+            return builder.PublishAsDockerComposeService((_, service) => service.CapDrop = ["ALL"]);
+        }
+
+        /// <summary>
         /// Mounts a named volume into a published project. The container-only volume overloads do
         /// not apply to projects, which become containers only when publishing.
         /// </summary>
