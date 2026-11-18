@@ -66,6 +66,7 @@ internal class Program
                               .WithContainerRegistry(registry)
                               .WithEnvironmentAwareImagePush()
                               .LimitComposeMemory("1200M")
+                              .WithoutCapabilities()
                               .HardenComposeService();
 
         var rssReader = builder.AddProject<Agitprop_Scraper_RssFeedReader>("rss-feed-reader")
@@ -75,6 +76,7 @@ internal class Program
                                .WithContainerRegistry(registry)
                                .WithEnvironmentAwareImagePush()
                                .LimitComposeMemory("256M")
+                               .WithoutCapabilities()
                                .HardenComposeService();
 
         var web = builder.AddProject<Agitprop_Web>("web")
@@ -83,6 +85,7 @@ internal class Program
                          .WithContainerRegistry(registry)
                          .WithEnvironmentAwareImagePush()
                          .LimitComposeMemory("512M")
+                         .WithoutCapabilities()
                          .HardenComposeService();
 
         if (publishMode)
@@ -97,9 +100,12 @@ internal class Program
             var appDbConnectionString = ReferenceExpression.Create(
                 $"Host=postgres;Port=5432;Username=agitprop;Password={appDbPassword};Database=newsfeed");
 
-            consumer.WithEnvironment("ConnectionStrings__newsfeed", appDbConnectionString);
-            rssReader.WithEnvironment("ConnectionStrings__newsfeed", appDbConnectionString);
-            web.WithEnvironment("ConnectionStrings__newsfeed", appDbConnectionString);
+            consumer.WithEnvironment("ConnectionStrings__newsfeed", appDbConnectionString)
+                    .WithEnvironment("DOTNET_ENVIRONMENT", "Production");
+            rssReader.WithEnvironment("ConnectionStrings__newsfeed", appDbConnectionString)
+                     .WithEnvironment("DOTNET_ENVIRONMENT", "Production");
+            web.WithEnvironment("ConnectionStrings__newsfeed", appDbConnectionString)
+               .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Production");
 
             consumer.WaitForHealthyDependency("postgres");
 
@@ -146,6 +152,7 @@ internal class Program
                    .WaitFor(web)
                    .WaitForHealthyDependency("web")
                    .LimitComposeMemory("128M")
+                   .WithoutCapabilities()
                    .HardenComposeService();
         }
         else
