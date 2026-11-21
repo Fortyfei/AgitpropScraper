@@ -1,5 +1,8 @@
 {
   "appHost": {
     "path": "Agitprop.AppHost/Agitprop.AppHost.csproj"
+  },
+  "sdk": {
+    "version": "17.0.0"
   }
 }

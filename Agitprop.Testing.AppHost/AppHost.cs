@@ -1,5 +1,3 @@
-using Projects;
-
 var builder = DistributedApplication.CreateBuilder(args);
 
 var postgres = builder.AddPostgres("postgres")
@@ -8,7 +6,7 @@ var postgres = builder.AddPostgres("postgres")
     .WithImageTag("v1.13.1");
 var newsfeed = postgres.AddDatabase("newsfeed");
 
-builder.AddProject<Agitprop_Web>("web")
+builder.AddDotnetProject("web", "../Agitprop.Web/Agitprop.Web.csproj")
     .WaitFor(newsfeed)
     .WithReference(newsfeed)
     .WithEnvironment("ApplyMigrationsAtStartup", "true")
