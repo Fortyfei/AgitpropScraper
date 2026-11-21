@@ -43,8 +43,8 @@ public class HttpStaticPageLoader : IStaticPageLoader
     public async Task<string> Load(string url, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        using var trace = ActivitySource.StartActivity("Load", ActivityKind.Producer);
-        trace?.SetTag("url", TelemetryUrl.RedactQueryAndFragment(url));
+        using var trace = ActivitySource.StartActivity("Load", ActivityKind.Internal);
+        trace?.SetTag("server.address", TelemetryUrl.GetServerAddress(url));
 
         Logger?.LogDebug("Starting to load page: {Url}", TelemetryUrl.RedactQueryAndFragment(url));
 
@@ -59,8 +59,9 @@ public class HttpStaticPageLoader : IStaticPageLoader
                     (outcome, attempt) =>
                     {
                         if (outcome.Exception != null)
-                            Logger?.LogWarning(outcome.Exception, "[RETRY] Exception loading page {Url} on attempt {Attempt}",
-                                TelemetryUrl.RedactQueryAndFragment(url), attempt);
+                            Logger?.LogWarning(
+                                "[RETRY] Exception loading page {Url} on attempt {Attempt}; exception type: {ExceptionType}",
+                                TelemetryUrl.RedactQueryAndFragment(url), attempt, outcome.Exception.GetType().Name);
                         else if (outcome.Result != null)
                             Logger?.LogWarning("[RETRY] Failed to load page {Url} on attempt {Attempt}. Status: {StatusCode}",
                                 TelemetryUrl.RedactQueryAndFragment(url), attempt, outcome.Result.StatusCode);
@@ -75,13 +76,9 @@ public class HttpStaticPageLoader : IStaticPageLoader
                 return await response.Content.ReadAsStringAsync(cancellationToken);
             }
 
-            Logger?.LogError("Failed to load page {Url}. Status code: {StatusCode}",
-                TelemetryUrl.RedactQueryAndFragment(url), response.StatusCode);
             trace?.SetStatus(System.Diagnostics.ActivityStatusCode.Error, $"StatusCode={response.StatusCode}");
-            throw new InvalidOperationException($"Failed to load page {TelemetryUrl.RedactQueryAndFragment(url)}. Status code: {response.StatusCode}. Headers: {response.Headers}")
-            {
-                Data = { ["url"] = url, ["statusCode"] = response.StatusCode, ["headers"] = response.Headers }
-            };
+            throw new InvalidOperationException(
+                $"Failed to load page {TelemetryUrl.RedactQueryAndFragment(url)}. Status code: {response.StatusCode}");
         }
         catch (Exception ex)
         {
@@ -90,7 +87,6 @@ public class HttpStaticPageLoader : IStaticPageLoader
                 throw;
             }
 
-            Logger?.LogError(ex, "Exception thrown while loading page {Url}", TelemetryUrl.RedactQueryAndFragment(url));
             trace?.SetStatus(System.Diagnostics.ActivityStatusCode.Error, ex.Message);
             throw;
         }

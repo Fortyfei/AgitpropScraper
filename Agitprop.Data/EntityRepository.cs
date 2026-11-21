@@ -394,8 +394,10 @@ public class EntityRepository : IEntityRepository
 
     public IDictionary<string,IEnumerable<Article>> GetMentioningArticlesAsync(IEnumerable<string> entityIds, DateOnly startDate, DateOnly endDate)
     {
+        var entityIdList = entityIds as IReadOnlyCollection<string> ?? entityIds.ToList();
+
         using var trace = _activitySource.StartActivity("GetMentioningArticles", ActivityKind.Internal);
-        trace?.SetTag("entityId", entityIds);
+        trace?.SetTag("entity.count", entityIdList.Count);
 
         var (from, to) = ReportingTimeZone.ToUtcRange(startDate, endDate);
         trace?.SetTag("from", from.ToString("o"));
@@ -404,7 +406,7 @@ public class EntityRepository : IEntityRepository
         try
         {
             var result = _dbContext.Mentions
-               .Where(m => entityIds.Contains(m.EntityId.ToString()))
+               .Where(m => entityIdList.Contains(m.EntityId.ToString()))
                .Include(m => m.Article)
                .Where(a => a.Article.PublishedTime >= from && a.Article.PublishedTime <= to)
                .GroupBy(e=> e.EntityId.ToString());
@@ -422,7 +424,6 @@ public class EntityRepository : IEntityRepository
     public IEnumerable<Entity> SearchEntitiesAsync(string query)
     {
         using var trace = _activitySource.StartActivity("SearchEntities", ActivityKind.Internal);
-        trace?.SetTag("query", query);
 
         try
         {
@@ -446,7 +447,7 @@ public class EntityRepository : IEntityRepository
         trace?.SetTag("to", to.ToString());
         trace?.SetTag("page", page);
         trace?.SetTag("pageSize", pageSize);
-        trace?.SetTag("search", search);
+        trace?.SetTag("search.applied", !string.IsNullOrWhiteSpace(search));
 
         var (fromUtc, toUtc) = ReportingTimeZone.ToUtcRange(from, to);
 

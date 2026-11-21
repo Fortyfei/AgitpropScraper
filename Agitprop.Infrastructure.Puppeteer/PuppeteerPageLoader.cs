@@ -40,8 +40,8 @@ public class PuppeteerPageLoader : BrowserPageLoader, IBrowserPageLoader
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        using var trace = ActivitySource.StartActivity("LoadPageWithBrowser", ActivityKind.Producer);
-        trace?.SetTag("url", TelemetryUrl.RedactQueryAndFragment(url));
+        using var trace = ActivitySource.StartActivity("LoadPageWithBrowser", ActivityKind.Internal);
+        trace?.SetTag("server.address", TelemetryUrl.GetServerAddress(url));
         Logger?.LogDebug("Starting page load: {Url}", TelemetryUrl.RedactQueryAndFragment(url));
 
         var browserFetcher = new BrowserFetcher(new BrowserFetcherOptions
@@ -70,7 +70,7 @@ public class PuppeteerPageLoader : BrowserPageLoader, IBrowserPageLoader
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        Logger?.LogInformation("Launching browser");
+        Logger?.LogDebug("Launching browser");
         await using var browser = await PuppeteerSharp.Puppeteer.LaunchAsync(new LaunchOptions
         {
             Headless = headless,
@@ -78,7 +78,7 @@ public class PuppeteerPageLoader : BrowserPageLoader, IBrowserPageLoader
         });
 
         cancellationToken.ThrowIfCancellationRequested();
-        Logger?.LogInformation("Creating a new page");
+        Logger?.LogDebug("Creating a new page");
         await using var page = (await browser.PagesAsync().WaitAsync(cancellationToken))[0];
 
         var cookies = await _cookiesStorage.GetAsync().WaitAsync(cancellationToken);
@@ -107,7 +107,7 @@ public class PuppeteerPageLoader : BrowserPageLoader, IBrowserPageLoader
 
         if (pageActions != null)
         {
-            Logger?.LogInformation("Performing page actions ({count})", pageActions.Count);
+            Logger?.LogDebug("Performing page actions ({Count})", pageActions.Count);
             for (int i = 0; i < pageActions.Count; i++)
             {
                 var pageAction = pageActions[i];
@@ -121,7 +121,7 @@ public class PuppeteerPageLoader : BrowserPageLoader, IBrowserPageLoader
         }
 
         var html = await page.GetContentAsync().WaitAsync(cancellationToken);
-        Logger?.LogInformation("Page load completed: {Url}", TelemetryUrl.RedactQueryAndFragment(url));
+        Logger?.LogDebug("Page load completed: {Url}", TelemetryUrl.RedactQueryAndFragment(url));
         return html;
     }
 

@@ -14,6 +14,8 @@ public static class PgmqQueueNames
     public const string FailedNewsfeedJobs = "newsfeed_job_error";
 }
 
+public sealed record PgmqQueueMetrics(string QueueName, long QueueLength, double OldestMessageAgeSeconds);
+
 public sealed record PgmqMessage<T>(
     long MessageId,
     int ReadCount,
@@ -41,6 +43,10 @@ public interface IPgmqClient
         string queueName,
         int visibilityTimeoutSeconds,
         int quantity,
+        CancellationToken cancellationToken = default);
+
+    Task<PgmqQueueMetrics> GetMetricsAsync(
+        string queueName,
         CancellationToken cancellationToken = default);
 
     Task DeleteAsync(string queueName, long messageId, CancellationToken cancellationToken = default);
@@ -128,13 +134,14 @@ public sealed class PgmqClient(NpgsqlDataSource dataSource) : IPgmqClient
         CancellationToken cancellationToken = default)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        using var publish = PgmqTelemetry.BeginPublish(queueName, batchSize: 1);
         await using var command = CreateSendCommand(
             connection,
             null,
             queueName,
             message,
             delaySeconds,
-            CreateTraceHeaders());
+            CreateTraceHeaders(publish.Activity));
         var result = await command.ExecuteScalarAsync(cancellationToken);
         return result is long messageId
             ? messageId
@@ -156,13 +163,16 @@ public sealed class PgmqClient(NpgsqlDataSource dataSource) : IPgmqClient
 
         foreach (var message in messages)
         {
+            // Every job gets its own producer span and traceparent, so consumers of one batch are
+            // not merged into one very large trace.
+            using var publish = PgmqTelemetry.BeginPublish(queueName, messages.Count);
             await using var command = CreateSendCommand(
                 connection,
                 transaction,
                 queueName,
                 message,
                 0,
-                CreateTraceHeaders());
+                CreateTraceHeaders(publish.Activity));
             await command.ExecuteScalarAsync(cancellationToken);
         }
 
@@ -207,6 +217,27 @@ public sealed class PgmqClient(NpgsqlDataSource dataSource) : IPgmqClient
         }
 
         return messages;
+    }
+
+    public async Task<PgmqQueueMetrics> GetMetricsAsync(
+        string queueName,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(
+            "SELECT queue_length, oldest_msg_age_sec FROM pgmq.metrics(@queue_name)",
+            connection);
+        command.Parameters.AddWithValue("queue_name", queueName);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return new PgmqQueueMetrics(queueName, 0, 0);
+        }
+
+        var queueLength = reader.IsDBNull(0) ? 0 : Convert.ToInt64(reader.GetValue(0));
+        var oldestMessageAgeSeconds = reader.IsDBNull(1) ? 0 : Convert.ToDouble(reader.GetValue(1));
+        return new PgmqQueueMetrics(queueName, queueLength, oldestMessageAgeSeconds);
     }
 
     public async Task DeleteAsync(
@@ -276,13 +307,17 @@ public sealed class PgmqClient(NpgsqlDataSource dataSource) : IPgmqClient
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
+        using var publish = headers is null
+            ? PgmqTelemetry.BeginPublish(destinationQueue, batchSize: 1)
+            : default;
+
         await using var sendCommand = CreateSendCommand(
             connection,
             transaction,
             destinationQueue,
             message,
             delaySeconds,
-            headers ?? CreateTraceHeaders());
+            headers ?? CreateTraceHeaders(publish.Activity));
         await sendCommand.ExecuteScalarAsync(cancellationToken);
 
         await using var archiveCommand = new NpgsqlCommand(
@@ -328,9 +363,8 @@ public sealed class PgmqClient(NpgsqlDataSource dataSource) : IPgmqClient
         return command;
     }
 
-    private static IReadOnlyDictionary<string, string?>? CreateTraceHeaders()
+    private static IReadOnlyDictionary<string, string?>? CreateTraceHeaders(Activity? activity)
     {
-        var activity = Activity.Current;
         if (activity?.Id is not { } traceParent)
         {
             return null;

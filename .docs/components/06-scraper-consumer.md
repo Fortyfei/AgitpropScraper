@@ -50,18 +50,32 @@ Requires the PostgreSQL connection string; throws `InvalidOperationException` if
 - The shared service defaults collect the consumer ActivitySource and Meter,
   correlating queue processing with scraper work and exporting it through OTLP
   when configured.
+- Every batched message is published in its own trace: `PgmqClient` creates a
+  `Producer` span per message and writes that `traceparent` into the pgmq headers,
+  so a batch of jobs never becomes one giant trace. The producing cycle is recorded
+  as `agitprop.batch.origin_trace_id` because .NET activities cannot carry links.
+- The consumer span reports one bounded `outcome`: `success`, `skipped`, `failure`,
+  `retry_scheduled`, `dead_lettered`, or `cancelled`. Failure spans also carry a
+  bounded `failure.class` (`permanent`, `transient`, `unknown`).
+- Queue metrics cover depth, oldest-message age, in-flight messages, retries and
+  dead letters by failure class, and lease-renewal failures. Dimensions are limited
+  to the queue name and the failure class.
 - Consumer metrics report job counts, outcome, and duration with bounded
   job-type/handling tags, including a dedicated discovered-job publish failure
   counter and a skipped-job counter. They do not include URLs, exception
   messages, or other per-job values as metric dimensions.
+- Entity processing adds summary counts (`entities.scanned`, `entities.added`,
+  `mentions.added`, `mentions.skipped`) to the article activity instead of a span
+  per entity, and records one event only when the write fails.
 
 ## Observability
 
 The consumer's trace follows message consumption through Spider processing,
-entity recognition, and database persistence. Custom URL fields in consumer
-logs/spans omit query strings and fragments. EF Core spans provide query
-timings without SQL text or parameter values. Unsupported hosts, invalid URL
-schemes, and article asset URLs are logged and acknowledged without crawling;
+entity recognition, and database persistence. Consumer spans use
+`server.address` instead of full URLs; log fields omit query strings and
+fragments. EF Core spans provide query timings without SQL text or parameter
+values. Unsupported hosts, invalid URL schemes, and article asset URLs are
+logged and acknowledged without crawling;
 the same eligibility check filters discovered jobs before publication.
 Propagated failures are measured and passed to the PGMQ retry/error handling.
 The consumer span includes visibility renewals and message acknowledgement or

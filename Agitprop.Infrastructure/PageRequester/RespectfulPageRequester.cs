@@ -42,7 +42,7 @@ public class RespectfulPageRequester : IPageRequester
         await EnforceDomainRateLimitAsync(uri, cancellationToken);
 
         using var activity = _activitySource.StartActivity("Request", ActivityKind.Internal);
-        activity?.SetTag("url", TelemetryUrl.RedactQueryAndFragment(url));
+        activity?.SetTag("server.address", TelemetryUrl.GetServerAddress(url));
         activity?.SetTag("domain", uri.Host);
 
         var stopwatch = Stopwatch.StartNew();
@@ -86,7 +86,7 @@ public class RespectfulPageRequester : IPageRequester
 
         if (waitTime > TimeSpan.Zero)
         {
-            _logger?.LogInformation("Respectful scraping wait: {WaitTime} for domain {Domain}", waitTime, domain);
+            _logger?.LogDebug("Respectful scraping wait: {WaitTime} for domain {Domain}", waitTime, domain);
             _rateLimitWaits.Add(1, new KeyValuePair<string, object?>("domain", domain));
             _rateLimitWaitDuration.Record(waitTime.TotalMilliseconds, new KeyValuePair<string, object?>("domain", domain));
             await Task.Delay(waitTime, cancellationToken);

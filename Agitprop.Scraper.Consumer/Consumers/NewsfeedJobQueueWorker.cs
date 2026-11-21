@@ -18,14 +18,21 @@ public sealed class NewsfeedJobQueueWorker : BackgroundService
 {
     private static readonly ActivitySource ActivitySource = new("Agitprop.NewsfeedJobConsumer");
     private const int MessageVisibilityTimeoutSeconds = 120;
+    private const int QueueMetricsPollInterval = 10;
     private static readonly TimeSpan LeaseRenewalInterval = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan EmptyQueueDelay = TimeSpan.FromMilliseconds(500);
     private static readonly TimeSpan QueueErrorDelay = TimeSpan.FromSeconds(5);
+    private static readonly string[] MetricQueues =
+        new[] { PgmqQueueNames.NewsfeedJobs, PgmqQueueNames.FailedNewsfeedJobs };
+    private static readonly EventId QueueReadFailedEvent = new(1001, "QueueReadFailed");
+    private static readonly EventId RetryScheduledEvent = new(1002, "JobRetryScheduled");
+    private static readonly EventId JobFailedPermanentlyEvent = new(1003, "JobFailedPermanently");
 
     private readonly IPgmqClient _pgmqClient;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<NewsfeedJobQueueWorker> _logger;
     private readonly int _concurrencyLimit;
+    private int _pollsSinceMetrics;
 
     public NewsfeedJobQueueWorker(
         IPgmqClient pgmqClient,
@@ -68,13 +75,23 @@ public sealed class NewsfeedJobQueueWorker : BackgroundService
                         stoppingToken);
                 }
 
+                await ReportQueueMetricsAsync(stoppingToken);
+
                 if (messages.Count == 0)
                 {
                     await Task.Delay(EmptyQueueDelay, stoppingToken);
                     continue;
                 }
 
-                await Task.WhenAll(messages.Select(message => ProcessMessageAsync(message, stoppingToken)));
+                PgmqTelemetry.AddInFlight(PgmqQueueNames.NewsfeedJobs, messages.Count);
+                try
+                {
+                    await Task.WhenAll(messages.Select(message => ProcessMessageAsync(message, stoppingToken)));
+                }
+                finally
+                {
+                    PgmqTelemetry.AddInFlight(PgmqQueueNames.NewsfeedJobs, -messages.Count);
+                }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -84,8 +101,48 @@ public sealed class NewsfeedJobQueueWorker : BackgroundService
             {
                 using var activity = ActivitySource.StartActivity("QueueWorkerError");
                 activity?.SetStatus(ActivityStatusCode.Error, exception.Message);
-                _logger.LogError(exception, "Failed while reading or processing the pgmq newsfeed queue");
+                _logger.LogError(
+                    QueueReadFailedEvent,
+                    exception,
+                    "Failed while reading or processing the pgmq newsfeed queue");
                 await Task.Delay(QueueErrorDelay, stoppingToken);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Queue depth and oldest-message age are scraped through pgmq and exported as gauges, because
+    /// per-message queue logs are too noisy to alert on. The scrape runs without tracing so the poll
+    /// loop does not create a database span every half second.
+    /// </summary>
+    private async Task ReportQueueMetricsAsync(CancellationToken cancellationToken)
+    {
+        if (++_pollsSinceMetrics < QueueMetricsPollInterval)
+        {
+            return;
+        }
+
+        _pollsSinceMetrics = 0;
+
+        foreach (var queueName in MetricQueues)
+        {
+            try
+            {
+                PgmqQueueMetrics metrics;
+                using (SuppressInstrumentationScope.Begin())
+                {
+                    metrics = await _pgmqClient.GetMetricsAsync(queueName, cancellationToken);
+                }
+
+                PgmqTelemetry.ReportQueueMetrics(queueName, metrics.QueueLength, metrics.OldestMessageAgeSeconds);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                _logger.LogDebug(exception, "Could not read metrics for pgmq queue {QueueName}", queueName);
             }
         }
     }
@@ -106,8 +163,14 @@ public sealed class NewsfeedJobQueueWorker : BackgroundService
         {
             await ProcessMessageCoreAsync(message, activity, cancellationToken);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            activity?.SetTag("outcome", "cancelled");
+            throw;
+        }
         catch (Exception exception)
         {
+            activity?.SetTag("outcome", "failure");
             activity?.SetStatus(ActivityStatusCode.Error, exception.Message);
             throw;
         }
@@ -147,15 +210,21 @@ public sealed class NewsfeedJobQueueWorker : BackgroundService
                 PgmqQueueNames.NewsfeedJobs,
                 message.MessageId,
                 cancellationToken);
+            activity?.SetTag("outcome", "success");
             return;
         }
 
         var failureKind = NewsfeedJobFailureClassifier.Classify(processingError, cancellationToken);
+        var failureClass = failureKind.ToString().ToLowerInvariant();
         var retryDelay = NewsfeedJobRetryPolicy.GetRetryDelay(message.ReadCount, failureKind);
         if (retryDelay is { } delay)
         {
             var delaySeconds = (int)Math.Ceiling(delay.TotalSeconds);
+            activity?.SetTag("outcome", "retry_scheduled");
+            activity?.SetTag("failure.class", failureClass);
+            PgmqTelemetry.RecordRetry(PgmqQueueNames.NewsfeedJobs, failureClass);
             _logger.LogWarning(
+                RetryScheduledEvent,
                 processingError,
                 "Scheduling pgmq message {MessageId} for retry in {DelaySeconds} seconds; attempt {Attempt}",
                 message.MessageId,
@@ -169,7 +238,11 @@ public sealed class NewsfeedJobQueueWorker : BackgroundService
             return;
         }
 
+        activity?.SetTag("outcome", "dead_lettered");
+        activity?.SetTag("failure.class", failureClass);
+        PgmqTelemetry.RecordDeadLetter(PgmqQueueNames.NewsfeedJobs, failureClass);
         _logger.LogError(
+            JobFailedPermanentlyEvent,
             processingError,
             "Moving pgmq message {MessageId} to the failed queue after attempt {Attempt}",
             message.MessageId,
@@ -206,6 +279,7 @@ public sealed class NewsfeedJobQueueWorker : BackgroundService
                 }
                 catch (Exception exception)
                 {
+                    PgmqTelemetry.RecordLeaseRenewalFailure(PgmqQueueNames.NewsfeedJobs);
                     _logger.LogWarning(
                         exception,
                         "Could not renew visibility timeout for pgmq message {MessageId}",

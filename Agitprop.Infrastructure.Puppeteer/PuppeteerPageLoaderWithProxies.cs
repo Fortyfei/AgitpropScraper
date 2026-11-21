@@ -48,7 +48,7 @@ internal class PuppeteerPageLoaderWithProxies : BrowserPageLoader, IBrowserPageL
     {
         cancellationToken.ThrowIfCancellationRequested();
         using var trace = ActivitySource.StartActivity("LoadPageWithProxyBrowser", ActivityKind.Internal);
-        trace?.SetTag("url", TelemetryUrl.RedactQueryAndFragment(url));
+        trace?.SetTag("server.address", TelemetryUrl.GetServerAddress(url));
         Logger?.LogDebug("Starting page load: {Url}", TelemetryUrl.RedactQueryAndFragment(url));
 
         if (_executablePath == null)
@@ -87,8 +87,8 @@ internal class PuppeteerPageLoaderWithProxies : BrowserPageLoader, IBrowserPageL
             throw new InvalidOperationException("No proxy address available");
 
         string proxyArg = $"--proxy-server={proxyAddress}";
-        trace?.SetTag("proxy", proxyAddress);
-        Logger?.LogInformation("Launching Puppeteer with proxy: {proxy}", proxyAddress);
+        trace?.SetTag("proxy.used", true);
+        Logger?.LogDebug("Launching Puppeteer with proxy: {Proxy}", proxyAddress);
 
 
         var extra = new PuppeteerExtra();
@@ -158,7 +158,7 @@ internal class PuppeteerPageLoaderWithProxies : BrowserPageLoader, IBrowserPageL
 
         if (pageActions != null)
         {
-            Logger?.LogInformation("Performing {count} page actions", pageActions.Count);
+            Logger?.LogDebug("Performing {Count} page actions", pageActions.Count);
             for (int i = 0; i < pageActions.Count; i++)
             {
                 var pageAction = pageActions[i];
@@ -169,7 +169,7 @@ internal class PuppeteerPageLoaderWithProxies : BrowserPageLoader, IBrowserPageL
         }
 
         var html = await page.GetContentAsync().WaitAsync(cancellationToken);
-        Logger?.LogInformation("Page load completed: {Url}", TelemetryUrl.RedactQueryAndFragment(url));
+        Logger?.LogDebug("Page load completed: {Url}", TelemetryUrl.RedactQueryAndFragment(url));
         return html;
     }
 }

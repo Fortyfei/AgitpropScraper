@@ -69,7 +69,7 @@ namespace Agitprop.Scraper.Consumer.Consumers
             var jobType = descriptor.Type.ToString();
             var stopwatch = Stopwatch.StartNew();
             var outcome = "success";
-            activity?.SetTag("job.url", safeUrl);
+            activity?.SetTag("server.address", Core.TelemetryUrl.GetServerAddress(descriptor.Url));
             activity?.SetTag("job.type", descriptor.Type.ToString());
             _jobsConsumed.Add(1, new KeyValuePair<string, object?>("job_type", jobType));
 
@@ -86,6 +86,7 @@ namespace Agitprop.Scraper.Consumer.Consumers
                     outcome = "skipped";
                     _jobsSkipped.Add(1, new KeyValuePair<string, object?>("job_type", jobType));
                     _logger.LogWarning("Skipping unsupported newsfeed job for {Url}", safeUrl);
+                    activity?.SetTag("outcome", outcome);
                     activity?.SetStatus(ActivityStatusCode.Ok, "Unsupported job skipped");
                     return;
                 }
@@ -108,7 +109,9 @@ namespace Agitprop.Scraper.Consumer.Consumers
 
                 if (eligibleJobs.Count > 0)
                 {
-                    using var publishActivity = _activitySource.StartActivity("PublishNewJobs", ActivityKind.Producer);
+                    // The real producer boundary is the publish span created per message by
+                    // PgmqClient; this span only groups the work that produced the batch.
+                    using var publishActivity = _activitySource.StartActivity("PublishNewJobs", ActivityKind.Internal);
                     publishActivity?.SetTag("publish.jobs.count", eligibleJobs.Count);
                     try
                     {
@@ -129,6 +132,7 @@ namespace Agitprop.Scraper.Consumer.Consumers
                 }
 
                 _jobsCompleted.Add(1, new KeyValuePair<string, object?>("job_type", jobType));
+                activity?.SetTag("outcome", outcome);
                 activity?.SetStatus(ActivityStatusCode.Ok, "Job processed successfully");
             }
             catch (Exception ex)
@@ -138,14 +142,15 @@ namespace Agitprop.Scraper.Consumer.Consumers
                 {
                     outcome = "cancelled";
                     _logger.LogInformation("Newsfeed job cancelled for {Url}", safeUrl);
+                    activity?.SetTag("outcome", outcome);
                     throw;
                 }
 
-                var failureTag = failureKind.ToString().ToLowerInvariant();
-                outcome = $"{failureTag}_failure";
-                RecordJobFailure(jobType, failureTag);
-                _logger.LogError(ex, "Newsfeed job failed for {Url}; failure kind: {FailureKind}",
-                    safeUrl, failureTag);
+                var failureClass = failureKind.ToString().ToLowerInvariant();
+                outcome = "failure";
+                RecordJobFailure(jobType, failureClass);
+                activity?.SetTag("outcome", outcome);
+                activity?.SetTag("failure.class", failureClass);
                 activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
                 throw;
             }

@@ -7,6 +7,7 @@ using Agitprop.Sinks.Newsfeed;
 using Agitprop.Sources;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OpenTelemetry;
 using OpenTelemetry.Trace;
@@ -126,6 +127,40 @@ public class NewsfeedJobQueueTracingTests
         Assert.That(queue.SettlementActivity?.SpanId, Is.EqualTo(consume.SpanId));
     }
 
+    [Test]
+    public async Task PermanentFailure_IsLoggedOnceAtQueueDecision()
+    {
+        var queue = new RecordingQueue("00-11111111111111111111111111111111-2222222222222222-01");
+        var pipeline = new TestPipeline("failed");
+        var logger = new RecordingLogger<NewsfeedJobQueueWorker>();
+        using var services = new ServiceCollection()
+            .AddLogging()
+            .AddSingleton<IPgmqClient>(queue)
+            .AddSingleton<INewsfeedPipeline>(pipeline)
+            .AddScoped<NewsfeedJobConsumer>()
+            .BuildServiceProvider();
+        using var worker = new NewsfeedJobQueueWorker(
+            queue,
+            services.GetRequiredService<IServiceScopeFactory>(),
+            new ConfigurationBuilder().Build(),
+            logger);
+
+        await worker.StartAsync(CancellationToken.None);
+        try
+        {
+            await queue.Settled.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            await worker.StopAsync(CancellationToken.None);
+        }
+
+        Assert.That(logger.Entries.Where(entry => entry.Level == LogLevel.Error).ToArray(),
+            Has.Length.EqualTo(1));
+        Assert.That(logger.Entries.Single(entry => entry.Level == LogLevel.Error).EventId.Name,
+            Is.EqualTo("JobFailedPermanently"));
+    }
+
     private sealed class TestPipeline(string outcome) : INewsfeedPipeline
     {
         public INewsfeedSourceCatalog Sources { get; } = new NewsfeedSourceCatalog(NewsfeedSources.BuiltIn());
@@ -152,6 +187,22 @@ public class NewsfeedJobQueueTracingTests
         }
     }
 
+    private sealed class RecordingLogger<T> : ILogger<T>
+    {
+        public List<(LogLevel Level, EventId EventId, Exception? Exception)> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            Entries.Add((logLevel, eventId, exception));
+    }
+
     private sealed class RecordingQueue(string traceParent) : IPgmqClient
     {
         public const string PollSourceName = "Agitprop.Tests.QueuePoll";
@@ -166,6 +217,10 @@ public class NewsfeedJobQueueTracingTests
 
         public Task EnsureQueuesAsync(CancellationToken cancellationToken = default, params string[] additionalQueueNames) =>
             Task.CompletedTask;
+
+
+        public Task<PgmqQueueMetrics> GetMetricsAsync(string queueName, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new PgmqQueueMetrics(queueName, 0, 0));
 
         public async Task<IReadOnlyList<PgmqMessage<T>>> ReadAsync<T>(
             string queueName, int visibilityTimeoutSeconds, int quantity, CancellationToken cancellationToken = default)

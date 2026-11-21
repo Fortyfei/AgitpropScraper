@@ -39,7 +39,7 @@ public class TrendingRepository : ITrendingRepository
                 .Take(topN);
 
         _logger.LogInformation("Found {Count} trending entities between {From} and {To}", entities.Count(), from, to);
-        trace?.SetTag("foundEntities", entities.ToList());
+        trace?.SetTag("found.entities.count", entities.Count());
 
         return entities.ToCoreModel();
     }
