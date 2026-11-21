@@ -202,7 +202,6 @@ killer pick a victim such as PostgreSQL.
   sudo adduser --disabled-password --gecos "" deploy
   sudo usermod -aG docker deploy
   sudo install -d -o deploy -g deploy /opt/agitprop
-  sudo install -d -o deploy -g deploy /opt/agitprop/backups
   sudo -iu deploy
   ```
 
@@ -240,16 +239,14 @@ killer pick a victim such as PostgreSQL.
 ### 10.2 Deploy
 
 The deployment bundle is produced by the CI `publish-deployment` job
-(`agitprop-deploy` artifact) and contains `docker-compose.yaml`, `.env`,
-`postgres-init/` and `deploy/`. The `.env` names the images by the moving
-`stable` tag; `postgres`, `cloudflared` and `model-ownership` stay pinned to
-exact versions, and the commit the bundle was generated from is recorded in
-`.build-sha`.
+(`agitprop-deploy` artifact) and contains `docker-compose.yaml`, `.env` and
+`postgres-init/`. The `.env` names the images by the moving `stable` tag;
+`postgres`, `cloudflared` and `model-ownership` stay pinned to exact versions, and
+the commit the bundle was generated from is recorded in `.build-sha`.
 
 ```bash
 # on the VPS
 unzip agitprop-deploy.zip -d agitprop && cd agitprop
-chmod +x deploy/*.sh          # the artifact archive does not keep the executable bit
 $EDITOR .env                  # fill POSTGRES_PASSWORD, APP_DB_PASSWORD and TUNNEL_TOKEN
 chmod 600 .env
 docker compose pull
@@ -260,8 +257,6 @@ docker compose up -d
 superuser, used only for administration), `APP_DB_PASSWORD` (the role the
 application logs in with), `TUNNEL_TOKEN`, and the two bind-mount sources
 `POSTGRES_BINDMOUNT_0` and `WATCHTOWER_BINDMOUNT_0`, which the CI fills in.
-Four optional values turn on notifications and the off-site copy:
-`DISCORD_WEBHOOK_URL`, `ARCHIVE_REPO`, `GH_TOKEN` (see 10.7).
 
 On the first start of an empty data directory PostgreSQL runs
 `postgres-init/01-agitprop-role.sql`. It creates the `agitprop` role, the
@@ -294,9 +289,8 @@ there is no longer a `WEB_PORT` value to keep in sync in `.env`.
 
 ### 10.3 Operations
 
-The bundle ships the operator scripts described in 10.6 and 10.7. The raw
-commands below are what those scripts wrap; reach for them when something is
-broken.
+The raw commands below are what the operations in 10.6 and 10.7 wrap; reach for
+them when something is broken.
 
 `pg_hba` in this stack requires the password **even on the container's unix
 socket**, so `psql` needs `PGPASSWORD`:
@@ -308,9 +302,6 @@ docker compose logs -f web consumer rss-feed-reader cloudflared
 # shell into the database
 set -a; . ./.env; set +a
 docker compose exec -e PGPASSWORD="$POSTGRES_PASSWORD" postgres psql -U postgres newsfeed
-
-# back up now, and prove the dump restores (10.7)
-./deploy/backup.sh
 ```
 
 Image tags are commit SHAs plus the moving `stable` tag; nothing is `latest`, so
@@ -321,7 +312,7 @@ Before the first `docker compose up`, check that no value is still empty — the
 postgres image fails late and unhelpfully otherwise:
 
 ```bash
-grep -E '^(POSTGRES_PASSWORD|APP_DB_PASSWORD|TUNNEL_TOKEN|CONSUMER_IMAGE|RSS_FEED_READER_IMAGE|WEB_IMAGE|POSTGRES_BINDMOUNT_0)=$' .env \
+grep -E '^(POSTGRES_PASSWORD|APP_DB_PASSWORD|TUNNEL_TOKEN|CONSUMER_IMAGE|RSS_FEED_READER_IMAGE|WEB_IMAGE|POSTGRES_BINDMOUNT_0|WATCHTOWER_BINDMOUNT_0)=$' .env \
   && echo 'fill these values in .env'
 ```
 
@@ -390,8 +381,8 @@ tunnel and from inside the compose network.
 - **Consumer memory**: `ConcurrencyLimit` (4 by default) is the knob if the
   consumer approaches its `1200M` limit — each concurrent article goes through the
   ONNX session. Lower it to 2 before raising the limit.
-- **Backups**: nightly `pg_dump` (see Operations) with rotation, and one
-  restore rehearsal.
+- **Backups**: **not automated yet** — see 10.7. Until that is in place, keep a
+  manual dump before anything that changes the schema.
 - **Image tags**: every image is published under its commit SHA and the moving `stable` tag is
   moved onto each build. Watchtower follows `stable`; pinning a commit in `.env` stops automatic
   updates until `stable` is put back (see 10.6).
@@ -462,54 +453,40 @@ hold a connection to the previous container's address, which shows up as a few
 502s. If it does not clear within a minute,
 `docker compose restart cloudflared`.
 
-### 10.7 Backups, restore rehearsal, off-site copy
+### 10.7 Backups — not automated yet
 
-One script and one timer: `deploy/backup.sh` is the only shell in the bundle,
-because it runs unattended and rotation plus the off-site copy are the parts that
-are unsafe to retype at 03:30.
+The published stack has **no scheduled backup**. `agitprop-postgres-data` is the
+only copy of the database, so a manual dump is the only safety net until this is
+designed properly (it is a separate, planned piece of work).
 
-```bash
-./deploy/backup.sh        # dump now (add --dry-run to see what it would do)
-```
-
-`backup.sh` writes `backups/newsfeed-<date>.sql.gz`, keeps the **four** most
-recent weekly dumps, and keeps **one archive per month** in `backups/archive/`.
-It verifies the gzip stream before reporting success, and notifies Discord on
-failure (and on success) when `DISCORD_WEBHOOK_URL` is set.
-
-Weekly schedule — `deploy/systemd/agitprop-backup.{service,timer}` runs it every
-Sunday at 03:30 as the `deploy` user, with `Persistent=true`, so a run missed
-while the host was off happens after boot:
-
-```bash
-sudo cp deploy/systemd/agitprop-backup.* /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now agitprop-backup.timer
-systemctl list-timers agitprop-backup.timer
-```
-
-**Off-site copy.** When `ARCHIVE_REPO` (a *private* repository) and `GH_TOKEN`
-(a token with `contents: write` on it) are set, the monthly archive is uploaded
-as a release asset on a `db-YYYY-MM` release. Release assets avoid the 100 MB
-per-file limit a commit would hit, and nothing else leaves the host. Without those
-two values the archive stays on the VPS and the script says so.
-
-**Restore rehearsal.** Four commands, no script — the value is in doing it, not in
-the code:
+Take one before anything that can change the schema — an ordinary deploy is safe,
+because migrating an up-to-date database is a no-op and a bad release is rolled
+back through the image tag:
 
 ```bash
 cd /opt/agitprop
 set -a; . ./.env; set +a
+docker compose exec -T -e PGPASSWORD="$POSTGRES_PASSWORD" postgres \
+  pg_dump --username postgres --dbname newsfeed \
+  | gzip > newsfeed-$(date +%F).sql.gz
+gzip --test newsfeed-$(date +%F).sql.gz && echo OK
+```
+
+`PGPASSWORD` is required even on the container's unix socket, because
+`pg_hba` is configured with `--auth-local=scram-sha-256`.
+
+Restoring is the same shape, into a scratch database next to the live one, so a
+bad dump cannot damage production:
+
+```bash
 q() { docker compose exec -T -e PGPASSWORD="$POSTGRES_PASSWORD" postgres psql -U postgres "$@"; }
 
 q -c 'DROP DATABASE IF EXISTS newsfeed_restore'
 q -c 'CREATE DATABASE newsfeed_restore'
-gunzip -c backups/newsfeed-YYYY-MM-DD.sql.gz | q -d newsfeed_restore -q -v ON_ERROR_STOP=1
-q -d newsfeed_restore -tAc "SELECT 'articles=' || count(*) FROM articles"
+gunzip -c newsfeed-YYYY-MM-DD.sql.gz | q -d newsfeed_restore -q -v ON_ERROR_STOP=1
+q -d newsfeed_restore -tAc "SELECT count(*) FROM articles"
 q -c 'DROP DATABASE newsfeed_restore'
 ```
 
-The scratch database sits next to the live one, so a bad restore cannot touch
-production; the last two commands report a row count and clean up. Run it after
-the first weekly backup and whenever a dump looks suspicious. The dumps contain
-public news data only — there are no accounts or credentials in them.
+Retention, the off-site copy and scheduling land with that planned work; nothing
+in the current bundle does them.

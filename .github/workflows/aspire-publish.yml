@@ -66,11 +66,6 @@ jobs:
       - name: Copy the database bootstrap script into the bundle
         run: cp -r Agitprop.AppHost/postgres-init artifacts/postgres-init
 
-      - name: Copy the operator scripts into the bundle
-        run: |
-          cp -r deploy artifacts/deploy
-          chmod +x artifacts/deploy/*.sh
-
       - name: Point the bundle at the moving tag
         run: |
           sed -i "s|^CONSUMER_IMAGE=.*|CONSUMER_IMAGE=ghcr.io/fortyfei/agitprop/consumer:stable|" artifacts/.env

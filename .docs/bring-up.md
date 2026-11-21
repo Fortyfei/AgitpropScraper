@@ -2,11 +2,13 @@
 
 Ez a dokumentum **végig azt írja le, amit neked kell megtenned**. A kiindulás: van egy
 Cloudflare-re regisztrált `agitprop.cc` domain, és nincs hosting. A végpont: a
-`https://agitprop.cc` nyilvánosan elérhető, a növény napi magától frissül, és hetente
-menti magát.
+`https://agitprop.cc` nyilvánosan elérhető, és a növény napi magától frissül.
 
 Ami **nem** a te dolgod: az alkalmazás buildelése, az image-ek előállítása, a migrációk
 futtatása, a konténerek indítási sorrendje, a TLS-tanúsítvány. Ezek automaták.
+
+> **Amit ez az útmutató még nem tartalmaz:** az adatbázis ütemezett mentése. Az külön,
+> későbbi feladat; addig a 8.2 pont kézi dump-parancsa a biztosíték.
 
 **Időigény:** kb. 60–90 perc, amiből a legtöbb a VPS telepítése és a letöltések.
 
@@ -39,7 +41,7 @@ működéshez kell. Jelenleg négy PR vár merge-re; ezeket sorrendben kell beol
 1. `#91` — OTel függőségek
 2. `#92` — Aspire CLI pinnelve a CI-ben
 3. `#93` — konténer hardening (`cap_drop`, explicit Production környezet)
-4. `#95` — **Watchtower + heti backup** (ez hozza a `stable` taget is)
+4. `#95` — **Watchtower auto-deploy** (ez hozza a `stable` taget is)
 
 Mindegyik zöld, egymásra épülnek, a GitHub automatikusan átretargeteli őket.
 
@@ -149,7 +151,7 @@ Minden üzemeltetési munka ezzel a felhasználóval fog történni, nem root-k�
 ```bash
 adduser --disabled-password --gecos "" deploy
 usermod -aG docker deploy
-install -d -o deploy -g deploy /opt/agitprop /opt/agitprop/backups
+install -d -o deploy -g deploy /opt/agitprop
 
 # ugyanaz az SSH kulcs, ami rootnak már jó
 install -d -o deploy -g deploy -m 700 /home/deploy/.ssh
@@ -268,7 +270,6 @@ scp agitprop-deploy.zip deploy@<VPS_IP>:/opt/agitprop/
 ```bash
 cd /opt/agitprop
 unzip -o agitprop-deploy.zip
-chmod +x deploy/*.sh
 
 # jelszavak generálása — jegyezd fel őket a jelszókezelőbe!
 openssl rand -base64 32        # ez lesz POSTGRES_PASSWORD
@@ -282,7 +283,6 @@ Szerkeszd a `.env`-et (`nano .env`), és töltsd ki:
 | `POSTGRES_PASSWORD` | az első generált jelszó (adatbázis-admin, csak te használod) |
 | `APP_DB_PASSWORD` | a második generált jelszó (ezzel lép be az alkalmazás) |
 | `TUNNEL_TOKEN` | a 6.1-ben kimásolt token |
-| `DISCORD_WEBHOOK_URL` | *opcionális* — Discord → csatorna → *Integrations* → *Webhooks* → *Copy URL* |
 
 Ezeket **ne** írd át (a CI töltötte ki, és a bennük lévő útvonalak számítanak):
 `CONSUMER_IMAGE`, `RSS_FEED_READER_IMAGE`, `WEB_IMAGE` (mind `:stable`),
@@ -328,68 +328,16 @@ oldalak is működnek. (Az első betöltés pár másodperc, amíg a Blazor circ
 
 ---
 
-## 8. A heti mentés bekapcsolása (~5 perc)
-
-A `backup.sh` a bundle-ben van; a rendszeres futásról egy systemd timer gondoskodik.
-
-```bash
-cd /opt/agitprop
-sudo cp deploy/systemd/agitprop-backup.* /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now agitprop-backup.timer
-
-# ellenőrzés: látszik a következő futás időpontja
-systemctl list-timers agitprop-backup.timer
-```
-
-### 8.1. Azonnali próba — ez a fontos lépés
-
-```bash
-cd /opt/agitprop
-./deploy/backup.sh
-ls -lh backups/
-```
-
-**A mentés csak akkor ér valamit, ha vissza is tudod állítani.** Egyszer, most, futtasd
-le a próbát (a `backups/...` fájlnevet írd be):
-
-```bash
-cd /opt/agitprop
-set -a; . ./.env; set +a
-q() { docker compose exec -T -e PGPASSWORD="$POSTGRES_PASSWORD" postgres psql -U postgres "$@"; }
-
-q -c 'DROP DATABASE IF EXISTS newsfeed_restore'
-q -c 'CREATE DATABASE newsfeed_restore'
-gunzip -c backups/newsfeed-<DÁTUM>.sql.gz | q -d newsfeed_restore -q -v ON_ERROR_STOP=1
-q -d newsfeed_restore -tAc "SELECT 'articles=' || count(*) || ' entities=' || (SELECT count(*) FROM entities) FROM articles"
-q -c 'DROP DATABASE newsfeed_restore'
-```
-
-Ha az utolsó előtti sor kiír egy darabszámot, a mentés használható.
-
-### 8.2. Havi archívum a GitHubra (opcionális)
-
-Ha szeretnéd, hogy havonta egy példány a VPS-en kívül is legyen:
-
-1. Hozz létre egy **privát** repót (pl. `agitprop-db-archive`).
-2. Készíts egy tokent `contents: write` jogosultsággal arra a repóra.
-3. Írd a `.env`-be: `ARCHIVE_REPO=<felhasználó>/agitprop-db-archive` és
-   `GH_TOKEN=<a token>`.
-
-E nélkül a havi archívum is elkészül, csak a VPS-en marad.
-
----
-
-## 9. Kész — így működik ezután
+## 8. Kész — így működik ezután
 
 | Eset | Mit teszel |
 |---|---|
 | **Új verzió kiadása** | PR merge a `main`-be. A CI buildel, a Watchtower 5 percen belül kicseréli. **Nem kell SSH-zni.** |
 | **Visszaállás** | Revert PR merge a `main`-be — ugyanaz a folyamat, ellenkező irányban. |
-| **Vészfék** (ha a merge-ök rosszak lennének) | lásd 10.3. |
-| **Havi/heti mentés** | automatikus, vasárnap 03:30-kor. |
+| **Vészfék** (ha a merge-ök rosszak lennének) | lásd 9.3. |
+| **Mentés** | **nincs automatizálva** — lásd az alábbi megjegyzést. |
 
-### 9.1. Amit érdemes hetente ránézni
+### 8.1. Amit érdemes hetente ránézni
 
 ```bash
 ssh deploy@<VPS_IP>
@@ -397,14 +345,30 @@ cd /opt/agitprop
 docker compose ps                      # minden "Up"/"healthy"
 docker compose logs --tail 50 web      # nincs-e ismétlődő hiba
 df -h                                  # a lemez ne teljen be
-systemctl list-timers agitprop-backup.timer
 ```
+
+### 8.2. Mentés — egyelőre kézzel
+
+Az adatbázisnak **most nincs ütemezett mentése**: a `agitprop-postgres-data` kötet az
+egyetlen példány. Az automatikus mentés külön, későbbi feladat. Amíg nincs meg, a
+séma-változtatás előtt készíts egy kézi dumpot:
+
+```bash
+cd /opt/agitprop
+set -a; . ./.env; set +a
+docker compose exec -T -e PGPASSWORD="$POSTGRES_PASSWORD" postgres \
+  pg_dump --username postgres --dbname newsfeed | gzip > newsfeed-$(date +%F).sql.gz
+gzip --test newsfeed-$(date +%F).sql.gz && echo OK
+```
+
+A visszaállítás ugyanígy megy, egy külön `newsfeed_restore` adatbázisba — a részletek
+a [deployment.md](deployment.md) 10.7 pontjában.
 
 ---
 
-## 10. Hibaelhárítás
+## 9. Hibaelhárítás
 
-### 10.1. A merge után nem történik semmi a site-on
+### 9.1. A merge után nem történik semmi a site-on
 
 Sorrendben:
 
@@ -421,7 +385,7 @@ docker compose logs --tail 50 watchtower
 docker compose pull && docker compose up -d
 ```
 
-### 10.2. A web "unhealthy", a site nem tölt
+### 9.2. A web "unhealthy", a site nem tölt
 
 ```bash
 docker compose logs --tail 100 web      # leggyakrabban: DB-kapcsolat vagy migráció
@@ -429,10 +393,10 @@ docker compose logs --tail 30 postgres
 docker compose ps postgres              # "healthy"?
 ```
 
-Ha a `web` a migráció közben állt meg, a lemez vagy a DB hibás — a 10.3 szerint állj
+Ha a `web` a migráció közben állt meg, a lemez vagy a DB hibás — a 9.3 szerint állj
 vissza az előző buildre, utána nézzük a hibát.
 
-### 10.3. Vészfék: befagyasztás egy konkrét buildre
+### 9.3. Vészfék: befagyasztás egy konkrét buildre
 
 ```bash
 cd /opt/agitprop
@@ -447,7 +411,7 @@ cp .env.stable .env && docker compose pull && docker compose up -d
 A commit SHA-t a GitHubon találod (a merge commit azonosítója); pinelt állapotban a
 Watchtower nem nyúl a stackhez.
 
-### 10.4. A tunnel nem csatlakozik
+### 9.4. A tunnel nem csatlakozik
 
 ```bash
 docker compose logs --tail 30 cloudflared
@@ -457,7 +421,7 @@ docker compose logs --tail 30 cloudflared
 - `context deadline exceeded` → kimenő hálózat/tűzfal blokkol; ellenőrizd:
   `curl -I https://region1.v2.argotunnel.com`.
 
-### 10.5. A consumer újra letölti a modellt
+### 9.5. A consumer újra letölti a modellt
 
 Akkor fordul elő, ha a `agitprop-ner-model` kötet elveszett, vagy a
 `model-ownership` konténer nem futott le sikeresen:
@@ -467,14 +431,14 @@ docker compose ps -a model-ownership    # "exited (0)" a helyes érték
 docker volume ls | grep ner
 ```
 
-### 10.6. A `deploy` user nem tud docker parancsot futtatni
+### 9.6. A `deploy` user nem tud docker parancsot futtatni
 
 A csoporttagság csak új bejelentkezéskor él: lépj ki (`exit`) és beljebb újra.
 Ellenőrzés: `id deploy` — szerepelnie kell a `docker` csoportnak.
 
 ---
 
-## 11. Amit szándékosan **nem** kell csinálnod
+## 10. Amit szándékosan **nem** kell csinálnod
 
 - **Nem** kell .NET SDK vagy Node a VPS-re — minden konténerben fut.
 - **Nem** kell kézzel TLS-tanúsítvány — a Cloudflare adja.
@@ -484,7 +448,7 @@ Ellenőrzés: `id deploy` — szerepelnie kell a `docker` csoportnak.
 - **Nem** kell a `docker-compose.yaml`-t szerkeszteni — az a CI-ből jön, és a `.env`
   az egyetlen hely, amit kézzel írsz.
 
-## 12. Amit érdemes felírni magadnak
+## 11. Amit érdemes felírni magadnak
 
 | Mi | Hol van | Mi történik, ha elveszik |
 |---|---|---|
