@@ -1,7 +1,5 @@
 using Agitprop.AppHost;
 
-using Projects;
-
 internal class Program
 {
     private const int WebPort = 8080;
@@ -40,7 +38,6 @@ internal class Program
                               // Pin the name: the generated one carries an AppHost hash, so any
                               // model edit would otherwise leave the data behind in a new volume.
                               .WithDataVolume("agitprop-postgres-data")
-                              .WithLifetime(ContainerLifetime.Persistent)
                               .WithOtlpExporter()
                               .WithComposeHealthCheck("CMD-SHELL", "pg_isready -U postgres -d newsfeed")
                               .LimitComposeMemory("1G")
@@ -60,7 +57,7 @@ internal class Program
         // `docker compose exec postgres psql` or an SSH tunnel to the container network.
         var newsfeedDb = postgres.AddDatabase("newsfeed");
 
-        var consumer = builder.AddProject<Agitprop_Scraper_Consumer>("consumer")
+        var consumer = builder.AddDotnetProject("consumer", "../Agitprop.Scraper.Consumer/Agitprop.Scraper.Consumer.csproj")
                               .WaitFor(newsfeedDb)
                               .WithOtlpExporter()
                               .WithContainerRegistry(registry)
@@ -70,7 +67,7 @@ internal class Program
                               .WithoutCapabilities()
                               .HardenComposeService();
 
-        var rssReader = builder.AddProject<Agitprop_Scraper_RssFeedReader>("rss-feed-reader")
+        var rssReader = builder.AddDotnetProject("rss-feed-reader", "../Agitprop.Scraper.RssFeedReader/Agitprop.Scraper.RssFeedReader.csproj")
                                .WaitFor(newsfeedDb)
                                .WaitFor(consumer)
                                .WithOtlpExporter()
@@ -81,7 +78,7 @@ internal class Program
                                .WithoutCapabilities()
                                .HardenComposeService();
 
-        var web = builder.AddProject<Agitprop_Web>("web")
+        var web = builder.AddDotnetProject("web", "../Agitprop.Web/Agitprop.Web.csproj")
                          .WaitFor(newsfeedDb)
                          .WithOtlpExporter()
                          .WithContainerRegistry(registry)
