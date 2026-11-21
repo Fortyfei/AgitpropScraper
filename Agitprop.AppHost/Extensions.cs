@@ -101,6 +101,19 @@ public static class Extensions
         }
 
         /// <summary>
+        /// Marks a published container for Watchtower. Only labelled containers are recreated,
+        /// so the database, the tunnel and the one-shot ownership job stay untouched.
+        /// </summary>
+        internal IResourceBuilder<T> WatchtowerManaged()
+        {
+            return builder.PublishAsDockerComposeService((_, service) =>
+            {
+                service.Labels ??= [];
+                service.Labels["com.centurylinklabs.watchtower.enable"] = "true";
+            });
+        }
+
+        /// <summary>
         /// Drops every Linux capability from a published container. The default set still
         /// contains CHOWN, SETUID and SETGID, which a compromised process could use even though
         /// these services run as a non-root user and never need a privileged operation.

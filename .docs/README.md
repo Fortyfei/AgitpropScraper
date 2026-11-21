@@ -14,6 +14,7 @@ NLP model using ONNX Runtime.
 | [pipelines.md](pipelines.md) | End-to-end sequence diagrams for every pipeline. |
 | [development.md](development.md) | Build, test, and local development setup. |
 | [deployment.md](deployment.md) | Aspire orchestration, Docker, CI/CD, GHCR publishing. |
+| [bring-up.md](bring-up.md) | Step-by-step checklist for the first production deployment. |
 | [components/](components/) | Runtime and shared-library component pages. |
 
 ## Component Pages
