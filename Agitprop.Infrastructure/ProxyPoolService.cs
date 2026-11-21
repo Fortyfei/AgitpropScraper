@@ -40,7 +40,6 @@ public sealed class ProxyPool : IProxyPool
 
                 _logger?.LogDebug("Returning proxy from working set: {Proxy}", live);
                 activity?.SetTag("proxy.source", "working");
-                activity?.SetTag("proxy.address", live);
 
                 return live;
             }
@@ -65,7 +64,6 @@ public sealed class ProxyPool : IProxyPool
 
             _logger?.LogDebug("Returning proxy from provider queue: {Proxy}", next);
             activity?.SetTag("proxy.source", "providerQueue");
-            activity?.SetTag("proxy.address", next);
 
             return next;
         }
@@ -81,7 +79,7 @@ public sealed class ProxyPool : IProxyPool
             return;
 
         using var activity = _activitySource.StartActivity("MarkDead", ActivityKind.Internal);
-        activity?.SetTag("proxy.address", proxyAddress);
+        activity?.SetTag("proxy.outcome", "dead");
 
         _logger?.LogWarning("MarkDead called for proxy {Proxy}", proxyAddress);
 
@@ -102,7 +100,7 @@ public sealed class ProxyPool : IProxyPool
             return;
 
         using var activity = _activitySource.StartActivity("MarkSuccess", ActivityKind.Internal);
-        activity?.SetTag("proxy.address", proxyAddress);
+        activity?.SetTag("proxy.outcome", "success");
 
         _logger?.LogDebug("MarkSuccess called for proxy {Proxy}", proxyAddress);
 
@@ -139,12 +137,17 @@ public sealed class ProxyPool : IProxyPool
                     list.Count(), provider.GetType().Name);
 
                 activity?.AddEvent(new ActivityEvent(
-                    $"Provider {provider.GetType().Name} fetched {list.Count()} proxies"));
+                    "ProviderProxiesFetched",
+                    tags: new ActivityTagsCollection
+                    {
+                        { "proxy.provider", provider.GetType().Name },
+                        { "proxy.count", list.Count() }
+                    }));
             }
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "Provider {Provider} failed to fetch proxies", provider.GetType().Name);
-                activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+                activity?.SetStatus(ActivityStatusCode.Error, ex.GetType().Name);
             }
         }
 

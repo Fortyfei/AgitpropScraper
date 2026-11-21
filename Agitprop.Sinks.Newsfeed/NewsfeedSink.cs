@@ -28,15 +28,16 @@ public class NewsfeedSink : ISink
     public async Task<bool> CheckPageAlreadyVisited(string url)
     {
         using var trace = _activitySource.StartActivity("CheckPageAlreadyVisited", ActivityKind.Internal);
-        trace?.SetTag("article.url", TelemetryUrl.RedactQueryAndFragment(url));
+        trace?.SetTag("server.address", TelemetryUrl.GetServerAddress(url));
         try
         {
             _logger?.LogDebug("Checking if page already visited: {Url}", TelemetryUrl.RedactQueryAndFragment(url));
 
             var exists = await RetryPolicyFactory.CreateExceptionPolicy(_retryCount, (ex, attempt) =>
                 {
-                    _logger?.LogWarning(ex, "[RETRY] Exception checking page {Url} on attempt {Attempt}",
-                        TelemetryUrl.RedactQueryAndFragment(url), attempt);
+                    _logger?.LogWarning(
+                        "[RETRY] Exception checking page {Url} on attempt {Attempt}; exception type: {ExceptionType}",
+                        TelemetryUrl.RedactQueryAndFragment(url), attempt, ex.GetType().Name);
                 })
                 .ExecuteAsync(() => _db.IsUrlAlreadyExists(url));
 
@@ -47,8 +48,6 @@ public class NewsfeedSink : ISink
         }
         catch (Exception ex)
         {
-            _logger?.LogError(ex, "Failed to check if page already visited: {Url}",
-                TelemetryUrl.RedactQueryAndFragment(url));
             trace?.SetStatus(ActivityStatusCode.Error, ex.Message);
             throw;
         }
@@ -57,21 +56,22 @@ public class NewsfeedSink : ISink
     public async Task EmitAsync(string url, List<ContentParserResult> data, CancellationToken cancellationToken = default)
     {
         using var trace = _activitySource.StartActivity("EmitAsync", ActivityKind.Internal);
-        trace?.SetTag("article.url", TelemetryUrl.RedactQueryAndFragment(url));
+        trace?.SetTag("server.address", TelemetryUrl.GetServerAddress(url));
         trace?.SetTag("article.count", data.Count);
         _logger?.LogDebug("Processing {ArticleCount} articles for {Url}",
             data.Count, TelemetryUrl.RedactQueryAndFragment(url));
 
         foreach (var article in data)
         {
-            trace?.SetTag("articleLength", article.Text.Length);
+            trace?.SetTag("article.length", article.Text.Length);
 
             try
             {
                 var entities = await RetryPolicyFactory.CreateExceptionPolicy(_retryCount, (ex, attempt) =>
                     {
-                        _logger?.LogWarning(ex, "[RETRY] Exception analyzing entities for {Url} on attempt {Attempt}",
-                            TelemetryUrl.RedactQueryAndFragment(url), attempt);
+                        _logger?.LogWarning(
+                            "[RETRY] Exception analyzing entities for {Url} on attempt {Attempt}; exception type: {ExceptionType}",
+                            TelemetryUrl.RedactQueryAndFragment(url), attempt, ex.GetType().Name);
                     })
                     .ExecuteAsync(() => _nerService.AnalyzeSingleAsync(article.Text));
 
@@ -80,8 +80,9 @@ public class NewsfeedSink : ISink
 
                 var count = await RetryPolicyFactory.CreateExceptionPolicy(_retryCount, (ex, attempt) =>
                     {
-                        _logger?.LogWarning(ex, "[RETRY] Exception inserting mentions for {Url} on attempt {Attempt}",
-                            TelemetryUrl.RedactQueryAndFragment(url), attempt);
+                        _logger?.LogWarning(
+                            "[RETRY] Exception inserting mentions for {Url} on attempt {Attempt}; exception type: {ExceptionType}",
+                            TelemetryUrl.RedactQueryAndFragment(url), attempt, ex.GetType().Name);
                     })
                     .ExecuteAsync(() => _db.CreateMentionsAsync(url, article, entities));
 
@@ -90,13 +91,12 @@ public class NewsfeedSink : ISink
             }
             catch (Exception ex)
             {
-                _logger?.LogError(ex, "Failed to process article for {Url}", TelemetryUrl.RedactQueryAndFragment(url));
                 trace?.SetStatus(ActivityStatusCode.Error, ex.Message);
                 throw;
             }
         }
 
-        _logger?.LogInformation("Finished processing {ArticleCount} articles for {Url}",
+        _logger?.LogDebug("Finished processing {ArticleCount} articles for {Url}",
             data.Count, TelemetryUrl.RedactQueryAndFragment(url));
         trace?.SetStatus(ActivityStatusCode.Ok);
     }

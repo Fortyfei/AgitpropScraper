@@ -38,7 +38,7 @@ public sealed class Spider(
     public async Task<List<ScrapingJobDescription>> CrawlAsync(ScrapingJob job, ISink sink, CancellationToken cancellationToken = default)
     {
         using var activity = _activitySource.StartActivity("CrawlAsync", ActivityKind.Internal);
-        activity?.SetTag("url", TelemetryUrl.RedactQueryAndFragment(job.Url));
+        activity?.SetTag("server.address", TelemetryUrl.GetServerAddress(job.Url));
         activity?.SetTag("page_type", job.PageType.ToString());
         var stopwatch = Stopwatch.StartNew();
         var outcome = "success";
@@ -52,7 +52,6 @@ public sealed class Spider(
             {
                 outcome = "skipped";
                 _logger?.LogDebug("Page already visited: {Url}", TelemetryUrl.RedactQueryAndFragment(job.Url));
-                activity?.SetStatus(ActivityStatusCode.Ok, "Already visited");
                 return [];
             }
 
@@ -62,14 +61,18 @@ public sealed class Spider(
             {
                 await ProcessTargetPage(job, doc, sink, cancellationToken);
                 pageProcessed = true;
-                activity?.SetStatus(ActivityStatusCode.Ok);
                 return [];
             }
 
             var result = await ProcessPage(job, doc, sink, cancellationToken);
             pageProcessed = true;
-            activity?.SetStatus(ActivityStatusCode.Ok);
-            return result;
+            if (result.PartialFailure)
+            {
+                // A parser failure does not fail the crawl, but the page is not fully processed.
+                outcome = "partial_failure";
+            }
+
+            return result.Jobs;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -79,14 +82,30 @@ public sealed class Spider(
         catch (Exception ex)
         {
             outcome = "failure";
+            activity?.AddEvent(new ActivityEvent(
+                "scrape.failure",
+                tags: new ActivityTagsCollection { { "exception.type", ex.GetType().Name } }));
             _scrapeFailures.Add(1,
                 new KeyValuePair<string, object?>("operation", "crawl"),
                 new KeyValuePair<string, object?>("page_type", job.PageType.ToString()));
-            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             throw;
         }
         finally
         {
+            activity?.SetTag("outcome", outcome);
+            if (outcome is "failure" or "partial_failure")
+            {
+                activity?.SetStatus(ActivityStatusCode.Error, outcome);
+            }
+            else if (outcome == "cancelled")
+            {
+                activity?.SetStatus(ActivityStatusCode.Unset, outcome);
+            }
+            else
+            {
+                activity?.SetStatus(ActivityStatusCode.Ok, outcome);
+            }
+
             _processingTime.Record(stopwatch.Elapsed.TotalMilliseconds,
                 new KeyValuePair<string, object?>("page_type", job.PageType.ToString()),
                 new KeyValuePair<string, object?>("outcome", outcome));
@@ -106,10 +125,16 @@ public sealed class Spider(
             operation, TelemetryUrl.RedactQueryAndFragment(job.Url));
     }
 
-    private async Task<List<ScrapingJobDescription>> ProcessPage(ScrapingJob job, HtmlDocument doc, ISink sink, CancellationToken cancellationToken)
+    private async Task<(List<ScrapingJobDescription> Jobs, bool PartialFailure)> ProcessPage(
+        ScrapingJob job,
+        HtmlDocument doc,
+        ISink sink,
+        CancellationToken cancellationToken)
     {
         using var activity = _activitySource.StartActivity("ProcessPage", ActivityKind.Internal);
-        activity?.SetTag("url", TelemetryUrl.RedactQueryAndFragment(job.Url));
+        activity?.SetTag("server.address", TelemetryUrl.GetServerAddress(job.Url));
+
+        var partialFailure = false;
 
         // Process link extraction pages
         List<ScrapingJobDescription> newJobs = new();
@@ -122,8 +147,9 @@ public sealed class Spider(
             }
             catch (Exception ex)
             {
+                partialFailure = true;
                 RecordSubOperationFailure("link_parser", job, ex);
-                activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+                activity?.SetStatus(ActivityStatusCode.Error, "link_parser");
             }
         }
 
@@ -137,18 +163,26 @@ public sealed class Spider(
             }
             catch (Exception ex)
             {
+                partialFailure = true;
                 RecordSubOperationFailure("pagination", job, ex);
-                activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+                activity?.SetStatus(ActivityStatusCode.Error, "pagination");
             }
         }
 
-        return newJobs;
+        activity?.SetTag("links.found", newJobs.Count);
+        activity?.SetTag("outcome", partialFailure ? "partial_failure" : "success");
+        if (!partialFailure)
+        {
+            activity?.SetStatus(ActivityStatusCode.Ok);
+        }
+
+        return (newJobs, partialFailure);
     }
 
     private async Task ProcessTargetPage(ScrapingJob job, HtmlDocument doc, ISink sink, CancellationToken cancellationToken = default)
     {
         using var activity = _activitySource.StartActivity("ProcessTargetPage", ActivityKind.Internal);
-        activity?.SetTag("url", TelemetryUrl.RedactQueryAndFragment(job.Url));
+        activity?.SetTag("server.address", TelemetryUrl.GetServerAddress(job.Url));
 
         List<ContentParserResult> results = new();
 
@@ -163,8 +197,9 @@ public sealed class Spider(
             catch (Exception ex)
             {
                 RecordSubOperationFailure("content_parser", job, ex);
-                activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-                throw new ContentParserException($"Failed content parsing for {job.Url}", ex);
+                activity?.SetStatus(ActivityStatusCode.Error, "content_parser");
+                throw new ContentParserException(
+                    $"Failed content parsing for {TelemetryUrl.RedactQueryAndFragment(job.Url)}", ex);
             }
         }
 
@@ -174,13 +209,15 @@ public sealed class Spider(
             _scrapeFailures.Add(1,
                 new KeyValuePair<string, object?>("operation", "content_parser"),
                 new KeyValuePair<string, object?>("page_type", job.PageType.ToString()));
-            activity?.SetStatus(ActivityStatusCode.Error, "No content scraped");
-            throw new ContentParserException($"No content scraped from: {job.Url}");
+            activity?.SetStatus(ActivityStatusCode.Error, "no_content");
+            throw new ContentParserException(
+                $"No content scraped from: {TelemetryUrl.RedactQueryAndFragment(job.Url)}");
         }
 
         _logger?.LogDebug("Sending scraped data to sink for {Url}", TelemetryUrl.RedactQueryAndFragment(job.Url));
         await sink.EmitAsync(job.Url, results, cancellationToken);
         _logger?.LogDebug("Finished processing target page: {Url}", TelemetryUrl.RedactQueryAndFragment(job.Url));
+        activity?.SetTag("outcome", "success");
         activity?.SetStatus(ActivityStatusCode.Ok);
     }
 
@@ -188,6 +225,7 @@ public sealed class Spider(
     {
         using var activity = _activitySource.StartActivity("LoadPageAsync", ActivityKind.Internal);
         bool isHeadless = _configuration.GetValue<bool>("Headless");
+        activity?.SetTag("server.address", TelemetryUrl.GetServerAddress(job.Url));
 
         _logger?.LogDebug("Loading page with transport: {Url}", TelemetryUrl.RedactQueryAndFragment(job.Url));
 

@@ -42,9 +42,16 @@ In `appsettings.json`:
 
 - ActivitySource: `"Agitprop.RssFeedReader"`
 - OpenTelemetry tracing + metrics
-- Activity kinds: `Producer` for publish, `Consumer` for feed processing
-- Feed spans include a bounded item count rather than a trace event per item;
-  individual jobs are traced through message publishing and consumption.
+- One `rss.cycle` root span per cycle; the hosted service keeps no span open for
+  its lifetime, so a cycle trace stays bounded to the feeds it read and the jobs
+  it published.
+- Activity kinds are `Internal`: a cycle is an application operation, not a queue
+  consumer. The real `Producer` boundary is the publish span that `PgmqClient`
+  creates for every message, so each job starts its own trace.
+- Feed spans carry a bounded item count and `feed.host` rather than the feed URL,
+  and produce no trace event per item. A cycle whose feeds partly fail reports the
+  `partial_failure` outcome instead of `success`.
+- `rss.cycle` uses explicit duration buckets and always survives root sampling.
 
 ## Startup
 

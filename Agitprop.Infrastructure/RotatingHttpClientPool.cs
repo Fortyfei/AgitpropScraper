@@ -47,8 +47,7 @@ public class RotatingHttpClientPool
         try
         {
             activity?.SetTag("http.method", request.Method.Method);
-            var safeUrl = TelemetryUrl.RedactQueryAndFragment(request.RequestUri?.ToString() ?? string.Empty);
-            activity?.SetTag("http.url", safeUrl);
+            activity?.SetTag("server.address", TelemetryUrl.GetServerAddress(request.RequestUri?.ToString() ?? string.Empty));
 
             // Randomize headers: user-agent, accept-language
             if (!requestClone.Headers.UserAgent.Any())
@@ -76,7 +75,7 @@ public class RotatingHttpClientPool
                 throw exception;
             }
 
-            activity?.SetTag("proxy.address", proxyAddress);
+            activity?.SetTag("proxy.used", true);
             
             _logger?.LogDebug("Selected proxy {Proxy} for request {Method} {Url}", 
                 proxyAddress, requestClone.Method,

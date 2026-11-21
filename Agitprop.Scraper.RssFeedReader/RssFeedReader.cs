@@ -52,7 +52,8 @@ public class RssFeedReader : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using var activity = _activitySource.StartActivity("StartAsync");
+        // No activity is kept open here: a span owned by the host lifetime would become the parent of
+        // everything the service ever does. Each cycle opens its own bounded trace instead.
         await _pgmqClient.EnsureQueuesAsync(stoppingToken);
         _logger.LogInformation(
             "Starting RSS Feed Reader. Interval: {Interval} minutes, Feeds: {FeedCount}",
@@ -76,7 +77,7 @@ public class RssFeedReader : BackgroundService
 
     private async Task RunCycleAsync()
     {
-        using var activity = _activitySource.StartActivity("ExecuteTask", ActivityKind.Producer);
+        using var activity = _activitySource.StartActivity("rss.cycle", ActivityKind.Internal);
         var stopwatch = Stopwatch.StartNew();
         var outcome = "success";
 
@@ -84,7 +85,14 @@ public class RssFeedReader : BackgroundService
 
         try
         {
-            var jobs = FetchScrapingJobs();
+            var (jobs, failedFeeds) = FetchScrapingJobs();
+
+            if (failedFeeds > 0)
+            {
+                // One broken feed is not a failed cycle, but reporting success would hide it.
+                outcome = "partial_failure";
+            }
+
             if (jobs.Count == 0)
             {
                 _logger.LogInformation("No new jobs fetched in this cycle");
@@ -99,8 +107,14 @@ public class RssFeedReader : BackgroundService
 
             _logger.LogInformation("RSS feed cycle completed; feeds: {FeedCount}, jobs published: {JobCount}",
                 _feeds.Length, jobs.Count);
+
+            activity?.SetTag("rss.feed.count", _feeds.Length);
+            activity?.SetTag("rss.feeds.failed", failedFeeds);
             activity?.SetTag("rss.jobs.count", jobs.Count);
-            activity?.SetStatus(ActivityStatusCode.Ok);
+            activity?.SetTag("outcome", outcome);
+            activity?.SetStatus(
+                outcome == "success" ? ActivityStatusCode.Ok : ActivityStatusCode.Error,
+                outcome);
         }
         catch (Exception ex)
         {
@@ -110,7 +124,8 @@ public class RssFeedReader : BackgroundService
                 _publishFailures.Add(1);
             }
             _logger.LogError(ex, "RSS feed cycle failed");
-            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            activity?.SetTag("outcome", outcome);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.GetType().Name);
         }
         finally
         {
@@ -119,17 +134,17 @@ public class RssFeedReader : BackgroundService
         }
     }
 
-    private List<NewsfeedJobDescrpition> FetchScrapingJobs()
+    private (List<NewsfeedJobDescrpition> Jobs, int FailedFeeds) FetchScrapingJobs()
     {
-        using var activity = _activitySource.StartActivity("FetchScrapingJobs", ActivityKind.Producer);
+        using var activity = _activitySource.StartActivity("rss.fetch", ActivityKind.Internal);
         var scrapingJobs = new List<NewsfeedJobDescrpition>();
+        var failedFeeds = 0;
 
         foreach (var feedUrl in _feeds)
         {
-            using var feedActivity = _activitySource.StartActivity("ProcessFeed", ActivityKind.Consumer);
+            using var feedActivity = _activitySource.StartActivity("rss.feed", ActivityKind.Internal);
             var safeFeedUrl = Core.TelemetryUrl.RedactQueryAndFragment(feedUrl);
             var feedHost = GetFeedHost(feedUrl);
-            feedActivity?.SetTag("feed.url", safeFeedUrl);
             feedActivity?.SetTag("feed.host", feedHost);
             _logger.LogDebug("Reading RSS feed: {FeedUrl}", safeFeedUrl);
 
@@ -165,15 +180,19 @@ public class RssFeedReader : BackgroundService
             }
             catch (Exception ex)
             {
+                failedFeeds++;
                 _feedFailures.Add(1, new KeyValuePair<string, object?>("feed.host", feedHost));
                 _logger.LogError(ex, "Error processing feed {FeedUrl}", safeFeedUrl);
-                feedActivity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+                feedActivity?.SetTag("outcome", "failure");
+                feedActivity?.SetStatus(ActivityStatusCode.Error, ex.GetType().Name);
             }
         }
 
         _logger.LogDebug("Total scraping jobs fetched: {JobCount}", scrapingJobs.Count);
+        activity?.SetTag("rss.feeds.failed", failedFeeds);
+        activity?.SetTag("rss.jobs.count", scrapingJobs.Count);
         activity?.SetStatus(ActivityStatusCode.Ok, "FetchScrapingJobs completed");
-        return scrapingJobs;
+        return (scrapingJobs, failedFeeds);
     }
 
     private static string GetFeedHost(string feedUrl) =>
