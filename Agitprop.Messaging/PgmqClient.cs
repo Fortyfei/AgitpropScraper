@@ -141,7 +141,7 @@ public sealed class PgmqClient(NpgsqlDataSource dataSource) : IPgmqClient
             queueName,
             message,
             delaySeconds,
-            CreateTraceHeaders(publish.Activity));
+            CreateTraceHeaders(publish.PropagationActivity));
         var result = await command.ExecuteScalarAsync(cancellationToken);
         return result is long messageId
             ? messageId
@@ -172,7 +172,7 @@ public sealed class PgmqClient(NpgsqlDataSource dataSource) : IPgmqClient
                 queueName,
                 message,
                 0,
-                CreateTraceHeaders(publish.Activity));
+                CreateTraceHeaders(publish.PropagationActivity));
             await command.ExecuteScalarAsync(cancellationToken);
         }
 
@@ -317,7 +317,7 @@ public sealed class PgmqClient(NpgsqlDataSource dataSource) : IPgmqClient
             destinationQueue,
             message,
             delaySeconds,
-            headers ?? CreateTraceHeaders(publish.Activity));
+            headers ?? CreateTraceHeaders(publish.PropagationActivity));
         await sendCommand.ExecuteScalarAsync(cancellationToken);
 
         await using var archiveCommand = new NpgsqlCommand(

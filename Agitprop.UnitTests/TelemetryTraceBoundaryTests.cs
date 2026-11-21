@@ -109,6 +109,20 @@ public class TelemetryTraceBoundaryTests
         Assert.That(remoteParent.TraceId, Is.EqualTo(published[0].TraceId));
     }
 
+    [Test]
+    public void PublishWithoutSourceListener_PreservesAmbientTraceContext()
+    {
+        using var origin = new Activity("rss.cycle").SetIdFormat(ActivityIdFormat.W3C).Start();
+
+        using var scope = PgmqTelemetry.BeginPublish(PgmqQueueNames.NewsfeedJobs, batchSize: 1);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(scope.Activity, Is.Null);
+            Assert.That(scope.PropagationActivity, Is.SameAs(origin));
+        });
+    }
+
     private sealed class EmptyQueue : IPgmqClient
     {
         public Task EnsureQueuesAsync(CancellationToken cancellationToken = default, params string[] additionalQueueNames) =>

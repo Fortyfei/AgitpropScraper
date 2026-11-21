@@ -133,6 +133,8 @@ public static class PgmqTelemetry
 
         public Activity? Activity { get; }
 
+        public Activity? PropagationActivity => Activity ?? Origin;
+
         private Activity? Origin { get; }
 
         public void Dispose()
