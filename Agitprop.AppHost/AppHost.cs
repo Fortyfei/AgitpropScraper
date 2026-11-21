@@ -38,7 +38,6 @@ internal class Program
                               // Pin the name: the generated one carries an AppHost hash, so any
                               // model edit would otherwise leave the data behind in a new volume.
                               .WithDataVolume("agitprop-postgres-data")
-                              .WithLifetime(ContainerLifetime.Persistent)
                               .WithOtlpExporter()
                               .WithComposeHealthCheck("CMD-SHELL", "pg_isready -U postgres -d newsfeed")
                               .LimitComposeMemory("1G")
