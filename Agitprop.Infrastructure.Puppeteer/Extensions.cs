@@ -20,16 +20,29 @@ public static class Extensions
     public static IHostApplicationBuilder ConfigureInfrastructureWithBrowser(this IHostApplicationBuilder builder, bool useProxies = false)
     {
         builder.Services.ConfigureInfrastructureWithoutBrowser(useProxies);
+        builder.Services.AddBrowserPageLoader(useProxies);
 
+        return builder;
+    }
+
+    /// <summary>
+    /// Registers the browser page loader. Shared with callers that build their own service
+    /// collection instead of an application builder.
+    /// </summary>
+    /// <param name="services">The service collection to configure.</param>
+    /// <param name="useProxies">Indicates whether to load pages through the proxy pool.</param>
+    /// <returns>The updated service collection.</returns>
+    public static IServiceCollection AddBrowserPageLoader(this IServiceCollection services, bool useProxies = false)
+    {
         if (useProxies)
         {
-            builder.Services.AddTransient<IBrowserPageLoader, PuppeteerPageLoaderWithProxies>();
+            services.AddTransient<IBrowserPageLoader, PuppeteerPageLoaderWithProxies>();
         }
         else
         {
-            builder.Services.AddTransient<IBrowserPageLoader, PuppeteerPageLoader>();
+            services.AddTransient<IBrowserPageLoader, PuppeteerPageLoader>();
         }
 
-        return builder;
+        return services;
     }
 }
