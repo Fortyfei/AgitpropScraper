@@ -252,13 +252,6 @@ public class RssFeedReaderTests
         public Task EnsureQueuesAsync(CancellationToken cancellationToken = default, params string[] additionalQueueNames) =>
             Task.CompletedTask;
 
-        public Task<long> SendAsync<T>(
-            string queueName,
-            T message,
-            int delaySeconds = 0,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(1L);
-
         public Task<int> SendBatchAsync<T>(
             string queueName,
             IReadOnlyCollection<T> messages,
