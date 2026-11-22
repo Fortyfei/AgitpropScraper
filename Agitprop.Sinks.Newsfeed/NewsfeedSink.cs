@@ -27,30 +27,19 @@ public class NewsfeedSink : ISink
 
     public async Task<bool> CheckPageAlreadyVisited(string url)
     {
-        using var trace = _activitySource.StartActivity("CheckPageAlreadyVisited", ActivityKind.Internal);
-        trace?.SetTag("server.address", TelemetryUrl.GetServerAddress(url));
-        try
-        {
-            _logger?.LogDebug("Checking if page already visited: {Url}", TelemetryUrl.RedactQueryAndFragment(url));
+        _logger?.LogDebug("Checking if page already visited: {Url}", TelemetryUrl.RedactQueryAndFragment(url));
 
-            var exists = await RetryPolicyFactory.CreateExceptionPolicy(_retryCount, (ex, attempt) =>
-                {
-                    _logger?.LogWarning(
-                        "[RETRY] Exception checking page {Url} on attempt {Attempt}; exception type: {ExceptionType}",
-                        TelemetryUrl.RedactQueryAndFragment(url), attempt, ex.GetType().Name);
-                })
-                .ExecuteAsync(() => _db.IsUrlAlreadyExists(url));
+        var exists = await RetryPolicyFactory.CreateExceptionPolicy(_retryCount, (ex, attempt) =>
+            {
+                _logger?.LogWarning(
+                    "[RETRY] Exception checking page {Url} on attempt {Attempt}; exception type: {ExceptionType}",
+                    TelemetryUrl.RedactQueryAndFragment(url), attempt, ex.GetType().Name);
+            })
+            .ExecuteAsync(() => _db.IsUrlAlreadyExists(url));
 
-            _logger?.LogDebug("CheckPageAlreadyVisited result for {Url}: {Exists}",
-                TelemetryUrl.RedactQueryAndFragment(url), exists);
-            trace?.SetStatus(ActivityStatusCode.Ok);
-            return exists;
-        }
-        catch (Exception ex)
-        {
-            trace?.SetStatus(ActivityStatusCode.Error, ex.Message);
-            throw;
-        }
+        _logger?.LogDebug("CheckPageAlreadyVisited result for {Url}: {Exists}",
+            TelemetryUrl.RedactQueryAndFragment(url), exists);
+        return exists;
     }
 
     public async Task EmitAsync(string url, List<ContentParserResult> data, CancellationToken cancellationToken = default)
