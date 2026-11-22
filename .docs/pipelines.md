@@ -9,14 +9,21 @@ the system, plus a step-by-step runtime walkthrough.
 
 ```mermaid
 sequenceDiagram
-    participant RSS as RssFeedReader (IHostedService)
+    participant FEED as RSS feed (HTTP)
+    participant RSS as RssFeedReader (BackgroundService)
     participant DB as PostgreSQL + PGMQ
     participant CON as Consumer (NewsfeedJobConsumer)
 
-    loop On interval (default 60 min)
-        RSS->>RSS: Fetch RSS feeds (System.ServiceModel.Syndication)
-        RSS->>RSS: Parse feeds → List<NewsfeedJobDescrpition>
-        RSS->>DB: SendBatchAsync(newsfeed_job, jobs)
+    loop Every IntervalMinutes (default 60), first cycle at startup
+        RSS->>FEED: GET with If-None-Match / If-Modified-Since (max 4 in parallel)
+        alt 304 Not Modified
+            FEED-->>RSS: no body, no work
+        else 200
+            FEED-->>RSS: bounded feed body
+            RSS->>RSS: parse → normalize links → drop already published links
+            RSS->>DB: SendBatchAsync(newsfeed_job, new jobs)
+            RSS->>RSS: commit watermark + validators (only after a successful publish)
+        end
         DB-->>CON: read() claims visible jobs
     end
 ```
@@ -232,7 +239,8 @@ aspire start --apphost Agitprop.AppHost/Agitprop.AppHost.csproj
 
 ### Step 3: Runtime Operation
 
-1. **RSS Feed Reader** fetches feeds on interval → `IPgmqClient.SendBatchAsync`.
+1. **RSS Feed Reader** reads feeds on interval with conditional GET → publishes
+   only the links that were not published before via `IPgmqClient.SendBatchAsync`.
 2. **Consumer** claims messages from `newsfeed_job` → `ScrapingJobFactory.GetArticleScrapingJob` → `ISpider.CrawlAsync`.
 3. **Spider** uses `IPageTransport.LoadAsync` → `HttpStaticPageLoader` (or `PuppeteerPageLoader` if browser mode).
 4. **BaseArticleContentParser** extracts date/title/lead/article via XPath fallback lists.

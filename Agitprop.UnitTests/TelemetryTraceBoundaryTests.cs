@@ -36,13 +36,17 @@ public class TelemetryTraceBoundaryTests
             {
                 // Two cycles are enough to show that neither inherits the other as a parent.
                 ["IntervalMinutes"] = "0.001",
-                ["Feeds:0"] = "file:///agitprop-unit-test/missing-feed.xml"
+                ["Feeds:0"] = "https://example.invalid/working",
+                ["Feeds:1"] = "https://example.invalid/broken"
             })
             .Build();
         var reader = new RssFeedReader(
-            configuration,
+            RssFeedReaderOptions.Load(configuration),
+            new PartiallyFailingFeedClient(),
+            new EmptyQueue(),
+            new RssFeedState(),
             NullLogger<RssFeedReader>.Instance,
-            new EmptyQueue());
+            TimeProvider.System);
 
         await reader.StartAsync(CancellationToken.None);
         try
@@ -62,7 +66,7 @@ public class TelemetryTraceBoundaryTests
             Assert.That(cycles, Has.Count.GreaterThanOrEqualTo(2));
             Assert.That(cycles.All(cycle => cycle.Parent is null), Is.True);
             Assert.That(cycles.Select(cycle => cycle.TraceId).Distinct().Count(), Is.EqualTo(cycles.Count));
-            // The unreadable feed makes the cycle a partial failure instead of a success.
+            // One broken feed out of two makes the cycle a partial failure instead of a success.
             Assert.That(cycles.All(cycle => Equals(cycle.GetTagItem("outcome"), "partial_failure")), Is.True);
         });
     }
@@ -121,6 +125,23 @@ public class TelemetryTraceBoundaryTests
             Assert.That(scope.Activity, Is.Null);
             Assert.That(scope.PropagationActivity, Is.SameAs(origin));
         });
+    }
+
+    private sealed class PartiallyFailingFeedClient : IRssFeedClient
+    {
+        public Task<RssFeedFetchResult> FetchAsync(
+            string feedUrl,
+            string? entityTag,
+            string? lastModified,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(feedUrl.EndsWith("/working", StringComparison.Ordinal)
+                ? new RssFeedFetchResult { Outcome = RssFeedOutcome.Success, StatusCode = 200 }
+                : new RssFeedFetchResult
+                {
+                    Outcome = RssFeedOutcome.Failed,
+                    FailureReason = "http",
+                    StatusCode = 500
+                });
     }
 
     private sealed class EmptyQueue : IPgmqClient

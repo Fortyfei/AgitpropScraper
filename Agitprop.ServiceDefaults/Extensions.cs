@@ -128,6 +128,7 @@ public static class Extensions
                    .AddView("newsfeed.job.duration", ScraperDurationBuckets())
                    .AddView("spider.processing.duration", ScraperDurationBuckets())
                    .AddView("rss.cycle.duration", ScraperDurationBuckets())
+                   .AddView("rss.feed.duration", ScraperDurationBuckets())
                    .AddView("respectful.request.latency", ScraperDurationBuckets())
                    .AddView("respectful.rate_limit.wait_duration", ScraperDurationBuckets());
         })

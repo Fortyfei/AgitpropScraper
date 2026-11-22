@@ -1,53 +1,82 @@
-using System.ServiceModel.Syndication;
-using System.Text;
-using System.Xml;
+using System.Diagnostics;
 using System.Diagnostics.Metrics;
+
 using Agitprop.Core.Enums;
 using Agitprop.Messaging;
-using System.Diagnostics;
 using Agitprop.Sinks.Newsfeed;
 
 namespace Agitprop.Scraper.RssFeedReader;
 
 /// <summary>
-/// A hosted service that reads RSS feeds and publishes scraping jobs.
+/// A hosted service that periodically reads RSS feeds and publishes the articles found in them as
+/// scraping jobs. Feeds are read with conditional requests and only links that were not published
+/// before are queued; the watermark advances only after a successful publish, so a failed cycle is
+/// retried instead of silently losing articles.
 /// </summary>
-public class RssFeedReader : BackgroundService
+public sealed class RssFeedReader : BackgroundService
 {
-    private readonly string[] _feeds;
-    private readonly ILogger<RssFeedReader> _logger;
-    private readonly IPgmqClient _pgmqClient;
-    private readonly TimeSpan _interval;
-    private static readonly ActivitySource _activitySource = new("Agitprop.RssFeedReader");
-    private static readonly Meter _meter = new("Agitprop.RssFeedReader");
+    public const string ActivitySourceName = "Agitprop.RssFeedReader";
+
+    private const string OutcomeSuccess = "success";
+    private const string OutcomePartialFailure = "partial_failure";
+    private const string OutcomeFailure = "failure";
+    private const string OutcomeNotModified = "not_modified";
+    private const string OutcomeCancelled = "cancelled";
+
+    private static readonly ActivitySource _activitySource = new(ActivitySourceName);
+    private static readonly Meter _meter = new(ActivitySourceName);
+
     private static readonly Counter<long> _itemsFetched = _meter.CreateCounter<long>(
         "rss.items.fetched",
-        description: "Total items fetched from RSS feeds");
+        description: "Items read from RSS feeds");
+
+    private static readonly Counter<long> _itemsDuplicate = _meter.CreateCounter<long>(
+        "rss.items.duplicate",
+        description: "Items skipped because their link was already published");
+
     private static readonly Counter<long> _jobsPublished = _meter.CreateCounter<long>(
         "rss.jobs.published",
-        description: "Total scraping jobs published from RSS feeds");
+        description: "Scraping jobs published from RSS feeds");
+
     private static readonly Counter<long> _feedFailures = _meter.CreateCounter<long>(
         "rss.feed.failures",
-        description: "Total failed RSS feed processing operations");
+        description: "RSS feeds that could not be read, grouped by host and failure reason");
+
     private static readonly Counter<long> _publishFailures = _meter.CreateCounter<long>(
         "rss.publish.failures",
-        description: "Total failures publishing scraping jobs");
+        description: "Failures publishing the batch of RSS scraping jobs");
+
     private static readonly Histogram<double> _cycleDuration = _meter.CreateHistogram<double>(
         "rss.cycle.duration",
         "ms",
-        "Time spent fetching and publishing RSS scraping jobs");
+        "Time spent reading RSS feeds and publishing their articles");
+
+    private static readonly Histogram<double> _feedDuration = _meter.CreateHistogram<double>(
+        "rss.feed.duration",
+        "ms",
+        "Time spent reading and parsing one RSS feed");
+
+    private readonly RssFeedReaderOptions _options;
+    private readonly IRssFeedClient _feedClient;
+    private readonly IPgmqClient _pgmqClient;
+    private readonly RssFeedState _state;
+    private readonly ILogger<RssFeedReader> _logger;
+    private readonly TimeProvider _timeProvider;
 
     public RssFeedReader(
-        IConfiguration configuration,
+        RssFeedReaderOptions options,
+        IRssFeedClient feedClient,
+        IPgmqClient pgmqClient,
+        RssFeedState state,
         ILogger<RssFeedReader> logger,
-        IPgmqClient pgmqClient)
+        TimeProvider timeProvider)
     {
-        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-
-        _logger = logger;
-        _feeds = configuration.GetSection("Feeds").Get<string[]>() ?? throw new ArgumentException("Feeds are not defined");
+        _options = options;
+        _feedClient = feedClient;
         _pgmqClient = pgmqClient;
-        _interval = TimeSpan.FromMinutes(configuration.GetValue<double>("IntervalMinutes", 60));
+        _state = state;
+        _logger = logger;
+        _timeProvider = timeProvider;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -56,16 +85,19 @@ public class RssFeedReader : BackgroundService
         // everything the service ever does. Each cycle opens its own bounded trace instead.
         await _pgmqClient.EnsureQueuesAsync(stoppingToken);
         _logger.LogInformation(
-            "Starting RSS Feed Reader. Interval: {Interval} minutes, Feeds: {FeedCount}",
-            _interval.TotalMinutes,
-            _feeds.Length);
+            "Starting RSS Feed Reader. Interval: {IntervalMinutes} minutes, feeds: {FeedCount}, " +
+            "max concurrency: {MaxConcurrentFeeds}, request timeout: {RequestTimeoutSeconds} s",
+            _options.Interval.TotalMinutes,
+            _options.Feeds.Count,
+            _options.MaxConcurrentFeeds,
+            _options.RequestTimeout.TotalSeconds);
 
-        using var timer = new PeriodicTimer(_interval);
+        using var timer = new PeriodicTimer(_options.Interval, _timeProvider);
         try
         {
             do
             {
-                await RunCycleAsync();
+                await RunCycleAsync(stoppingToken);
             }
             while (await timer.WaitForNextTickAsync(stoppingToken));
         }
@@ -75,126 +107,319 @@ public class RssFeedReader : BackgroundService
         }
     }
 
-    private async Task RunCycleAsync()
+    internal async Task<RssCycleSummary> RunCycleAsync(CancellationToken cancellationToken)
     {
-        using var activity = _activitySource.StartActivity("rss.cycle", ActivityKind.Internal);
+        using var activity = _activitySource.StartActivity(BoundedTraceSampler.RssCycleSpanName, ActivityKind.Internal);
         var stopwatch = Stopwatch.StartNew();
-        var outcome = "success";
-
-        var publishAttempted = false;
+        var summary = new RssCycleSummary { FeedsConfigured = _options.Feeds.Count };
+        var outcome = OutcomeSuccess;
 
         try
         {
-            var (jobs, failedFeeds) = FetchScrapingJobs();
+            var fetches = await FetchFeedsAsync(cancellationToken);
+            var pending = SelectPendingLinks(fetches, summary);
 
-            if (failedFeeds > 0)
+            if (pending.Count > 0)
             {
-                // One broken feed is not a failed cycle, but reporting success would hide it.
-                outcome = "partial_failure";
+                await PublishAsync(pending, cancellationToken);
+                summary.ItemsPublished = pending.Count;
+                _jobsPublished.Add(pending.Count);
+
+                foreach (var pendingLink in pending)
+                {
+                    pendingLink.Cursor.MarkPublished(pendingLink.Link);
+                }
             }
 
-            if (jobs.Count == 0)
+            // Nothing is pending at this point, so the validators are safe to advance. A cycle that
+            // threw before this line leaves both the validators and the watermark untouched.
+            foreach (var fetch in fetches)
             {
-                _logger.LogInformation("No new jobs fetched in this cycle");
-            }
-            else
-            {
-                _logger.LogDebug("Publishing {JobCount} scraping jobs", jobs.Count);
-                publishAttempted = true;
-                await _pgmqClient.SendBatchAsync(PgmqQueueNames.NewsfeedJobs, jobs);
-                _jobsPublished.Add(jobs.Count);
+                if (fetch.Result.Outcome == RssFeedOutcome.Success)
+                {
+                    fetch.Cursor.UpdateValidators(fetch.Result.EntityTag, fetch.Result.LastModified);
+                }
             }
 
-            _logger.LogInformation("RSS feed cycle completed; feeds: {FeedCount}, jobs published: {JobCount}",
-                _feeds.Length, jobs.Count);
-
-            activity?.SetTag("rss.feed.count", _feeds.Length);
-            activity?.SetTag("rss.feeds.failed", failedFeeds);
-            activity?.SetTag("rss.jobs.count", jobs.Count);
-            activity?.SetTag("outcome", outcome);
-            activity?.SetStatus(
-                outcome == "success" ? ActivityStatusCode.Ok : ActivityStatusCode.Error,
-                outcome);
+            outcome = summary.FeedsFailed switch
+            {
+                0 => OutcomeSuccess,
+                var failed when failed < summary.FeedsConfigured => OutcomePartialFailure,
+                _ => OutcomeFailure
+            };
         }
-        catch (Exception ex)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            outcome = "failure";
-            if (publishAttempted)
-            {
-                _publishFailures.Add(1);
-            }
-            _logger.LogError(ex, "RSS feed cycle failed");
-            activity?.SetTag("outcome", outcome);
-            activity?.SetStatus(ActivityStatusCode.Error, ex.GetType().Name);
+            outcome = OutcomeCancelled;
+            throw;
+        }
+        catch (Exception exception)
+        {
+            outcome = OutcomeFailure;
+            _logger.LogError(exception, "RSS feed cycle failed");
         }
         finally
         {
-            _cycleDuration.Record(stopwatch.Elapsed.TotalMilliseconds,
+            summary.Outcome = outcome;
+            summary.Duration = stopwatch.Elapsed;
+            ReportCycle(activity, summary);
+        }
+
+        return summary;
+    }
+
+    private async Task<IReadOnlyList<FeedFetch>> FetchFeedsAsync(CancellationToken cancellationToken)
+    {
+        // The semaphore is intentionally not disposed: on cancellation the remaining fetches finish
+        // after the first exception surfaces, and releasing a disposed semaphore would fault them.
+        var gate = new SemaphoreSlim(_options.MaxConcurrentFeeds);
+
+        var fetches = _options.Feeds.Select(async feedUrl =>
+        {
+            await gate.WaitAsync(cancellationToken);
+            try
+            {
+                return await FetchFeedAsync(feedUrl, cancellationToken);
+            }
+            finally
+            {
+                gate.Release();
+            }
+        });
+
+        return await Task.WhenAll(fetches);
+    }
+
+    private async Task<FeedFetch> FetchFeedAsync(string feedUrl, CancellationToken cancellationToken)
+    {
+        using var activity = _activitySource.StartActivity("rss.feed", ActivityKind.Internal);
+        var stopwatch = Stopwatch.StartNew();
+        var safeFeedUrl = Core.TelemetryUrl.RedactQueryAndFragment(feedUrl);
+        var feedHost = GetFeedHost(feedUrl);
+        var cursor = _state.Get(feedUrl);
+        var outcome = OutcomeSuccess;
+
+        activity?.SetTag("feed.host", feedHost);
+        _logger.LogDebug("Reading RSS feed: {FeedUrl}", safeFeedUrl);
+
+        try
+        {
+            RssFeedFetchResult result;
+            try
+            {
+                result = await _feedClient.FetchAsync(feedUrl, cursor.EntityTag, cursor.LastModified, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception)
+            {
+                result = new RssFeedFetchResult { Outcome = RssFeedOutcome.Failed, FailureReason = "unknown" };
+            }
+
+            activity?.SetTag("http.response.status_code", result.StatusCode);
+
+            switch (result.Outcome)
+            {
+                case RssFeedOutcome.NotModified:
+                    outcome = OutcomeNotModified;
+                    activity?.SetTag("feed.not_modified", true);
+                    activity?.SetStatus(ActivityStatusCode.Ok);
+                    _logger.LogDebug("RSS feed not modified since the last cycle: {FeedUrl}", safeFeedUrl);
+                    break;
+
+                case RssFeedOutcome.Failed:
+                    outcome = OutcomeFailure;
+                    activity?.SetTag("failure.reason", result.FailureReason);
+                    activity?.SetStatus(ActivityStatusCode.Error, result.FailureReason);
+                    _feedFailures.Add(1,
+                        new KeyValuePair<string, object?>("feed.host", feedHost),
+                        new KeyValuePair<string, object?>("reason", result.FailureReason ?? "unknown"));
+                    _logger.LogWarning(
+                        "RSS feed {FeedUrl} failed: {FailureReason} (status {StatusCode})",
+                        safeFeedUrl,
+                        result.FailureReason,
+                        result.StatusCode);
+                    break;
+
+                default:
+                    activity?.SetTag("feed.items.count", result.ItemsParsed);
+                    activity?.SetTag("feed.items.invalid", result.ItemsInvalid);
+                    activity?.SetStatus(ActivityStatusCode.Ok);
+                    _itemsFetched.Add(result.ItemsParsed, new KeyValuePair<string, object?>("feed.host", feedHost));
+
+                    if (result.Truncated)
+                    {
+                        activity?.SetTag("feed.truncated", true);
+                        _logger.LogWarning(
+                            "RSS feed {FeedUrl} returned more items than the {MaxItemsPerFeed} item limit; the rest is ignored",
+                            safeFeedUrl,
+                            _options.MaxItemsPerFeed);
+                    }
+
+                    _logger.LogDebug(
+                        "Fetched {ItemCount} items ({InvalidCount} without a usable link) from feed {FeedUrl}",
+                        result.ItemsParsed,
+                        result.ItemsInvalid,
+                        safeFeedUrl);
+                    break;
+            }
+
+            return new FeedFetch(feedUrl, cursor, result);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            outcome = OutcomeCancelled;
+            throw;
+        }
+        finally
+        {
+            _feedDuration.Record(stopwatch.Elapsed.TotalMilliseconds,
+                new KeyValuePair<string, object?>("feed.host", feedHost),
                 new KeyValuePair<string, object?>("outcome", outcome));
         }
     }
 
-    private (List<NewsfeedJobDescrpition> Jobs, int FailedFeeds) FetchScrapingJobs()
+    private List<PendingLink> SelectPendingLinks(IReadOnlyList<FeedFetch> fetches, RssCycleSummary summary)
     {
-        using var activity = _activitySource.StartActivity("rss.fetch", ActivityKind.Internal);
-        var scrapingJobs = new List<NewsfeedJobDescrpition>();
-        var failedFeeds = 0;
+        var pending = new List<PendingLink>();
+        var cycleLinks = new HashSet<ulong>();
 
-        foreach (var feedUrl in _feeds)
+        foreach (var fetch in fetches)
         {
-            using var feedActivity = _activitySource.StartActivity("rss.feed", ActivityKind.Internal);
-            var safeFeedUrl = Core.TelemetryUrl.RedactQueryAndFragment(feedUrl);
-            var feedHost = GetFeedHost(feedUrl);
-            feedActivity?.SetTag("feed.host", feedHost);
-            _logger.LogDebug("Reading RSS feed: {FeedUrl}", safeFeedUrl);
-
-            try
+            switch (fetch.Result.Outcome)
             {
-                using var reader = XmlReader.Create(feedUrl);
-                var feed = SyndicationFeed.Load(reader);
+                case RssFeedOutcome.NotModified:
+                    summary.FeedsNotModified++;
+                    break;
 
-                if (feed != null)
-                {
-                    var news = feed.Items.Select(item =>
+                case RssFeedOutcome.Failed:
+                    summary.FeedsFailed++;
+                    break;
+
+                default:
+                    summary.ItemsParsed += fetch.Result.ItemsParsed;
+                    summary.ItemsInvalid += fetch.Result.ItemsInvalid;
+
+                    foreach (var link in fetch.Result.Links)
                     {
-                        var link = item.Links.FirstOrDefault()?.Uri?.GetLeftPart(UriPartial.Path);
-
-                        return new NewsfeedJobDescrpition
+                        if (fetch.Cursor.HasPublished(link) || !cycleLinks.Add(RssFeedState.HashLink(link)))
                         {
-                            Url = link ?? throw new ArgumentException("No link found"),
-                            Type = PageContentType.Article
-                        };
-                    }).ToList();
+                            summary.ItemsDuplicate++;
+                            _itemsDuplicate.Add(1,
+                                new KeyValuePair<string, object?>("feed.host", GetFeedHost(fetch.FeedUrl)));
+                            continue;
+                        }
 
-                    feedActivity?.SetTag("feed.items.count", news.Count);
-                    _itemsFetched.Add(news.Count, new KeyValuePair<string, object?>("feed.host", feedHost));
-                    _logger.LogDebug("Fetched {ItemCount} items from feed {FeedUrl}", news.Count, safeFeedUrl);
-                    scrapingJobs.AddRange(news);
-                }
-                else
-                {
-                    _logger.LogWarning("RSS feed {FeedUrl} returned no items", safeFeedUrl);
-                }
+                        pending.Add(new PendingLink(link, fetch.Cursor));
+                    }
 
-                feedActivity?.SetStatus(ActivityStatusCode.Ok);
-            }
-            catch (Exception ex)
-            {
-                failedFeeds++;
-                _feedFailures.Add(1, new KeyValuePair<string, object?>("feed.host", feedHost));
-                _logger.LogError(ex, "Error processing feed {FeedUrl}", safeFeedUrl);
-                feedActivity?.SetTag("outcome", "failure");
-                feedActivity?.SetStatus(ActivityStatusCode.Error, ex.GetType().Name);
+                    break;
             }
         }
 
-        _logger.LogDebug("Total scraping jobs fetched: {JobCount}", scrapingJobs.Count);
-        activity?.SetTag("rss.feeds.failed", failedFeeds);
-        activity?.SetTag("rss.jobs.count", scrapingJobs.Count);
-        activity?.SetStatus(ActivityStatusCode.Ok, "FetchScrapingJobs completed");
-        return (scrapingJobs, failedFeeds);
+        return pending;
+    }
+
+    private async Task PublishAsync(List<PendingLink> pending, CancellationToken cancellationToken)
+    {
+        var jobs = pending
+            .Select(pendingLink => new NewsfeedJobDescrpition
+            {
+                Url = pendingLink.Link,
+                Type = PageContentType.Article
+            })
+            .ToList();
+
+        using var activity = _activitySource.StartActivity("rss.publish", ActivityKind.Internal);
+        activity?.SetTag("messaging.destination.name", PgmqQueueNames.NewsfeedJobs);
+        activity?.SetTag("messaging.batch.size", jobs.Count);
+
+        try
+        {
+            await _pgmqClient.SendBatchAsync(PgmqQueueNames.NewsfeedJobs, jobs, cancellationToken);
+            activity?.SetStatus(ActivityStatusCode.Ok);
+            _logger.LogDebug("Published {JobCount} scraping jobs from RSS feeds", jobs.Count);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            activity?.SetTag("outcome", OutcomeCancelled);
+            throw;
+        }
+        catch (Exception exception)
+        {
+            activity?.SetTag("outcome", OutcomeFailure);
+            activity?.SetStatus(ActivityStatusCode.Error, exception.GetType().Name);
+            _publishFailures.Add(1);
+            throw;
+        }
+    }
+
+    private void ReportCycle(Activity? activity, RssCycleSummary summary)
+    {
+        _cycleDuration.Record(summary.Duration.TotalMilliseconds,
+            new KeyValuePair<string, object?>("outcome", summary.Outcome));
+
+        activity?.SetTag("rss.feeds.configured", summary.FeedsConfigured);
+        activity?.SetTag("rss.feeds.not_modified", summary.FeedsNotModified);
+        activity?.SetTag("rss.feeds.failed", summary.FeedsFailed);
+        activity?.SetTag("rss.items.parsed", summary.ItemsParsed);
+        activity?.SetTag("rss.items.invalid", summary.ItemsInvalid);
+        activity?.SetTag("rss.items.duplicate", summary.ItemsDuplicate);
+        activity?.SetTag("rss.items.published", summary.ItemsPublished);
+        activity?.SetTag("outcome", summary.Outcome);
+
+        if (summary.Outcome == OutcomeCancelled)
+        {
+            // Shutdown is expected, not a failure to report.
+            return;
+        }
+
+        activity?.SetStatus(
+            summary.Outcome == OutcomeSuccess ? ActivityStatusCode.Ok : ActivityStatusCode.Error,
+            summary.Outcome);
+
+        _logger.LogInformation(
+            "RSS cycle finished in {DurationMilliseconds} ms: feeds {FeedCount} ({NotModifiedCount} not modified, " +
+            "{FailedCount} failed), items {ItemCount} ({InvalidCount} invalid, {DuplicateCount} duplicate, " +
+            "{PublishedCount} published), outcome {Outcome}",
+            Math.Round(summary.Duration.TotalMilliseconds),
+            summary.FeedsConfigured,
+            summary.FeedsNotModified,
+            summary.FeedsFailed,
+            summary.ItemsParsed,
+            summary.ItemsInvalid,
+            summary.ItemsDuplicate,
+            summary.ItemsPublished,
+            summary.Outcome);
     }
 
     private static string GetFeedHost(string feedUrl) =>
         Uri.TryCreate(feedUrl, UriKind.Absolute, out var uri) ? uri.Host : "unknown";
+
+    private sealed record FeedFetch(string FeedUrl, FeedCursor Cursor, RssFeedFetchResult Result);
+
+    private readonly record struct PendingLink(string Link, FeedCursor Cursor);
+}
+
+internal sealed record RssCycleSummary
+{
+    public required int FeedsConfigured { get; init; }
+
+    public int FeedsNotModified { get; set; }
+
+    public int FeedsFailed { get; set; }
+
+    public int ItemsParsed { get; set; }
+
+    public int ItemsInvalid { get; set; }
+
+    public int ItemsDuplicate { get; set; }
+
+    public int ItemsPublished { get; set; }
+
+    public string Outcome { get; set; } = "success";
+
+    public TimeSpan Duration { get; set; }
 }
