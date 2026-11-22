@@ -80,13 +80,15 @@ Called by: `Agitprop.Scraper.Consumer`, `Agitprop.Scraper.RssFeedReader`,
 and `Agitprop.Web`.
 
 The scraping pipeline emits bounded metrics for consumed/completed/failed
-jobs, scrape duration and outcomes, processed pages, RSS items/jobs, feed and
-publish failures, queue depth and oldest-message age, retries and dead letters
+jobs, scrape duration and outcomes, processed pages, RSS items/jobs, RSS item
+duplicates, feed and publish failures by reason, queue depth and oldest-message
+age, retries and dead letters
 by failure class, lease-renewal failures, in-flight messages, and dashboard
 query cache hits/misses. URLs, entity names, message IDs, and free-text search
 terms are not metric dimensions. Application-owned URL fields in logs and spans
 omit query strings and fragments; spans use `server.address` instead of full
-URLs. Duration histograms for job, page, RSS-cycle, request, and rate-limit wait
+URLs. Duration histograms for job, page, RSS-cycle, RSS-feed, request, and
+rate-limit wait
 times use explicit 100 ms to 300 s buckets. Automatic HttpClient instrumentation
 retains its own URL attributes. EF Core spans do not include SQL text or query
 parameter values.

@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Net;
-using System.Net.Security;
 using Agitprop.Core;
 using Agitprop.Core.Interfaces;
 using Microsoft.Extensions.Logging;
@@ -102,10 +101,6 @@ public class RespectfulPageRequester : IPageRequester
         var handler = new SocketsHttpHandler
         {
             MaxConnectionsPerServer = 10,
-            SslOptions = new SslClientAuthenticationOptions
-            {
-                RemoteCertificateValidationCallback = delegate { return true; }
-            },
             PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2),
             PooledConnectionLifetime = Timeout.InfiniteTimeSpan,
             CookieContainer = CookieContainer,

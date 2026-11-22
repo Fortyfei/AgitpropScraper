@@ -27,8 +27,10 @@ non-browser scraping.
 
 ### Proxy Pool
 
-- **ProxyDto.cs** — DTO model for proxy API responses (`ProxyDto`, `Proxy`,
-  `IpData`).
+Proxy rotation is off by default and only runs when the consumer is started
+with `Proxy:UseProxies=true`; it is a fallback for sites that block direct
+requests, not part of the normal path.
+
 - **ProxyPoolService.cs** (`ProxyPool`) — implements `IProxyPool`, returning
   proxies from its working set or fetching more from the configured providers
   when needed; callers report proxy success or failure.
@@ -49,7 +51,6 @@ non-browser scraping.
 |------|---------|
 | `RotatingProxyPageRequester.cs` | Uses proxy pool for requests |
 | `RespectfulPageRequester.cs` | Direct HTTP with politeness delay |
-| `PageRequester.cs` | Base requester |
 
 ### ProxyProviders/
 

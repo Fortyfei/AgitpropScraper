@@ -1,15 +1,12 @@
-using System.Net;
 using Agitprop.Core;
 using Agitprop.Core.Enums;
 using Agitprop.Core.Interfaces;
 using Agitprop.Infrastructure;
-using Agitprop.Infrastructure.PageLoader;
-using Agitprop.Infrastructure.PageRequester;
 using Agitprop.Infrastructure.Puppeteer;
 using Agitprop.Sinks.Newsfeed;
 using Agitprop.Sources;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Agitprop.CLI.Services;
 
@@ -65,22 +62,24 @@ public sealed class ScrapeCommandOrchestrator : IScrapeCommandOrchestrator
         return await publisher.RetryFailedFeedsAsync(request, cancellationToken);
     }
 
-    private static NewsfeedPipeline CreatePipeline(ISink sink)
+    private static readonly ServiceProvider Services = CreateServices();
+
+    private static ServiceProvider CreateServices()
     {
-        var cookiesStorage = new CookieStorage();
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>())
-            .Build();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
+        services.ConfigureInfrastructureWithoutBrowser();
+        services.AddBrowserPageLoader();
 
-        var spider = new Spider(
-            new PageTransport(
-                new HttpStaticPageLoader(new RespectfulPageRequester(new CookieContainer()), cookiesStorage),
-                new PuppeteerPageLoader(cookiesStorage),
-                NullLogger<PageTransport>.Instance),
-            configuration);
-
-        return new NewsfeedPipeline(new NewsfeedSourceCatalog(NewsfeedSources.BuiltIn()), spider, sink);
+        return services.BuildServiceProvider();
     }
+
+    private static NewsfeedPipeline CreatePipeline(ISink sink) =>
+        new(
+            new NewsfeedSourceCatalog(NewsfeedSources.BuiltIn()),
+            Services.GetRequiredService<ISpider>(),
+            sink);
 
     private static NewsfeedJobDescrpition CreateArchiveJob(INewsfeedSourceCatalog catalog, DateOnly date, SourceId site)
     {

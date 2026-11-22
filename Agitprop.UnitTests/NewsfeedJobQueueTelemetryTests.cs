@@ -177,10 +177,6 @@ public class NewsfeedJobQueueTelemetryTests
             IReadOnlyDictionary<string, string?>? headers = null, CancellationToken cancellationToken = default) =>
             Settle();
 
-        public Task<long> SendAsync<T>(
-            string queueName, T message, int delaySeconds = 0, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
         public Task<int> SendBatchAsync<T>(
             string queueName, IReadOnlyCollection<T> messages, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();

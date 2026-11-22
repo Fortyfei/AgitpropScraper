@@ -70,11 +70,7 @@ Required in `appsettings.Development.json` or user-secrets:
     "newsfeed": "Host=localhost;Port=5432;Database=newsfeed;Username=postgres;Password=..."
   },
   "Proxy": {
-    "UseProxies": false,
-    "TargetAliveProxies": 25,
-    "MinAliveProxies": 10,
-    "StartupTimeoutMinutes": 5,
-    "WaitTimeoutSeconds": 30
+    "UseProxies": false
   }
 }
 ```

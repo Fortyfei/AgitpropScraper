@@ -16,6 +16,17 @@ public class Program
         var builder = Host.CreateApplicationBuilder(args);
         builder.Configuration.AddUserSecrets<Program>();
         builder.AddServiceDefaults();
+
+        // A broken feed configuration must fail the host at startup, not an hour later mid-cycle.
+        var options = RssFeedReaderOptions.Load(builder.Configuration);
+        builder.Services.AddSingleton(options);
+        builder.Services.AddSingleton(TimeProvider.System);
+        builder.Services.AddSingleton<RssFeedState>();
+        builder.Services.AddHttpClient(RssFeedClient.HttpClientName, httpClient =>
+            httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("AgitpropRssReader/1.0 (+https://agitprop.cc)"));
+        builder.Services.AddSingleton<IRssFeedClient>(services => new RssFeedClient(
+            services.GetRequiredService<IHttpClientFactory>(),
+            options));
         builder.Services.AddHostedService<RssFeedReader>();
         builder.AddPgmqClient("newsfeed");
 

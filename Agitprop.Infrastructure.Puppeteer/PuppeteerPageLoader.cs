@@ -22,6 +22,7 @@ public class PuppeteerPageLoader : BrowserPageLoader, IBrowserPageLoader
     private readonly SemaphoreSlim _semaphore = new(1, 1);
     private readonly int _retryCount;
     private readonly ActivitySource ActivitySource = new("Agitprop.PageLoader.PuppeteerPageLoader");
+    private string? _executablePath;
 
     public PuppeteerPageLoader(
         ICookiesStorage cookiesStorage,
@@ -44,37 +45,14 @@ public class PuppeteerPageLoader : BrowserPageLoader, IBrowserPageLoader
         trace?.SetTag("server.address", TelemetryUrl.GetServerAddress(url));
         Logger?.LogDebug("Starting page load: {Url}", TelemetryUrl.RedactQueryAndFragment(url));
 
-        var browserFetcher = new BrowserFetcher(new BrowserFetcherOptions
-        {
-            Path = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)
-        });
-
-        await _semaphore.WaitAsync(cancellationToken);
-        try
-        {
-            Logger?.LogInformation("Downloading browser...");
-            await RetryPolicyFactory.CreateExceptionPolicy(
-                    _retryCount,
-                    (ex, attempt) =>
-                    {
-                        Logger?.LogWarning(ex, "[RETRY] Exception downloading browser on attempt {attempt}", attempt);
-                    })
-                .ExecuteAsync(
-                    _ => browserFetcher.DownloadAsync(BrowserTag.Stable),
-                    cancellationToken);
-            Logger?.LogInformation("Browser downloaded successfully");
-        }
-        finally
-        {
-            _semaphore.Release();
-        }
+        var executablePath = await EnsureBrowserAsync(cancellationToken);
 
         cancellationToken.ThrowIfCancellationRequested();
         Logger?.LogDebug("Launching browser");
         await using var browser = await PuppeteerSharp.Puppeteer.LaunchAsync(new LaunchOptions
         {
             Headless = headless,
-            ExecutablePath = browserFetcher.GetInstalledBrowsers().First().GetExecutablePath(),
+            ExecutablePath = executablePath,
         });
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -131,4 +109,50 @@ public class PuppeteerPageLoader : BrowserPageLoader, IBrowserPageLoader
         bool headless,
         CancellationToken cancellationToken = default)
         => Load(url, (List<PageAction>?)pageActions, headless, cancellationToken);
+
+    /// <summary>
+    /// Downloads the browser on first use and reuses the executable afterwards; downloading it on
+    /// every page load costs seconds and a network round trip per page.
+    /// </summary>
+    private async Task<string> EnsureBrowserAsync(CancellationToken cancellationToken)
+    {
+        if (_executablePath is not null)
+        {
+            return _executablePath;
+        }
+
+        await _semaphore.WaitAsync(cancellationToken);
+        try
+        {
+            if (_executablePath is not null)
+            {
+                return _executablePath;
+            }
+
+            var browserFetcher = new BrowserFetcher(new BrowserFetcherOptions
+            {
+                Path = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? string.Empty
+            });
+
+            Logger?.LogInformation("Downloading browser...");
+            await RetryPolicyFactory.CreateExceptionPolicy(
+                    _retryCount,
+                    (ex, attempt) =>
+                    {
+                        Logger?.LogWarning(ex, "[RETRY] Exception downloading browser on attempt {attempt}", attempt);
+                    })
+                .ExecuteAsync(
+                    _ => browserFetcher.DownloadAsync(BrowserTag.Stable),
+                    cancellationToken);
+
+            _executablePath = browserFetcher.GetInstalledBrowsers().First().GetExecutablePath();
+            Logger?.LogInformation("Browser downloaded successfully");
+
+            return _executablePath;
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
 }

@@ -36,13 +36,17 @@ public class TelemetryTraceBoundaryTests
             {
                 // Two cycles are enough to show that neither inherits the other as a parent.
                 ["IntervalMinutes"] = "0.001",
-                ["Feeds:0"] = "file:///agitprop-unit-test/missing-feed.xml"
+                ["Feeds:0"] = "https://example.invalid/working",
+                ["Feeds:1"] = "https://example.invalid/broken"
             })
             .Build();
         var reader = new RssFeedReader(
-            configuration,
+            RssFeedReaderOptions.Load(configuration),
+            new PartiallyFailingFeedClient(),
+            new EmptyQueue(),
+            new RssFeedState(),
             NullLogger<RssFeedReader>.Instance,
-            new EmptyQueue());
+            TimeProvider.System);
 
         await reader.StartAsync(CancellationToken.None);
         try
@@ -62,13 +66,13 @@ public class TelemetryTraceBoundaryTests
             Assert.That(cycles, Has.Count.GreaterThanOrEqualTo(2));
             Assert.That(cycles.All(cycle => cycle.Parent is null), Is.True);
             Assert.That(cycles.Select(cycle => cycle.TraceId).Distinct().Count(), Is.EqualTo(cycles.Count));
-            // The unreadable feed makes the cycle a partial failure instead of a success.
+            // One broken feed out of two makes the cycle a partial failure instead of a success.
             Assert.That(cycles.All(cycle => Equals(cycle.GetTagItem("outcome"), "partial_failure")), Is.True);
         });
     }
 
     [Test]
-    public void BatchedPublish_GivesEveryMessageItsOwnTraceContext()
+    public void BatchedPublish_KeepsEveryMessageInsideTheProducingTrace()
     {
         var stopped = new List<Activity>();
         using var listener = new ActivityListener
@@ -95,18 +99,16 @@ public class TelemetryTraceBoundaryTests
         Assert.Multiple(() =>
         {
             Assert.That(Activity.Current, Is.SameAs(origin), "The ambient activity must be restored");
-            Assert.That(published.Select(activity => activity.TraceId).Distinct().Count(), Is.EqualTo(3));
-            Assert.That(published.All(activity => activity.TraceId != originTraceId), Is.True);
-            Assert.That(published.All(activity => activity.Parent is null), Is.True);
-            Assert.That(published.All(activity =>
-                Equals(activity.GetTagItem("agitprop.batch.origin_trace_id"), originTraceId.ToHexString())), Is.True);
+            Assert.That(published.Select(activity => activity.TraceId).Distinct().Count(), Is.EqualTo(1));
+            Assert.That(published.All(activity => activity.TraceId == originTraceId), Is.True);
+            Assert.That(published.All(activity => activity.ParentSpanId == origin.SpanId), Is.True);
             Assert.That(stopped, Has.Count.EqualTo(3));
         });
 
-        // The traceparent written to pgmq parses back as a remote parent, so consumption continues
-        // the message trace instead of the producer's.
+        // The traceparent written to pgmq parses back as a remote parent in the producer's trace, so
+        // consumption continues that trace instead of starting one per message.
         Assert.That(ActivityContext.TryParse(traceParents[0], null, isRemote: true, out var remoteParent), Is.True);
-        Assert.That(remoteParent.TraceId, Is.EqualTo(published[0].TraceId));
+        Assert.That(remoteParent.TraceId, Is.EqualTo(originTraceId));
     }
 
     [Test]
@@ -123,13 +125,27 @@ public class TelemetryTraceBoundaryTests
         });
     }
 
+    private sealed class PartiallyFailingFeedClient : IRssFeedClient
+    {
+        public Task<RssFeedFetchResult> FetchAsync(
+            string feedUrl,
+            string? entityTag,
+            string? lastModified,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(feedUrl.EndsWith("/working", StringComparison.Ordinal)
+                ? new RssFeedFetchResult { Outcome = RssFeedOutcome.Success, StatusCode = 200 }
+                : new RssFeedFetchResult
+                {
+                    Outcome = RssFeedOutcome.Failed,
+                    FailureReason = "http",
+                    StatusCode = 500
+                });
+    }
+
     private sealed class EmptyQueue : IPgmqClient
     {
         public Task EnsureQueuesAsync(CancellationToken cancellationToken = default, params string[] additionalQueueNames) =>
             Task.CompletedTask;
-
-        public Task<long> SendAsync<T>(string queueName, T message, int delaySeconds = 0, CancellationToken cancellationToken = default) =>
-            Task.FromResult(1L);
 
         public Task<int> SendBatchAsync<T>(string queueName, IReadOnlyCollection<T> messages, CancellationToken cancellationToken = default) =>
             Task.FromResult(messages.Count);

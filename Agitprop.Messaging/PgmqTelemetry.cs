@@ -63,18 +63,13 @@ public static class PgmqTelemetry
         SnapshotByQueue[queueName] = new QueueSnapshot(queueLength, oldestMessageAgeSeconds);
 
     /// <summary>
-    /// Starts the producer span for one message. The span is a new trace root so a batch of jobs is
-    /// exported as one trace per message instead of a single trace holding every job. The producing
-    /// context is recorded as an attribute because .NET activities cannot carry span links.
+    /// Starts the producer span for one message. The span is a child of the current activity, so a
+    /// batch published by one application operation (an RSS cycle, a crawl) stays inside that
+    /// operation's trace, and the consumer continues the same trace through the traceparent stored
+    /// in the pgmq headers. Without an ambient activity the span becomes a root of its own.
     /// </summary>
     public static PublishScope BeginPublish(string queueName, int batchSize)
     {
-        var origin = Activity.Current;
-
-        // Clearing the ambient activity makes the publish span a root. It is restored on dispose so
-        // the enclosing cycle keeps whatever trace it had.
-        Activity.Current = null;
-
         var tags = new ActivityTagsCollection
         {
             { QueueTag, queueName },
@@ -82,19 +77,13 @@ public static class PgmqTelemetry
             { "messaging.batch.size", batchSize }
         };
 
-        if (origin is not null)
-        {
-            tags["agitprop.batch.origin_trace_id"] = origin.TraceId.ToHexString();
-        }
+        var activity = ActivitySource.StartActivity(
+            "publish",
+            ActivityKind.Producer,
+            Activity.Current?.Context ?? default,
+            tags);
 
-        var activity = ActivitySource.StartActivity("publish", ActivityKind.Producer, default(ActivityContext), tags);
-
-        if (activity is null)
-        {
-            System.Diagnostics.Activity.Current = origin;
-        }
-
-        return new PublishScope(activity, origin);
+        return new PublishScope(activity);
     }
 
     private static IEnumerable<Measurement<long>> ObserveQueueDepth()
@@ -118,24 +107,26 @@ public static class PgmqTelemetry
     private readonly record struct QueueSnapshot(long QueueLength, double OldestMessageAgeSeconds);
 
     /// <summary>
-    /// Holds one message publish span and restores the ambient activity it replaced.
+    /// Holds one message publish span. Disposing it stops the span and restores the ambient activity
+    /// it was created under.
     /// </summary>
     public readonly struct PublishScope : IDisposable
     {
         private readonly bool _started;
 
-        internal PublishScope(Activity? activity, Activity? origin)
+        internal PublishScope(Activity? activity)
         {
             Activity = activity;
-            Origin = origin;
             _started = true;
         }
 
         public Activity? Activity { get; }
 
-        public Activity? PropagationActivity => Activity ?? Origin;
-
-        private Activity? Origin { get; }
+        /// <summary>
+        /// The context written into the pgmq headers: the publish span when a listener is recording,
+        /// otherwise the ambient activity, so the consumer still continues the caller's trace.
+        /// </summary>
+        public Activity? PropagationActivity => Activity ?? System.Diagnostics.Activity.Current;
 
         public void Dispose()
         {
@@ -145,7 +136,6 @@ public static class PgmqTelemetry
             }
 
             Activity?.Dispose();
-            System.Diagnostics.Activity.Current = Origin;
         }
     }
 }

@@ -28,12 +28,6 @@ public interface IPgmqClient
         CancellationToken cancellationToken = default,
         params string[] additionalQueueNames);
 
-    Task<long> SendAsync<T>(
-        string queueName,
-        T message,
-        int delaySeconds = 0,
-        CancellationToken cancellationToken = default);
-
     Task<int> SendBatchAsync<T>(
         string queueName,
         IReadOnlyCollection<T> messages,
@@ -127,27 +121,6 @@ public sealed class PgmqClient(NpgsqlDataSource dataSource) : IPgmqClient
         await transaction.CommitAsync(cancellationToken);
     }
 
-    public async Task<long> SendAsync<T>(
-        string queueName,
-        T message,
-        int delaySeconds = 0,
-        CancellationToken cancellationToken = default)
-    {
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        using var publish = PgmqTelemetry.BeginPublish(queueName, batchSize: 1);
-        await using var command = CreateSendCommand(
-            connection,
-            null,
-            queueName,
-            message,
-            delaySeconds,
-            CreateTraceHeaders(publish.PropagationActivity));
-        var result = await command.ExecuteScalarAsync(cancellationToken);
-        return result is long messageId
-            ? messageId
-            : throw new InvalidOperationException($"pgmq.send did not return a message ID for '{queueName}'.");
-    }
-
     public async Task<int> SendBatchAsync<T>(
         string queueName,
         IReadOnlyCollection<T> messages,
@@ -163,8 +136,8 @@ public sealed class PgmqClient(NpgsqlDataSource dataSource) : IPgmqClient
 
         foreach (var message in messages)
         {
-            // Every job gets its own producer span and traceparent, so consumers of one batch are
-            // not merged into one very large trace.
+            // One producer span per message, all under the caller's trace, so the consumer can
+            // continue that trace from the traceparent in the headers.
             using var publish = PgmqTelemetry.BeginPublish(queueName, messages.Count);
             await using var command = CreateSendCommand(
                 connection,

@@ -224,7 +224,7 @@ public sealed class Spider(
     private async Task<HtmlDocument> LoadPageAsync(ScrapingJob job, CancellationToken cancellationToken)
     {
         using var activity = _activitySource.StartActivity("LoadPageAsync", ActivityKind.Internal);
-        bool isHeadless = _configuration.GetValue<bool>("Headless");
+        bool isHeadless = _configuration.GetValue("Headless", true);
         activity?.SetTag("server.address", TelemetryUrl.GetServerAddress(job.Url));
 
         _logger?.LogDebug("Loading page with transport: {Url}", TelemetryUrl.RedactQueryAndFragment(job.Url));
