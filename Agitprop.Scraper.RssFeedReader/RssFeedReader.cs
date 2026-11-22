@@ -195,7 +195,7 @@ public sealed class RssFeedReader : BackgroundService
         using var activity = _activitySource.StartActivity("rss.feed", ActivityKind.Internal);
         var stopwatch = Stopwatch.StartNew();
         var safeFeedUrl = Core.TelemetryUrl.RedactQueryAndFragment(feedUrl);
-        var feedHost = GetFeedHost(feedUrl);
+        var feedHost = Core.TelemetryUrl.GetServerAddress(feedUrl);
         var cursor = _state.Get(feedUrl);
         var outcome = OutcomeSuccess;
 
@@ -308,7 +308,8 @@ public sealed class RssFeedReader : BackgroundService
                         {
                             summary.ItemsDuplicate++;
                             _itemsDuplicate.Add(1,
-                                new KeyValuePair<string, object?>("feed.host", GetFeedHost(fetch.FeedUrl)));
+                                new KeyValuePair<string, object?>("feed.host",
+                                    Core.TelemetryUrl.GetServerAddress(fetch.FeedUrl)));
                             continue;
                         }
 
@@ -394,9 +395,6 @@ public sealed class RssFeedReader : BackgroundService
             summary.ItemsPublished,
             summary.Outcome);
     }
-
-    private static string GetFeedHost(string feedUrl) =>
-        Uri.TryCreate(feedUrl, UriKind.Absolute, out var uri) ? uri.Host : "unknown";
 
     private sealed record FeedFetch(string FeedUrl, FeedCursor Cursor, RssFeedFetchResult Result);
 
