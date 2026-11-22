@@ -85,15 +85,11 @@ internal sealed class FakeEntityRepository : IEntityRepository
         return EntityById;
     }
 
-    public IEnumerable<Entity> GetEntitiesAsync() => [];
     public IEnumerable<Article> GetMentioningArticlesAsync(string entityId, DateOnly from, DateOnly to) => [];
     public (IEnumerable<Article> Items, int TotalCount) GetMentioningArticlesPaginatedAsync(string entityId, DateOnly from, DateOnly to, int page, int pageSize) => ([], 0);
     public IEnumerable<(string Domain, int Count)> GetMentioningArticlesByDomainAsync(string entityId, DateOnly from, DateOnly to) => [];
     public IReadOnlyList<EntityCoMention> GetCoMentionedEntities(string entityId, DateOnly from, DateOnly to, int limit) => [];
     public IReadOnlyList<Agitprop.Core.Models.SourceEntityCoverage> GetSourceEntityCoverage(DateOnly from, DateOnly to, int sourceLimit, int entityLimit) => [];
-    public IEnumerable<Entity> SearchEntitiesAsync(string query) => [];
-    public IEnumerable<Entity> GetEntitiesPaginatedAsync(DateOnly from, DateOnly to, int page, int pageSize) => [];
-    public Task<IEnumerable<Entity>> GetAllEntitiesAsync(DateOnly from, DateOnly to) => Task.FromResult<IEnumerable<Entity>>([]);
 }
 
 internal sealed class FakeArticleFeedRepository : IArticleFeedRepository

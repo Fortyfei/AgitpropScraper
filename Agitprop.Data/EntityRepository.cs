@@ -23,52 +23,6 @@ public class EntityRepository : IEntityRepository
         _logger = logger;
     }
 
-    public IEnumerable<Entity> GetEntitiesAsync()
-    {
-        using var trace = _activitySource.StartActivity("GetEntities", ActivityKind.Internal);
-        try
-        {
-            var results = _dbContext.Entities;
-            return results.ToCoreModel();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to retrieve all entities");
-            trace?.SetStatus(ActivityStatusCode.Error, ex.Message);
-            throw;
-        }
-    }
-
-    public IEnumerable<Entity> GetEntitiesPaginatedAsync(DateOnly startDate, DateOnly endDate, int page, int pageSize)
-    {
-        using var trace = _activitySource.StartActivity("GetEntitiesPaginated", ActivityKind.Internal);
-        trace?.SetTag("startDate", startDate.ToString());
-        trace?.SetTag("endDate", endDate.ToString());
-        trace?.SetTag("page", page);
-        trace?.SetTag("pageSize", pageSize);
-
-        try
-        {
-            var (from, to) = ReportingTimeZone.ToUtcRange(startDate, endDate);
-
-            var entities = _dbContext.Entities
-                .Where(e => e.Mentions.Any(m =>
-                    m.Article.PublishedTime >= from &&
-                    m.Article.PublishedTime <= to))
-                .Skip(page * pageSize)
-                .Take(pageSize);
-
-            trace?.SetTag("resultCount", entities.Count());
-            return entities.ToCoreModel();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to retrieve paginated entities mentioned in articles between {startDate} and {endDate}", startDate, endDate);
-            trace?.SetStatus(ActivityStatusCode.Error, ex.Message);
-            throw;
-        }
-    }
-
     public Entity? GetEntityByIdAsync(string entityId)
     {
         using var trace = _activitySource.StartActivity("GetEntityById", ActivityKind.Internal);
@@ -421,24 +375,6 @@ public class EntityRepository : IEntityRepository
         }
     }
 
-    public IEnumerable<Entity> SearchEntitiesAsync(string query)
-    {
-        using var trace = _activitySource.StartActivity("SearchEntities", ActivityKind.Internal);
-
-        try
-        {
-            var results = _dbContext.Entities
-                .Where(e => EF.Functions.ILike(e.Name, $"%{query}%"));
-            return results.ToCoreModel();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to search entities with query '{query}'", query);
-            trace?.SetStatus(ActivityStatusCode.Error, ex.Message);
-            throw;
-        }
-    }
-
     public (IEnumerable<(Entity Entity, int MentionCount)> Items, int TotalCount) GetEntitiesWithMentionCountAsync(
         DateOnly from, DateOnly to, int page, int pageSize, string? search = null)
     {
@@ -484,33 +420,6 @@ public class EntityRepository : IEntityRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to retrieve entities with mention counts");
-            trace?.SetStatus(ActivityStatusCode.Error, ex.Message);
-            throw;
-        }
-    }
-
-    public async Task<IEnumerable<Entity>> GetAllEntitiesAsync(DateOnly startDate, DateOnly endDate)
-    {
-        using var trace = _activitySource.StartActivity("GetAllEntities", ActivityKind.Internal);
-        trace?.SetTag("startDate", startDate.ToString());
-        trace?.SetTag("endDate", endDate.ToString());
-
-        try
-        {
-            var (from, to) = ReportingTimeZone.ToUtcRange(startDate, endDate);
-
-            var entities = await _dbContext.Entities
-                .Where(e => e.Mentions.Any(m =>
-                    m.Article.PublishedTime >= from &&
-                    m.Article.PublishedTime <= to))
-                .ToListAsync();
-
-            trace?.SetTag("resultCount", entities.Count);
-            return entities.ToCoreModel();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to retrieve all entities mentioned in articles between {startDate} and {endDate}", startDate, endDate);
             trace?.SetStatus(ActivityStatusCode.Error, ex.Message);
             throw;
         }
