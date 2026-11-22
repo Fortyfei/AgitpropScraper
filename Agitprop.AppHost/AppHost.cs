@@ -164,11 +164,17 @@ internal class Program
             // points at a directory holding a config.json, which is the login the deploy user
             // performed. A directory rather than a file, so a re-login (new inode) is picked up
             // without restarting Watchtower.
-            builder.AddContainer("watchtower", "containrrr/watchtower", "1.7.1")
+            // The maintained fork, not containrrr/watchtower: the last containrrr release (1.7.1)
+            // negotiates Docker API 1.25, which Engine 29 no longer accepts, so that image exited
+            // with code 1 on every boot. The fork ships a current Docker client and negotiates the
+            // API version itself.
+            builder.AddContainer("watchtower", "nickfedor/watchtower", "1.24.1")
                    // One container at a time, and for web (which has a health check) the old one
-                   // only stops once the new one reports healthy.
+                   // only stops once the new one reports healthy. The fork documents
+                   // --stop-timeout as a duration: a bare number still means seconds, the suffix
+                   // is the explicit form.
                    .WithArgs("--label-enable", "--cleanup", "--rolling-restart",
-                             "--interval", "300", "--stop-timeout", "120")
+                             "--interval", "300", "--stop-timeout", "120s")
                    .WithBindMount("/var/run/docker.sock", "/var/run/docker.sock")
                    .WithBindMount("/opt/agitprop/docker-config", "/config", isReadOnly: true)
                    .WithEnvironment("DOCKER_CONFIG", "/config")

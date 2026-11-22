@@ -454,6 +454,21 @@ pointing there). Without that copy it silently fails to pull and only logs
 `unauthorized` — the first place to look when a merge does not show up on the
 site.
 
+The image is the maintained `nickfedor/watchtower` fork, not
+`containrrr/watchtower`. The last containrrr release, 1.7.1, negotiates Docker
+API 1.25, and Docker Engine 29 — what `get.docker.com` now installs — rejects
+anything below 1.44, so that container exited with code 1 on every boot:
+
+```
+Error response from daemon: client version 1.25 is too old.
+Minimum supported API version is 1.44, please upgrade your client to a newer version
+```
+
+The fork ships a current Docker client and negotiates the API version itself, so
+no `DOCKER_API_VERSION` override is needed. Its flags match the ones used here;
+`--stop-timeout` is documented as a duration and written `120s` in `AppHost.cs`,
+though a bare number still means seconds.
+
 Automatic updates are visible in `docker compose logs -f watchtower`.
 
 One caveat after any restart of `web` (Watchtower or manual): `cloudflared` may
