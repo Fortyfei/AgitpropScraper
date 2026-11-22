@@ -90,9 +90,10 @@ with every problem listed in one message.
 
 - `outcome` is `success`, `partial_failure` (some feeds failed), `failure`
   (every feed failed or the cycle threw) or `cancelled`.
-- `PgmqClient` opens a separate `Producer` root span per message, so a batch is
-  exported as one trace per job; `agitprop.batch.origin_trace_id` links them to
-  the cycle. No span or event is created per feed item.
+- The whole cycle is one trace: `PgmqClient` opens one `Producer` span per
+  message under `rss.publish`, and the consumer continues that same trace from
+  the `traceparent` in the pgmq headers. No span or event is created per feed
+  item.
 - Metrics: `rss.cycle.duration` (`outcome`), `rss.feed.duration` (`feed.host`,
   `outcome`), `rss.items.fetched` (`feed.host`), `rss.items.duplicate`
   (`feed.host`), `rss.jobs.published`, `rss.feed.failures` (`feed.host`,

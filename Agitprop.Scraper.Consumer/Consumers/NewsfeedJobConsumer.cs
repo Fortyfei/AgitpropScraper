@@ -109,8 +109,8 @@ namespace Agitprop.Scraper.Consumer.Consumers
 
                 if (eligibleJobs.Count > 0)
                 {
-                    // The real producer boundary is the publish span created per message by
-                    // PgmqClient; this span only groups the work that produced the batch.
+                    // PgmqClient opens the real producer span per message; they hang under this
+                    // span, so discovered jobs and their publishes stay in one trace.
                     using var publishActivity = _activitySource.StartActivity("PublishNewJobs", ActivityKind.Internal);
                     publishActivity?.SetTag("publish.jobs.count", eligibleJobs.Count);
                     try

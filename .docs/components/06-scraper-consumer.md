@@ -50,10 +50,9 @@ Requires the PostgreSQL connection string; throws `InvalidOperationException` if
 - The shared service defaults collect the consumer ActivitySource and Meter,
   correlating queue processing with scraper work and exporting it through OTLP
   when configured.
-- Every batched message is published in its own trace: `PgmqClient` creates a
-  `Producer` span per message and writes that `traceparent` into the pgmq headers,
-  so a batch of jobs never becomes one giant trace. The producing cycle is recorded
-  as `agitprop.batch.origin_trace_id` because .NET activities cannot carry links.
+- `PgmqClient` creates a `Producer` span per message as a child of the operation
+  that produced the batch, and writes that `traceparent` into the pgmq headers, so
+  a job continues the producing trace (an RSS cycle stays one trace end to end).
 - The consumer span reports one bounded `outcome`: `success`, `skipped`, `failure`,
   `retry_scheduled`, `dead_lettered`, or `cancelled`. Failure spans also carry a
   bounded `failure.class` (`permanent`, `transient`, `unknown`).

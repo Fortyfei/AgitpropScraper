@@ -72,7 +72,7 @@ public class TelemetryTraceBoundaryTests
     }
 
     [Test]
-    public void BatchedPublish_GivesEveryMessageItsOwnTraceContext()
+    public void BatchedPublish_KeepsEveryMessageInsideTheProducingTrace()
     {
         var stopped = new List<Activity>();
         using var listener = new ActivityListener
@@ -99,18 +99,16 @@ public class TelemetryTraceBoundaryTests
         Assert.Multiple(() =>
         {
             Assert.That(Activity.Current, Is.SameAs(origin), "The ambient activity must be restored");
-            Assert.That(published.Select(activity => activity.TraceId).Distinct().Count(), Is.EqualTo(3));
-            Assert.That(published.All(activity => activity.TraceId != originTraceId), Is.True);
-            Assert.That(published.All(activity => activity.Parent is null), Is.True);
-            Assert.That(published.All(activity =>
-                Equals(activity.GetTagItem("agitprop.batch.origin_trace_id"), originTraceId.ToHexString())), Is.True);
+            Assert.That(published.Select(activity => activity.TraceId).Distinct().Count(), Is.EqualTo(1));
+            Assert.That(published.All(activity => activity.TraceId == originTraceId), Is.True);
+            Assert.That(published.All(activity => activity.ParentSpanId == origin.SpanId), Is.True);
             Assert.That(stopped, Has.Count.EqualTo(3));
         });
 
-        // The traceparent written to pgmq parses back as a remote parent, so consumption continues
-        // the message trace instead of the producer's.
+        // The traceparent written to pgmq parses back as a remote parent in the producer's trace, so
+        // consumption continues that trace instead of starting one per message.
         Assert.That(ActivityContext.TryParse(traceParents[0], null, isRemote: true, out var remoteParent), Is.True);
-        Assert.That(remoteParent.TraceId, Is.EqualTo(published[0].TraceId));
+        Assert.That(remoteParent.TraceId, Is.EqualTo(originTraceId));
     }
 
     [Test]

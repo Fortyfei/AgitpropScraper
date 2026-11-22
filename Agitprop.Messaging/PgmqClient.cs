@@ -136,8 +136,8 @@ public sealed class PgmqClient(NpgsqlDataSource dataSource) : IPgmqClient
 
         foreach (var message in messages)
         {
-            // Every job gets its own producer span and traceparent, so consumers of one batch are
-            // not merged into one very large trace.
+            // One producer span per message, all under the caller's trace, so the consumer can
+            // continue that trace from the traceparent in the headers.
             using var publish = PgmqTelemetry.BeginPublish(queueName, messages.Count);
             await using var command = CreateSendCommand(
                 connection,
