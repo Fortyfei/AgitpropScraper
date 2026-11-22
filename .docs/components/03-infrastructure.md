@@ -49,7 +49,6 @@ non-browser scraping.
 |------|---------|
 | `RotatingProxyPageRequester.cs` | Uses proxy pool for requests |
 | `RespectfulPageRequester.cs` | Direct HTTP with politeness delay |
-| `PageRequester.cs` | Base requester |
 
 ### ProxyProviders/
 
