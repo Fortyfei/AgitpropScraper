@@ -28,8 +28,10 @@ public class Program
         // Add default service configurations.
         builder.AddServiceDefaults();
 
-        // Configure infrastructure with browser support.
-        builder.ConfigureInfrastructureWithBrowser(false);
+        // Configure infrastructure with browser support. Proxy rotation is opt-in:
+        // Proxy:UseProxies=true routes HTTP page loads through the proxy pool.
+        builder.ConfigureInfrastructureWithBrowser(
+            builder.Configuration.GetValue("Proxy:UseProxies", false));
 
         builder.ConfigurePgmq();
 
