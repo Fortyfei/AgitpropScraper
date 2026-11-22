@@ -8,7 +8,9 @@ on:
   pull_request:
 
 env:
-  # Keep in sync with Aspire.AppHost.Sdk in Agitprop.AppHost/Agitprop.AppHost.csproj.
+  # Pinned so a CLI release cannot change the published bundle unnoticed. The AppHost itself
+  # references the Aspire.Hosting packages in Directory.Packages.props; moving this pin is a
+  # deliberate change that must be verified with a full run on main.
   ASPIRE_CLI_VERSION: 13.6.5
 
 jobs:
@@ -83,6 +85,9 @@ jobs:
         with:
           name: agitprop-deploy
           path: artifacts
+          # .env and .build-sha are the two files the operator needs on the host, and this action
+          # skips dotfiles unless asked: without this the bundle arrives with no .env at all.
+          include-hidden-files: true
           if-no-files-found: error
 
   build-and-push:
