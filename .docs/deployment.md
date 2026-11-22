@@ -60,20 +60,28 @@ aspire do push      # build and push to the registry configured above
 
 ### GitHub Actions: `aspire-publish.yml`
 
-The workflow (`.github/workflows/aspire-publish.yml`) runs on push to `main` and:
+Pull requests run the two test jobs. A push to `main` additionally runs the release jobs
+in this order:
 
-1. Restores .NET solution.
-2. Builds the Aspire application model and image artifacts.
-3. Pushes images through `aspire do push`.
-4. Pushes images to `ghcr.io/fortyfei/agitprop/*`.
+1. `test` and `integration-tests` — the deterministic unit tests and the Aspire
+   integration tests; everything below waits for them.
+2. `build-and-push` — `aspire do push` builds and pushes every image under its commit
+   SHA, then moves the `stable` tag onto those images with `docker buildx imagetools
+   create`.
+3. `publish-deployment` — `aspire publish` generates `docker-compose.yaml` and `.env`,
+   the AppHost's `postgres-init` script is copied next to them, the `.env` is filled with
+   the `stable` image names and the two bind-mount sources, and the commit is written to
+   `.build-sha`. The result is uploaded as the `agitprop-deploy` artifact.
+
+The artifact upload must keep `include-hidden-files: true`: `.env` and `.build-sha`
+are dotfiles, and `actions/upload-artifact` drops them silently otherwise.
 
 ### Environment Variables for CI:
 
 ```yaml
 env:
-  REGISTRY: ghcr.io
-  IMAGE_NAMESPACE: fortyfei
-  DOCKER_BUILDKIT: 1
+  # Pinned Aspire CLI used by the build and publish jobs.
+  ASPIRE_CLI_VERSION: 13.6.5
 ```
 
 ## 5. Aspire CLI Commands
