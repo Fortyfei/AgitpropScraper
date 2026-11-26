@@ -72,6 +72,16 @@ All extend the abstract `BaseArticleContentParser : IContentParser`.
   strip out of the entity-recognition input. The slider labels unrelated
   Index articles with an "Index" badge, so without this filter most Blikk
   articles appeared to mention the Index outlet.
+- The 24.hu parser keeps list items (the daily digest posts are a `<ul>` of
+  headlines) and drops the "Cikkajánló" widget ("Kapcsolódó" plus another
+  article's title and lead) and the sponsored box, while keeping the
+  editorial "Keretes megjelenés" box. It no longer unions the body with a
+  positional container selector, which used to append a second copy of every
+  article body.
+- The Mérce parser drops the end-of-article donation box ("Csatlakozom!") but
+  keeps the "Kiemelt kép" attachment credit.
+- A body whose matched nodes carry no text at all is reported as a parse
+  failure instead of being persisted as a title-only article.
 - Origo article paragraphs can come from `.block-content`; selected sources
   fall back to `og:description` when the page exposes no article body, such as
   an age-confirmation screen or a video-only article.

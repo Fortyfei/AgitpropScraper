@@ -324,7 +324,10 @@ internal abstract class BaseArticleContentParser : IContentParser
                 ]);
             }
 
-            if (articleNodes.Count == 0 &&
+            // Matched nodes may carry no text at all; do not persist a title-only article.
+            string articleText = string.Join(" ", articleNodes.Select(ExtractNodeText).Where(text => !string.IsNullOrWhiteSpace(text)));
+
+            if (string.IsNullOrWhiteSpace(articleText) &&
                 AllowsLeadOnlyContent &&
                 string.IsNullOrWhiteSpace(leadText))
             {
@@ -336,11 +339,9 @@ internal abstract class BaseArticleContentParser : IContentParser
                 leadText = descriptionNode != null ? ExtractNodeText(descriptionNode) + " " : string.Empty;
             }
 
-            if (!articleNodes.Any() &&
+            if (string.IsNullOrWhiteSpace(articleText) &&
                 (!AllowsLeadOnlyContent || string.IsNullOrWhiteSpace(leadText)))
                 throw new ContentParserException("Article content not found");
-
-            string articleText = string.Join(" ", articleNodes.Select(ExtractNodeText).Where(text => !string.IsNullOrWhiteSpace(text)));
 
             string concatenatedText = titleText + leadText + articleText;
             concatenatedText = concatenatedText.Replace("Ez a cikk több mint 1 éves.", string.Empty, StringComparison.OrdinalIgnoreCase);

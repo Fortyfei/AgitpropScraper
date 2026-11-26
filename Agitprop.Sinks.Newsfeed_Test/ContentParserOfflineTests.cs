@@ -1,4 +1,5 @@
 using Agitprop.Core;
+using Agitprop.Core.Exceptions;
 
 namespace Agitprop.Sinks.Newsfeed_Test;
 public class ContentParserOfflineTests
@@ -192,6 +193,85 @@ public class ContentParserOfflineTests
                     "Third body paragraph. Article subheading Photo caption. Fourth body paragraph."));
             Assert.That(result.Text, Does.Not.Contain("Index"));
         });
+    }
+
+    [Test]
+    public async Task HuszonnegyHuParser_KeepsListBodyAndDropsRelatedAndSponsoredWidgets()
+    {
+        const string html = """
+            <meta property="article:published_time" content="2026-11-26T21:56:05+01:00">
+            <h1 class="o-post__title">24.hu article title</h1>
+            <div class="o-post__body post-body mrf-article-body">
+                <p>First paragraph.</p>
+                <ul>
+                    <li>First digest item.</li>
+                    <li>Second digest item.</li>
+                </ul>
+                <div class="article_box_border _ce_measure_widget" data-ce-measure-widget="Keretes megjelenés">
+                    <p>Boxed result line.</p>
+                </div>
+                <div class="o-post__articRecommend m-articRecommend _ce_measure_widget" data-ce-measure-widget="Cikkajánló widget">
+                    <div class="m-articRecommend__widgetTitle">Kapcsolódó</div>
+                    <ul><li>Other article title</li></ul>
+                    <div class="m-articRecommend__lead ar-lead">Other article lead.</div>
+                </div>
+                <div class="article_box_border_szponzibox">
+                    <p>Sponsored box copy.</p>
+                </div>
+                <p>Last paragraph.</p>
+            </div>
+            """;
+
+        var parser = TestCaseFactory.GetSource("HuszonnegyHu").CreateContentParser();
+        var result = await parser.ParseContentAsync(html);
+
+        Assert.That(
+            result.Text,
+            Is.EqualTo(
+                "24.hu article title First paragraph. First digest item. Second digest item. " +
+                "Boxed result line. Last paragraph."));
+    }
+
+    [Test]
+    public void HuszonnegyHuParser_FailsWhenTheBodyCarriesNoText()
+    {
+        const string html = """
+            <meta property="article:published_time" content="2026-11-26T21:56:05+01:00">
+            <h1 class="o-post__title">24.hu article title</h1>
+            <div class="o-post__body post-body mrf-article-body">
+                <p> </p>
+            </div>
+            """;
+
+        var parser = TestCaseFactory.GetSource("HuszonnegyHu").CreateContentParser();
+
+        Assert.ThrowsAsync<ContentParserException>(() => parser.ParseContentAsync(html));
+    }
+
+    [Test]
+    public async Task MerceParser_ExcludesDonationBoxButKeepsAttachmentCredit()
+    {
+        const string html = """
+            <meta property="article:published_time" content="2026-11-26T20:15:00+01:00">
+            <h1 class="entry-title">Mérce article title</h1>
+            <div class="entry-content">
+                <p>Article paragraph.</p>
+                <div class="box box-cikkvegi-fr">
+                    <p>Elindult immár hagyományos év végi kampányunk.</p>
+                    <a class="merce-button" href="https://example.org">Csatlakozom!</a>
+                </div>
+                <div class="attachment-credit">
+                    <span class="credit-title">Kiemelt kép:</span> <span class="credit-text">Photo credit.</span>
+                </div>
+            </div>
+            """;
+
+        var parser = TestCaseFactory.GetSource("Merce").CreateContentParser();
+        var result = await parser.ParseContentAsync(html);
+
+        Assert.That(
+            result.Text,
+            Is.EqualTo("Mérce article title Article paragraph. Kiemelt kép: Photo credit."));
     }
 
     [Test]
