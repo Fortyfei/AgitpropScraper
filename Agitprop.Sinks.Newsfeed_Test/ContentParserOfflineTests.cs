@@ -143,6 +143,58 @@ public class ContentParserOfflineTests
     }
 
     [Test]
+    public async Task BlikkParser_ExcludesCrossBrandTeasersAndPromotionsFromArticleText()
+    {
+        const string html = """
+            <meta property="article:published_time" content="2026-11-26T20:49:00+01:00">
+            <h1>Blikk article title</h1>
+            <section id="lead"><p>Article lead.</p></section>
+            <section id="article-content">
+                <p class="paragraph tracking-paragraph">First body paragraph.</p>
+                <div id="adoceanindexhukmhsmmjnim" class="ibb-banner-decor">
+                    <script>ado.slave('adoceanindexhukmhsmmjnim', { server: 'indexhu.adocean.pl' });</script>
+                </div>
+                <p class="paragraph tracking-paragraph">Second body paragraph.</p>
+                <div id="recommendation-slider">
+                    <div class="swiper-slide">
+                        <a href="https://index.hu/belfold/example"><span class="uppercase">Index</span>
+                            <span class="font-blick text-heading-6">Teaser from Index.</span></a>
+                    </div>
+                    <div class="swiper-slide">
+                        <a href="https://www.blikk.hu/sztarvilag/example"><span class="font-blick text-heading-6">Teaser from Blikk.</span></a>
+                    </div>
+                </div>
+                <a class="block mx-auto mb-6" href="https://www.blikk.hu/sztarvilag/promo">
+                    <span>Ez is érdekelheti</span>
+                    <p class="line-clamp-2 text-bodycopy-sm">Promotional article teaser.</p>
+                </a>
+                <p class="paragraph tracking-paragraph">Third body paragraph.</p>
+                <h2 class="font-blick mb-4">Article subheading</h2>
+                <div class="mb-6 max-w-[816px] h-fit" data-tagrecommendation="https://www.blikk.hu/cimke/example">
+                    <a class="title border-l" href="https://www.blikk.hu/cimke/example"><p class="border-l-4 pl-2">Topic tag</p></a>
+                </div>
+                <div class="mb-6 border-b border-gray-300">
+                    <span><p class="py-2 text-bodycopy-xs">Photo caption.</p></span>
+                </div>
+                <p class="paragraph tracking-paragraph">Fourth body paragraph.</p>
+            </section>
+            """;
+
+        var parser = TestCaseFactory.GetSource("Blikk").CreateContentParser();
+        var result = await parser.ParseContentAsync(html);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(
+                result.Text,
+                Is.EqualTo(
+                    "Blikk article title Article lead. First body paragraph. Second body paragraph. " +
+                    "Third body paragraph. Article subheading Photo caption. Fourth body paragraph."));
+            Assert.That(result.Text, Does.Not.Contain("Index"));
+        });
+    }
+
+    [Test]
     public async Task OrigoParser_UsesStructuredDataForDateAndArticleBody()
     {
         const string html = """

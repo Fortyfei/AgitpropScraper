@@ -67,6 +67,11 @@ All extend the abstract `BaseArticleContentParser : IContentParser`.
 - The Index parser excludes scripts/styles, the Google preference banner,
   social/footer widgets, microsite ad blocks, and related-post lists from the
   text sent to entity recognition, while retaining article image captions.
+- The Blikk parser likewise keeps the Indamedia cross-brand teaser slider
+  ("Olvasta már?"), the promotional article link, and the tag-recommendation
+  strip out of the entity-recognition input. The slider labels unrelated
+  Index articles with an "Index" badge, so without this filter most Blikk
+  articles appeared to mention the Index outlet.
 - Origo article paragraphs can come from `.block-content`; selected sources
   fall back to `og:description` when the page exposes no article body, such as
   an age-confirmation screen or a video-only article.
