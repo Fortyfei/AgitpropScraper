@@ -142,7 +142,8 @@ public class AnalyticsService
                     {
                         Id = entity.Id ?? entityId,
                         Name = entity.Name,
-                        Type = entity.Type ?? string.Empty
+                        Type = entity.Type ?? string.Empty,
+                        Aliases = entity.Aliases
                     };
             })));
     }

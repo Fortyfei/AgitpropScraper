@@ -69,6 +69,18 @@
     font-size: 0.95rem;
 }
 
+.entity-aliases {
+    color: var(--slate);
+    font-size: 0.85rem;
+    margin: 0.4rem 0 0;
+}
+
+.entity-aliases-label {
+    color: var(--ink);
+    font-weight: 700;
+    margin-right: 0.4rem;
+}
+
 .entity-mention-count strong {
     color: var(--ink);
 }

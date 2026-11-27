@@ -50,6 +50,21 @@ public class NamedEntityRecognizerTests
     }
 
     [Test]
+    public async Task AnalyzeSingleAsync_DeduplicatesCaseInsensitiveSurfaceForms()
+    {
+        var model = new RecordingNerModel(new Dictionary<int, int>
+        {
+            [10] = 0,
+            [19] = 0
+        });
+        using var recognizer = CreateRecognizer(model);
+
+        var result = await recognizer.AnalyzeSingleAsync("Szeged, szeged");
+
+        Assert.That(result.All.Select(entity => entity.Name), Is.EqualTo(new[] { "Szeged" }));
+    }
+
+    [Test]
     public async Task AnalyzeBatchAsync_PreservesInputOrderAndEmptyResults()
     {
         var model = new RecordingNerModel(new Dictionary<int, int>
@@ -101,7 +116,8 @@ public class NamedEntityRecognizerTests
                 ["entity"] = 17,
                 [","] = 18,
                 ["Szent"] = 15,
-                ["##endre"] = 16
+                ["##endre"] = 16,
+                ["szeged"] = 19
             },
             "[UNK]",
             "##",

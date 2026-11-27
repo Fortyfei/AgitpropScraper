@@ -14,6 +14,11 @@ public static class Mappers
             Id = entity.Id.ToString(),
             Name = entity.Name,
             Type = entity.Type,
+            Aliases = entity.Aliases
+                .Select(alias => alias.Alias)
+                .Where(alias => !string.Equals(alias, entity.Name, StringComparison.Ordinal))
+                .OrderBy(alias => alias, StringComparer.Ordinal)
+                .ToList(),
         };
     }
 

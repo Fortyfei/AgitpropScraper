@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading.Tasks;
 
 using Agitprop.Core.Interfaces;
 using Agitprop.Infrastructure.Puppeteer;
@@ -7,6 +8,7 @@ using Agitprop.Sources;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace Agitprop.Scraper.Consumer;
 
@@ -19,7 +21,7 @@ public class Program
     /// The main method that configures and runs the application.
     /// </summary>
     /// <param name="args">The command-line arguments.</param>
-    public static void Main(string[] args)
+    public static async Task Main(string[] args)
     {
         var builder = Host.CreateApplicationBuilder(args);
 
@@ -49,7 +51,16 @@ public class Program
 
         var app = builder.Build();
         app.Services.GetRequiredService<INamedEntityRecognizer>();
-        
-        app.Run();
+
+        using (var scope = app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<Agitprop.Data.AppDbContext>();
+            var logger = scope.ServiceProvider
+                .GetRequiredService<ILoggerFactory>()
+                .CreateLogger("EntityCatalog");
+            await Agitprop.Data.EntityCatalogSeeder.TrySeedAsync(db, logger);
+        }
+
+        await app.RunAsync();
     }
 }

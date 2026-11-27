@@ -7,4 +7,7 @@ public class PostgresMention
 
     public Guid EntityId { get; set; }
     public PostgresEntity Entity { get; set; } = null!;
+
+    public string? SurfaceForm { get; set; }
+    public string? MatchKind { get; set; }
 }

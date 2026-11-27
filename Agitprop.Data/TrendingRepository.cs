@@ -35,11 +35,15 @@ public class TrendingRepository : ITrendingRepository
             .Where(e => e.Mentions.Any(m =>
                 m.Article.PublishedTime >= from &&
                 m.Article.PublishedTime <= to))
-                .OrderByDescending(e => e.Mentions.Count)
-                .Take(topN);
+            .OrderByDescending(e => e.Mentions.Count(m =>
+                m.Article.PublishedTime >= from &&
+                m.Article.PublishedTime <= to))
+            .ThenBy(e => e.Name)
+            .Take(topN)
+            .ToList();
 
-        _logger.LogInformation("Found {Count} trending entities between {From} and {To}", entities.Count(), from, to);
-        trace?.SetTag("found.entities.count", entities.Count());
+        _logger.LogInformation("Found {Count} trending entities between {From} and {To}", entities.Count, from, to);
+        trace?.SetTag("found.entities.count", entities.Count);
 
         return entities.ToCoreModel();
     }

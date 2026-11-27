@@ -29,6 +29,14 @@
                 }
             </div>
 
+            @if (Entity.Aliases.Count > 0)
+            {
+                <p class="entity-aliases">
+                    <span class="entity-aliases-label">Also known as</span>
+                    @string.Join(" · ", Entity.Aliases)
+                </p>
+            }
+
             <div class="entity-detail-meta">
                 <span class="entity-mention-count">
                     <strong>@TotalMentions.ToString("N0")</strong> mentions in the last <strong>@SelectedTimeframe.Label</strong>

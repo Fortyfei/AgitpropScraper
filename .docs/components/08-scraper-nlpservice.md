@@ -11,8 +11,14 @@ model with ONNX Runtime.
 
 The model recognizes `PER`, `LOC`, `ORG`, and `MISC` labels. It returns entity
 surface text from the original article, preserves first-seen order, and removes
-duplicate `(name, type)` pairs. The model does not provide spaCy-style lemmas;
-surface forms are an intentional compatibility difference.
+duplicate `(name, type)` pairs (case-insensitively). The model does not provide
+spaCy-style lemmas; surface forms are an intentional compatibility difference.
+
+Surface normalisation and canonicalisation are not this component's job: the
+write path in `Agitprop.Data` maps the raw forms onto canonical entities through
+a typed alias table (`EntityResolver`), so `Magyarországon` and `Magyarország`
+share one row while a homograph such as the river `Tisza` and `Tisza Párt` stays
+two rows.
 
 Single-text and batch calls retain the existing `NamedEntityCollection` result
 shape. Inputs longer than the model's 512-token limit are processed in

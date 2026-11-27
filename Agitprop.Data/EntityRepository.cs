@@ -30,7 +30,10 @@ public class EntityRepository : IEntityRepository
 
         try
         {
-            var results = _dbContext.Entities.Include(e => e.Mentions).AsNoTracking().FirstOrDefault(e => e.Id == Guid.Parse(entityId));
+            var results = _dbContext.Entities
+                .Include(e => e.Aliases)
+                .AsNoTracking()
+                .FirstOrDefault(e => e.Id == Guid.Parse(entityId));
             return results?.ToCoreModel();
         }
         catch (Exception ex)
@@ -395,7 +398,9 @@ public class EntityRepository : IEntityRepository
                     m.Article.PublishedTime <= toUtc));
 
             if (!string.IsNullOrWhiteSpace(search))
-                baseQuery = baseQuery.Where(e => EF.Functions.ILike(e.Name, $"%{search}%"));
+                baseQuery = baseQuery.Where(e =>
+                    EF.Functions.ILike(e.Name, $"%{search}%") ||
+                    e.Aliases.Any(alias => EF.Functions.ILike(alias.Alias, $"%{search}%")));
 
             var totalCount = baseQuery.Count();
 
