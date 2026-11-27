@@ -321,37 +321,44 @@ public class AnalyticsPostgresIntegrationTests
     }
 
     [Test]
-    public async Task CreateMentions_KeepsTiszaRiverAndPartySeparate()
+    public async Task CreateMentions_KeepsSameSurfaceDifferentTypesApart()
     {
-        var url = $"https://entity-resolution.test/tisza-homograph-{Guid.NewGuid():N}";
+        // Hermetic fixture: one surface form that denotes two entities of different types is the
+        // homograph shape (river Tisza LOC vs Tisza Párt ORG), without depending on catalog state.
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var surface = $"Tesztfolyó{suffix}";
+        var riverId = await SeedEntityAsync(surface, "LOC");
+        var partyId = await SeedEntityAsync($"{surface} Párt", "ORG", surface);
+
+        var url = $"https://entity-resolution.test/homograph-{suffix}";
         await using (var db = CreateDbContext())
         {
-            var newsfeed = new NewsfeedDB(db, NullLogger<NewsfeedDB>.Instance);
             var entities = new NamedEntityCollection
             {
                 Entities =
                 [
-                    new NamedEntity { Name = "Tisza", Type = "LOC" },
-                    new NamedEntity { Name = "Tisza Párt", Type = "ORG" }
+                    new NamedEntity { Name = surface, Type = "LOC" },
+                    new NamedEntity { Name = $"{surface} Párt", Type = "ORG" }
                 ]
             };
 
-            await newsfeed.CreateMentionsAsync(url, CreateArticle("Tisza homograph"), entities);
+            await new NewsfeedDB(db, NullLogger<NewsfeedDB>.Instance)
+                .CreateMentionsAsync(url, CreateArticle("Homograph"), entities);
         }
 
         await using (var db = CreateDbContext())
         {
             var mentions = await db.Mentions
                 .Where(m => m.Article.Url == url)
-                .Select(m => new { m.Entity.Name, m.Entity.Type })
+                .Select(m => new { m.EntityId, m.Entity.Name, m.Entity.Type })
                 .ToListAsync();
 
             Assert.Multiple(() =>
             {
                 Assert.That(mentions, Has.Count.EqualTo(2));
                 Assert.That(mentions.Select(m => m.Type), Is.EquivalentTo(new[] { "LOC", "ORG" }));
-                Assert.That(mentions.Single(m => m.Type == "LOC").Name, Is.EqualTo("Tisza"));
-                Assert.That(mentions.Single(m => m.Type == "ORG").Name, Is.EqualTo("Tisza Párt"));
+                Assert.That(mentions.Single(m => m.Type == "LOC").EntityId, Is.EqualTo(riverId));
+                Assert.That(mentions.Single(m => m.Type == "ORG").EntityId, Is.EqualTo(partyId));
             });
         }
     }
@@ -359,35 +366,39 @@ public class AnalyticsPostgresIntegrationTests
     [Test]
     public async Task CreateMentions_FoldsInflectionsIntoOneMention()
     {
-        var url = $"https://entity-resolution.test/inflections-{Guid.NewGuid():N}";
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var canonical = $"Tesztország{suffix}";
+        var entityId = await SeedEntityAsync(canonical, "LOC", $"{canonical}on", $"{canonical}ra");
+
+        var url = $"https://entity-resolution.test/inflections-{suffix}";
         await using (var db = CreateDbContext())
         {
-            var newsfeed = new NewsfeedDB(db, NullLogger<NewsfeedDB>.Instance);
             var entities = new NamedEntityCollection
             {
                 Entities =
                 [
-                    new NamedEntity { Name = "Magyarországon", Type = "LOC" },
-                    new NamedEntity { Name = "Magyarországra", Type = "LOC" },
-                    new NamedEntity { Name = "Magyarország", Type = "LOC" }
+                    new NamedEntity { Name = $"{canonical}on", Type = "LOC" },
+                    new NamedEntity { Name = $"{canonical}ra", Type = "LOC" },
+                    new NamedEntity { Name = canonical, Type = "LOC" }
                 ]
             };
 
-            await newsfeed.CreateMentionsAsync(url, CreateArticle("Inflections"), entities);
+            await new NewsfeedDB(db, NullLogger<NewsfeedDB>.Instance)
+                .CreateMentionsAsync(url, CreateArticle("Inflections"), entities);
         }
 
         await using (var db = CreateDbContext())
         {
             var mentions = await db.Mentions
                 .Where(m => m.Article.Url == url)
-                .Select(m => new { m.Entity.Name, m.SurfaceForm })
+                .Select(m => new { m.EntityId, m.SurfaceForm })
                 .ToListAsync();
 
             Assert.Multiple(() =>
             {
-                Assert.That(mentions, Has.Count.EqualTo(1));
-                Assert.That(mentions[0].Name, Is.EqualTo("Magyarország"));
-                Assert.That(mentions[0].SurfaceForm, Is.EqualTo("Magyarországon"));
+                Assert.That(mentions, Has.Count.EqualTo(1), "every inflection must collapse into one mention");
+                Assert.That(mentions[0].EntityId, Is.EqualTo(entityId));
+                Assert.That(mentions[0].SurfaceForm, Is.EqualTo($"{canonical}on"), "the first surface form is kept");
             });
         }
     }
@@ -395,10 +406,14 @@ public class AnalyticsPostgresIntegrationTests
     [Test]
     public async Task CreateMentions_IsIdempotent()
     {
-        var url = $"https://entity-resolution.test/idempotent-{Guid.NewGuid():N}";
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var canonical = $"Tesztidempotens{suffix}";
+        var entityId = await SeedEntityAsync(canonical, "LOC", $"{canonical}ban");
+
+        var url = $"https://entity-resolution.test/idempotent-{suffix}";
         var entities = new NamedEntityCollection
         {
-            Entities = [new NamedEntity { Name = "Ukrajnában", Type = "LOC" }]
+            Entities = [new NamedEntity { Name = $"{canonical}ban", Type = "LOC" }]
         };
 
         int first;
@@ -417,13 +432,16 @@ public class AnalyticsPostgresIntegrationTests
 
         await using (var db = CreateDbContext())
         {
-            var mentionCount = await db.Mentions.CountAsync(m => m.Article.Url == url);
+            var mentionEntityIds = await db.Mentions
+                .Where(m => m.Article.Url == url)
+                .Select(m => m.EntityId)
+                .ToListAsync();
 
             Assert.Multiple(() =>
             {
                 Assert.That(first, Is.GreaterThan(0));
                 Assert.That(second, Is.Zero);
-                Assert.That(mentionCount, Is.EqualTo(1));
+                Assert.That(mentionEntityIds, Is.EqualTo(new[] { entityId }));
             });
         }
     }
@@ -471,8 +489,9 @@ public class AnalyticsPostgresIntegrationTests
     {
         await using var db = CreateDbContext();
         await db.Database.MigrateAsync();
-
         await EntityCatalogSeeder.SeedAsync(db, NullLogger.Instance);
+        var catalogAfterFirstRun = await db.Entities.CountAsync(entity => entity.Source == EntitySources.Catalog);
+
         await EntityCatalogSeeder.SeedAsync(db, NullLogger.Instance);
 
         var river = await db.Entities.SingleAsync(entity => entity.Name == "Tisza" && entity.Type == "LOC");
@@ -481,7 +500,7 @@ public class AnalyticsPostgresIntegrationTests
             .Where(alias => alias.EntityId == river.Id || alias.EntityId == party.Id)
             .Select(alias => alias.NormalizedAlias)
             .ToListAsync();
-        var catalogCount = await db.Entities.CountAsync(entity => entity.Source == EntitySources.Catalog);
+        var catalogAfterSecondRun = await db.Entities.CountAsync(entity => entity.Source == EntitySources.Catalog);
 
         Assert.Multiple(() =>
         {
@@ -489,21 +508,31 @@ public class AnalyticsPostgresIntegrationTests
             Assert.That(river.Source, Is.EqualTo(EntitySources.Catalog));
             Assert.That(tiszaAliases, Does.Contain("tisza"));
             Assert.That(
-                catalogCount,
-                Is.EqualTo(EntityCatalog.All.Count),
+                catalogAfterFirstRun,
+                Is.GreaterThanOrEqualTo(EntityCatalog.All.Count),
+                "every catalog entity must be present after the first run");
+            Assert.That(
+                catalogAfterSecondRun,
+                Is.EqualTo(catalogAfterFirstRun),
                 "the seeder must not insert duplicates on a second run");
         });
     }
 
     [Test]
-    public async Task CreateMentions_AmbiguousHomographIsNotGuessed()
+    public async Task CreateMentions_AmbiguousSurfaceIsNotGuessed()
     {
-        var url = $"https://entity-resolution.test/ambiguous-{Guid.NewGuid():N}";
+        // Two known entities share the surface form, and the model's type matches neither.
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var surface = $"Tesztambig{suffix}";
+        await SeedEntityAsync(surface, "LOC");
+        await SeedEntityAsync($"{surface} Párt", "ORG", surface);
+
+        var url = $"https://entity-resolution.test/ambiguous-{suffix}";
         await using (var db = CreateDbContext())
         {
             var entities = new NamedEntityCollection
             {
-                Entities = [new NamedEntity { Name = "Tisza", Type = "MISC" }]
+                Entities = [new NamedEntity { Name = surface, Type = "MISC" }]
             };
 
             await new NewsfeedDB(db, NullLogger<NewsfeedDB>.Instance)
@@ -513,7 +542,8 @@ public class AnalyticsPostgresIntegrationTests
         await using (var db = CreateDbContext())
         {
             var mentions = await db.Mentions.CountAsync(m => m.Article.Url == url);
-            var bogusEntity = await db.Entities.AnyAsync(e => e.NormalizedName == "tisza" && e.Type == "MISC");
+            var bogusEntity = await db.Entities
+                .AnyAsync(e => e.NormalizedName == EntityNormalizer.Normalize(surface) && e.Type == "MISC");
 
             Assert.Multiple(() =>
             {
@@ -526,10 +556,14 @@ public class AnalyticsPostgresIntegrationTests
     [Test]
     public async Task CreateMentions_TwiceOnSameContextStaysConsistent()
     {
-        var url = $"https://entity-resolution.test/repeat-{Guid.NewGuid():N}";
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var canonical = $"Tesztismetelt{suffix}";
+        await SeedEntityAsync(canonical, "LOC", $"{canonical}ra");
+
+        var url = $"https://entity-resolution.test/repeat-{suffix}";
         var entities = new NamedEntityCollection
         {
-            Entities = [new NamedEntity { Name = "Magyarországra", Type = "LOC" }]
+            Entities = [new NamedEntity { Name = $"{canonical}ra", Type = "LOC" }]
         };
 
         await using var db = CreateDbContext();
@@ -557,7 +591,20 @@ public class AnalyticsPostgresIntegrationTests
         await using (var db = CreateDbContext())
         {
             await db.Database.MigrateAsync();
+
+            // The web container seeds the catalog too, but its startup is not synchronized with the
+            // fixture (the health wait does not probe /health). Seeding here — it is idempotent —
+            // makes every catalog-dependent assertion independent of that race.
             await EntityCatalogSeeder.SeedAsync(db, NullLogger.Instance);
+
+            // Leftovers of an earlier run against a reused database would collide on the unique key.
+            await db.Database.ExecuteSqlRawAsync("""
+                DELETE FROM mentions WHERE "EntityId" IN
+                    (SELECT "Id" FROM entities WHERE "NormalizedName" = 'magyarországon');
+                DELETE FROM entity_aliases WHERE "EntityId" IN
+                    (SELECT "Id" FROM entities WHERE "NormalizedName" = 'magyarországon');
+                DELETE FROM entities WHERE "NormalizedName" = 'magyarországon';
+                """);
 
             var bothArticle = new PostgresArticle
             {
@@ -614,6 +661,40 @@ public class AnalyticsPostgresIntegrationTests
         }
     }
 
+    /// <summary>
+    /// Creates an observed entity with its own aliases so a test does not depend on the curated
+    /// catalog or on any other test's leftovers.
+    /// </summary>
+    private async Task<Guid> SeedEntityAsync(string canonicalName, string type, params string[] aliases)
+    {
+        await using var db = CreateDbContext();
+        var entity = new PostgresEntity
+        {
+            Id = Guid.NewGuid(),
+            Name = canonicalName,
+            NormalizedName = EntityNormalizer.Normalize(canonicalName),
+            Type = type,
+            Source = EntitySources.Observed
+        };
+        db.Entities.Add(entity);
+
+        foreach (var alias in aliases.Append(canonicalName))
+        {
+            db.EntityAliases.Add(new PostgresEntityAlias
+            {
+                Id = Guid.NewGuid(),
+                EntityId = entity.Id,
+                Alias = alias,
+                NormalizedAlias = EntityNormalizer.Normalize(alias),
+                Type = type,
+                Priority = 0
+            });
+        }
+
+        await db.SaveChangesAsync();
+        return entity.Id;
+    }
+
     private static ContentParserResult CreateArticle(string title) => new()
     {
         SourceSite = new SourceId("Integration"),
@@ -665,6 +746,8 @@ public class AnalyticsPostgresIntegrationTests
             .Options;
         await using var db = new AppDbContext(options);
         await db.Database.MigrateAsync(cancellationToken);
+        await EntityCatalogSeeder.SeedAsync(db, NullLogger.Instance, cancellationToken);
+        await EntityCatalogSeeder.SeedAsync(db, NullLogger.Instance, cancellationToken);
 
         var firstArticle = new PostgresArticle
         {
