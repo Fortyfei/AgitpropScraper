@@ -71,6 +71,7 @@ public static class EntityCatalogSeeder
         db.ChangeTracker.Clear();
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
+        var entitiesBefore = await CountCatalogEntitiesAsync(db, cancellationToken);
         var aliasesBefore = await CountCatalogAliasesAsync(db, cancellationToken);
 
         foreach (var entry in catalog)
@@ -160,11 +161,15 @@ public static class EntityCatalogSeeder
                 """, cancellationToken);
         }
 
+        var entitiesAfter = await CountCatalogEntitiesAsync(db, cancellationToken);
         var aliasesAfter = await CountCatalogAliasesAsync(db, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
-        return (catalogByKey.Count, aliasesAfter - aliasesBefore);
+        return (entitiesAfter - entitiesBefore, aliasesAfter - aliasesBefore);
     }
+
+    private static Task<int> CountCatalogEntitiesAsync(AppDbContext db, CancellationToken cancellationToken) =>
+        db.Entities.CountAsync(entity => entity.Source == EntitySources.Catalog, cancellationToken);
 
     private static Task<int> CountCatalogAliasesAsync(AppDbContext db, CancellationToken cancellationToken) =>
         db.EntityAliases.CountAsync(
