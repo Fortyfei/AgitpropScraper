@@ -18,7 +18,8 @@ public class NamedEntity : IEquatable<NamedEntity>
         if (other is null) return false;
         if (ReferenceEquals(this, other)) return true;
 
-        return string.Equals(Name, other.Name, StringComparison.OrdinalIgnoreCase);
+        return string.Equals(Name, other.Name, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(Type, other.Type, StringComparison.OrdinalIgnoreCase);
     }
 
     public override bool Equals(object? obj) => Equals(obj as NamedEntity);

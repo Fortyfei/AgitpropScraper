@@ -112,7 +112,8 @@ sequenceDiagram
     NER->>ONNX: tokenize and infer (overlapping windows)
     ONNX-->>NER: BIO label logits
     NER-->>SINK: NamedEntityCollection (surface forms)
-    SINK->>DB: Persist entities and mentions
+    SINK->>DB: Resolve against entities + entity_aliases
+    SINK->>DB: Persist canonical mentions (surface form kept)
 ```
 
 ## 6. Blazor Dashboard → Repository Pipeline

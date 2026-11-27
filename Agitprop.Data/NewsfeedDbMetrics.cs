@@ -30,6 +30,10 @@ public static class NewsfeedDbMetrics
         "newsfeed.db.failures",
         description: "Database operations that failed, grouped by operation");
 
+    private static readonly Counter<long> EntityResolutions = Meter.CreateCounter<long>(
+        "newsfeed.entities.resolved",
+        description: "Entity surface forms resolved by the write path, grouped by outcome (alias, type_conflict, ambiguous_alias, rejected)");
+
     public static void RecordArticlePersisted(string outcome) =>
         ArticlesPersisted.Add(1, new KeyValuePair<string, object?>("outcome", outcome));
 
@@ -51,4 +55,12 @@ public static class NewsfeedDbMetrics
 
     public static void RecordDatabaseFailure(string operation) =>
         DatabaseFailures.Add(1, new KeyValuePair<string, object?>("operation", operation));
+
+    public static void RecordEntityResolutions(string outcome, int count)
+    {
+        if (count > 0)
+        {
+            EntityResolutions.Add(count, new KeyValuePair<string, object?>("outcome", outcome));
+        }
+    }
 }

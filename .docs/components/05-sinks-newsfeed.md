@@ -98,15 +98,38 @@ All extend the abstract `BaseArticleContentParser : IContentParser`.
 
 | File | Purpose |
 |------|---------|
-| `AppDbContext.cs` | EF Core `DbContext` with `DbSet<PostgresArticle>`, `DbSet<PostgresEntity>`, `DbSet<PostgresMention>` |
+| `AppDbContext.cs` | EF Core `DbContext` with `DbSet<PostgresArticle>`, `DbSet<PostgresEntity>`, `DbSet<PostgresEntityAlias>`, `DbSet<PostgresMention>` |
 | `NewsfeedDB.cs` | Implements `INewsfeedDB` — `CreateMentionsAsync`, `IsUrlAlreadyExists` |
-| `EntityRepository.cs` | Implements `IEntityRepository` — entity browse/mentions/pagination |
-| `TrendingRepository.cs` | Implements `ITrendingRepository` — trending entities |
+| `EntityNormalizer.cs` | Comparison key for surface forms (case, whitespace, edge punctuation; accents preserved) |
+| `EntityCatalog.cs` | Curated canonical entities with fixed types and inflected/press aliases; validates on first use |
+| `EntityCatalogSeeder.cs` | Idempotent startup seed of the catalog; folds an observed entity whose whole name is a catalog alias |
+| `EntityResolver.cs` | Pure resolution: exact name → typed alias → single cross-type candidate → new entity; rejects surface noise |
+| `EntityRepository.cs` | Implements `IEntityRepository` — entity browse/mentions/pagination; search covers names and aliases |
+| `TrendingRepository.cs` | Implements `ITrendingRepository` — trending entities counted inside the requested window |
 | `Mappers.cs` | Maps DB models ↔ domain models |
 
+Entity identity is the entity `Id`; `Name` is only the display form. Uniqueness is
+`(NormalizedName, Type)`, and `entity_aliases` stores `(NormalizedAlias, Type)`
+pairs. The type is part of the key on purpose: the river `Tisza` (`LOC`) and the
+party `Tisza Párt` (`ORG`) resolve to different rows, while both are matched by
+the same `Tisza` surface form through their typed aliases. A type mismatch with a
+single candidate (the model occasionally swaps `LOC`/`ORG`) still resolves and is
+counted as `newsfeed.entities.resolved{outcome=type_conflict}`. Mentions keep the
+raw `SurfaceForm`, and two surface forms resolving to one entity inside one
+article produce a single mention.
+
 `NewsfeedDB` treats a concurrent duplicate insert on the `IX_articles_Url`
-constraint as an already-persisted article. Other database failures continue to
+constraint (or on the mention primary key) as an already-persisted article.
+Entity and alias creation uses `INSERT ... ON CONFLICT`, so parallel workers do
+not race on the unique keys. Other database failures continue to
 propagate for retry/error handling.
+
+The context is registered through Aspire with `EnableRetryOnFailure`, so it runs
+a retrying execution strategy. That strategy rejects user-initiated transactions:
+every unit of work that opens a transaction (`NewsfeedDB.CreateMentionsAsync`, the
+`EntityCatalogSeeder` seed) must create it inside
+`Database.CreateExecutionStrategy().ExecuteAsync(...)`, otherwise EF throws
+"does not support user-initiated transactions" at the first query.
 
 ### Other Key Files
 

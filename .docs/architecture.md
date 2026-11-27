@@ -101,8 +101,11 @@ The request flow follows these steps (see pipelines.md for sequence diagrams):
 5. The sink calls the in-process `NamedEntityRecognizer` in
    `Agitprop.Scraper.NLPService` to extract Hungarian entities from article text.
    There is no NLP HTTP service. The model is downloaded and checksum-verified
-   on first use, or loaded from a pre-provisioned directory. Results are stored
-   in PostgreSQL.
+   on first use, or loaded from a pre-provisioned directory. The write path then
+   resolves every surface form through `EntityResolver` against the
+   `entities`/`entity_aliases` tables, so inflected forms share one canonical
+   entity while same-spelling homographs with different types stay separate.
+   Results are stored in PostgreSQL.
 
 6. **Web app** (`Agitprop.Web`) is a Blazor Server host that answers the dashboard
    queries straight from the repositories through `AnalyticsService` (cached, 15‑min for

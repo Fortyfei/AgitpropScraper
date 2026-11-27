@@ -279,7 +279,27 @@ Published stacks apply the EF Core migrations on boot: the web container runs wi
 `ApplyMigrationsAtStartup=true`, and migrating an up-to-date database is a no-op,
 so there is no separate migration step to remember. The workers create the `pgmq`
 extension and the `newsfeed_job` / `newsfeed_job_error` queues on their first
-start.
+start. The same boot seeds the curated entity catalog (`EntityCatalogSeeder`, also
+run by the consumer), so canonical names, types and aliases exist before the first
+article is processed.
+
+Entity identity lives in `entities` (`Source` is `catalog` or `observed`) and
+`entity_aliases`. The catalog seeder folds an observed entity into the catalog
+entity when the surface form denotes exactly one catalog entity — including when
+the NER label drifted to another type — and leaves homographs alone. It locks the
+shadow row (`FOR UPDATE`) and moves the mentions with a single `DELETE …
+RETURNING` + `INSERT … ON CONFLICT` statement, so a consumer writing at the same
+time cannot lose a mention or break the entity delete.
+
+To rebuild entity data without touching the curated catalog:
+
+```sql
+TRUNCATE articles CASCADE;           -- mentions are removed with their articles
+DELETE FROM entities WHERE "Source" = 'observed';
+```
+
+Then let the scraper re-fill the tables. Catalog entities and their aliases stay
+in place, and the write path re-links the new surface forms against them.
 
 The generated stack has **no published ports at all**: the database is reachable
 only inside the compose network. Migrations are the web app's job, and the

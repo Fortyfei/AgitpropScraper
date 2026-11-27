@@ -233,7 +233,7 @@ public sealed class NamedEntityRecognizer : INamedEntityRecognizer, IDisposable
         IReadOnlyList<int> predictions)
     {
         var entities = new List<NamedEntity>();
-        var seen = new HashSet<(string Name, string Type)>();
+        var seen = new HashSet<NamedEntity>();
         string? currentType = null;
         var entityStart = 0;
         var entityEnd = 0;
@@ -246,9 +246,10 @@ public sealed class NamedEntityRecognizer : INamedEntityRecognizer, IDisposable
             }
 
             var name = corpus[entityStart..entityEnd];
-            if (seen.Add((name, currentType)))
+            var entity = new NamedEntity { Name = name, Type = currentType };
+            if (seen.Add(entity))
             {
-                entities.Add(new NamedEntity { Name = name, Type = currentType });
+                entities.Add(entity);
             }
 
             currentType = null;
